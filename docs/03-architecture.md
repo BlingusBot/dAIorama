@@ -37,7 +37,9 @@ flows in 10.
 - **Parent death guarantee.** The manager forks its direct children (compositor,
   view processes) and sets a non-ignorable parent-death signal (`SIGKILL`)
   immediately after fork, before exec, with the child re-checking `getppid()`
-  after setting it (the prctl-after-fork window). This kernel-backed guarantee
+  after setting it (the prctl-after-fork window; implementation note: the
+  signal binds to the forking *thread*, so children are forked from the
+  process whose death must trigger them). This kernel-backed guarantee
   applies to **direct children only**: everything the compositor execs
   (browsers and their process trees) is a grandchild and is covered instead by
   the per-session cgroup kill path (06). Crash and close paths run `cgroup.kill`
@@ -46,6 +48,13 @@ flows in 10.
 - **Empty after restart.** Because of the above, the session registry always
   starts empty after the manager restarts. Nothing is reconciled; nothing could
   be. This is a consequence of the guarantee, stated so nobody re-derives it.
+- **Startup sweep (the one thing that is cleaned).** Session cgroups live under
+  an instance-owned subtree. On manager start, before binding, the manager
+  sweeps that subtree: session cgroups left by a previous manager run are
+  `cgroup.kill`ed. The registry cannot be reconciled — sessions died with their
+  manager — but cgroups and orphaned process trees can be, and are; that is the
+  only reconciliation the design promises. When the subtree is absent (e.g.
+  `limits.mode = off`), the sweep is a no-op.
 - **Lazy-start atomicity.** Startup of the manager takes an atomic lock (flock,
   kernel-released on crash) before anything binds or starts anything: exactly
   one manager per runtime path; losers wait briefly (bounded) and connect,
@@ -78,11 +87,12 @@ Resolution and scale are creation parameters too (defaults in 04), because
 screen geometry is its own fingerprint; changing them mid-session is out of
 scope (01).
 
-- **`headless`** (default): no physical display. Implementation note, not a
-  decision to relitigate: try Hyprland's dedicated virtual-output feature
-  first; if flaky in practice, the render-only DRM path
-  (`AQ_NO_KMS_REQUIREMENT=1`) is the documented fallback under the same CLI
-  name. Resolve during building (spike, 09).
+- **`headless`** (default): no physical display. Container prerequisite:
+  render-only DRM init — `AQ_NO_KMS_REQUIREMENT=1` (makes render nodes
+  selectable; `AQ_DRM_DEVICES` pins the node where several exist). The
+  dedicated virtual output (`hyprctl output create headless`) is the
+  output-creation mechanism layered on top for resolution and scale. The
+  spike verifies the combination plus the wayvnc capture/resize path (09).
 - **`nested`**: runs as an ordinary client window inside an already-running
   outer Wayland compositor (detected via `WAYLAND_DISPLAY`). Lets a human watch
   the bot's desktop as a window, no VNC involved.
@@ -98,8 +108,9 @@ scope (01).
 
 ## GPU access
 
-GPU access is a hard requirement (the compositor has no software-only fallback
-path) and must work rootless. The load-bearing distinction: a GPU exposes
+GPU access is a hard requirement (the compositor has no **supported**
+software-only fallback path; the llvmpipe CI lane is the deliberate exception,
+09) and must work rootless. The load-bearing distinction: a GPU exposes
 `/dev/dri/card*` (display/KMS node; real use needs DRM master, historically
 root/logind) and `/dev/dri/renderD1xx` (render node; unprivileged by design,
 governed by ordinary group permissions). dAIorama needs only the render node for

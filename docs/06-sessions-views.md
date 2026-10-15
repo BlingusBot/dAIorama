@@ -3,19 +3,37 @@
 ## Creation
 
 Sessions are created explicitly (`daiorama new` / MCP `create_session`) and
-closed explicitly. IDs are stable and opaque; labels are mutable and never
-identifiers (02). Creation parameters: backend, resolution, scale, view,
-label — defaults pinned in 04. There is no default session, ever, and no
-implicit creation from an invalid/missing ID (01, principle 3).
+closed explicitly. IDs are stable, globally unique (UUIDv4), and never reused
+across restarts; labels are mutable and never identifiers (02). Session
+records and create results carry the manager's `instance_id`, so a cached ID
+from a previous manager run reads `session_not_found` (hint: previous manager
+run) at worst — never a different desktop. Creation parameters: backend,
+resolution, scale, view, label — defaults pinned in 04. There is no default
+session, ever, and no implicit creation from an invalid/missing ID (01,
+principle 3). Each session gets a generated compositor config (resolution/
+scale/env) under the session runtime dir, written before exec; runtime-only
+changes go through the control surface's dispatch (09).
 
 **Renderer policy at creation (D6, decided here):** if the active renderer is
 detected as software (`llvmpipe` or equivalent), creation **refuses**:
-`renderer_refused` with the string in 04. If the renderer cannot be verified at
-creation time, creation proceeds with an explicit warning and the session is
-marked `renderer: unverified`; it is re-verified at first browser launch, and a
-software result then marks the session `renderer: software` and raises the
-unmissable warning — quiet degradation into a fingerprinted session is the one
-failure that must never happen (03).
+`renderer_refused` with the string in 04. `renderer.allow_software` (manager
+config, default off, no CLI flag, never reachable at runtime): when on,
+creation proceeds on a detected software renderer and the session is marked
+`renderer: software` in its records — the override exists for protocol-test
+lanes only.
+
+If the renderer cannot be verified at creation time, creation proceeds with an
+explicit warning and the session is marked `renderer: unverified`. The
+compositor-side check is primary; the browser-side re-check has an executor:
+browser launches go through the session launcher (shipped in the image at a
+fixed path; the documented launch route), which captures the browser's own
+rendered-GL renderer string from its logging channel into a manager-readable
+file in the session runtime dir; the manager reads it, and a software result
+marks the session `renderer: software` and raises the unmissable warning.
+Where the browser bypasses the launcher (a bare-host browser that was never
+routed through it), the session stays `renderer: unverified` — it is never
+silently marked verified. Quiet degradation into a fingerprinted session is
+the one failure that must never happen (03).
 
 **Host exclusivity (B6):** `host` backend is device-global exclusive. Creation
 takes an flock on the DRM card node and is serialized per instance; races
@@ -44,8 +62,9 @@ cgroup, mark `dead`, no auto-restart (masking crash loops is prohibited — a
 fresh explicit `new` creates a clean session, and that is the recovery path).
 The dead state is precisely where zombies would accumulate, so:
 
-- **Who closes dead sessions:** the reaper closes them on its next pass
-  (`reaper.sweep_dead = on` by default when the reaper is enabled); an
+- **Who closes dead sessions:** the dead-session sweep — `reaper.sweep_dead =
+  on`, its own default, independent of `reaper.idle` (sweeping a dead entry
+  changes nothing operators rely on) — closes them on its next pass; an
   operator or agent may close one immediately. Dead sessions never wait on an
   idle timer — death is detected, not waited for.
 - **Quota accounting:** a dead session holds no live resources and does **not**
@@ -53,6 +72,11 @@ The dead state is precisely where zombies would accumulate, so:
   `dead` (alive/dead shown separately). The registry slot is freed when
   closed, which the sweep makes prompt. Rationale and the rejected alternative
   (dead counts until closed): 11.
+- **Tombstones:** closed/reaped IDs are remembered for 24 h (bounded; cleared
+  on manager restart): calls inside the window get the distinct code
+  (`session_closed` / `session_reaped`), outside it `session_not_found`. A
+  reap marks the entry dead with cause `reaped` (calls while the entry lives
+  return `session_reaped`); the sweep closes it.
 
 **Crashes:** compositor dies mid-session → same treatment as a failed health
 check: mark dead, never auto-restart (§ crash policy). A view process dying is
@@ -64,9 +88,11 @@ A view is one wayvnc process plus the manager-owned front (07) serving its
 noVNC page. Zero or one per session.
 
 **Registry.** Views are first-class registry entries:
-`{ state: starting | running | down, address, port, generation }`. The manager
-owns view state the same way it owns session state — no view state lives
-outside the registry.
+`{ state: starting | running | down, address, front_port, vnc_port,
+generation }` — `front_port` allocates from `view.port_base`; wayvnc gets an
+ephemeral loopback port (manager-known; not part of the address contract).
+The manager owns view state the same way it owns session state — no view
+state lives outside the registry.
 
 - **Port allocation:** at **view start** (not session creation — lean
   default), from `view.port_base` (6080, 04) upward, first free port;
@@ -105,8 +131,9 @@ Off by default (`reaper.idle = off`). When enabled with a duration:
 ## History (B8)
 
 Append-only log of sessions and control calls. Records carry **scope**, origin
-(`shell` | `mcp`), timestamps, and cause where relevant. Reads obey the same
-scoping rule as sessions (own-scope by default). The dashboard is a **named
+(`shell` | `mcp`), timestamps, and cause where relevant; control-call
+arguments are not recorded. Reads obey the same scoping rule as sessions
+(own-scope by default; per-scope `sessions.visibility`, 08). The dashboard is a **named
 scope** with an explicit, documented broad-read grant — configured deliberately,
 never default. Storage mechanics (buffered writes, rotation, retention,
 defaults) live in 08; wear rationale in 11.
@@ -126,7 +153,16 @@ correct ownership, and sometimes an SELinux boolean; on bare host, creating
 limits in the manager's own populated cgroup needs a delegated scope
 (`systemd-run --user ... -p Delegate=yes`, documented path).
 
-**The manager detects effective delegation at startup.** If unavailable: fail
-loud with the exact next step by default; `limits.mode = off` is the explicit,
-recorded downgrade (no silent loss of the promised containment). Precondition
-verification is part of the spike's exit criteria (09).
+**The manager detects effective delegation at startup.** The check runs at
+manager startup, after the runtime lock, before the manager binds anything;
+failure fails the start with `limits_unavailable` (string in 04) — every
+lazy-start racing the winner surfaces the same error; no retry loop (the
+failure is deterministic). `daiorama doctor` performs the same check and
+prints the exact wiring command for the container shape. `limits.mode = off`
+is the explicit, recorded downgrade — and it is honest about its cost:
+without session cgroups there are no per-session limits and no crash-time
+`cgroup.kill`; cleanup reduces to the parent-death signal (direct children),
+so grandchildren may outlive a manager crash. The startup sweep is a
+containment-on feature (03): it operates on the instance's session-cgroup
+subtree, which exists only while cgroups are in use. Precondition verification
+is part of the spike's exit criteria (09).

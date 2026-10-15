@@ -16,8 +16,14 @@ agent's own container), and this is its named delivery (C2).
 
 ## Release manifest (C2)
 
-- **Signed per-release manifest**: artifacts × target triples × sha256.
-  Compose snippets and install commands pin by **digest**.
+- **Signed per-release manifest**: artifacts × target triples × sha256,
+  signed with **minisign** and verified against the embedded release key
+  before digests are trusted. Compose snippets and install commands pin by
+  **digest**.
+- **Install-command table (maintained)**: distro/release → exact command →
+  version, with explicit "not packaged / out of range" rows (the Fedora
+  ≥ f43 Hyprland case renders "not packaged for this distribution; see the
+  release notes for a COPR/upstream build" — 04); re-checked each release.
 - **One multiplatform core binary** containing CLI + manager + bridge (bridge
   is a subcommand, also standalone-invokable). Versioned as core semver. The
   protocol version is its own semver; the compat table ships with release notes.
@@ -42,9 +48,9 @@ agent's own container), and this is its named delivery (C2).
   The module belongs on the persisted `/data` mount (08); the alternative —
   an image variant that bundles it — is documented alongside. Compose snippets
   cover both.
-- `daiorama dashboard serve` refuses with a clear "module not installed,
-  run dashboard install" when absent. The dashboard is never something that
-  springs into existence as a side effect of `--view` or anything else.
+- `daiorama dashboard serve` refuses with the pinned 04 string when absent.
+  The dashboard is never something that springs into existence as a side
+  effect of `--view` or anything else.
 
 ## Container image (§9)
 
@@ -52,8 +58,15 @@ agent's own container), and this is its named delivery (C2).
   snippets, one per legitimate shape: bare bridge → remote manager; full local
   stack; manager-only exposing itself to a thin remote bridge; harness + desktop
   sharing one image. Snippets are the documentation.
-- Common-case compose stays genuinely simple: one GPU line, MCP port, VNC port,
-  optional volume.
+- **Containment wiring ships in the snippets:** every compose snippet carries
+  the working cgroupfs delegation wiring (validated in the spike) so the
+  flagship shape passes the C6 check out of the box on hosts that support
+  delegation; hosts that cannot delegate use the recorded `limits.mode = off`
+  downgrade (06), stated in the snippet comments.
+- Common-case compose stays genuinely simple: one GPU line, the MCP port, the
+  **view range `6080-6099`** (publish only when views serve remote consumers,
+  with `view.advertise_base` set — 05/07), optional volume; per-instance
+  `view.port_base` on multi-instance hosts (08).
 - **Persistence scoped narrowly:** browser profile, cookies, logins survive;
   session state is disposable by design and gets no volume.
 - **Bridge binding supports both shapes equally:** published port (flagship —
@@ -61,14 +74,16 @@ agent's own container), and this is its named delivery (C2).
   (harness installed in the same image). No binding assumption that serves one.
 - **Shared/central shape:** a single central instance many agents point at via
   `--remote` — zero special handling, same manager, same registry.
-- **GPU recipes per family** (C4/C5), listed with host prerequisites:
-  AMD/Intel — render-node passthrough recipe (`--device /dev/dri/renderD128`,
-  `--group-add keep-groups`, SELinux boolean where enforcing) with the honest
-  caveat that group-mapping rough edges are currently active in Podman and
-  `ls -l /dev/dri/renderD128` on the target is the source of truth; NVIDIA —
-  CDI (`--device nvidia.com/gpu=all`), host requires Container Toolkit ≥ 1.18
-  (auto-refreshing CDI spec). Exact recipes resolve in the spike; the compose
-  snippets carry the validated versions.
+- **GPU recipes** (C4/C5), restated vendor-agnostically, with host
+  prerequisites: **render node — any `/dev/dri/renderD*` (AMD, Intel,
+  NVIDIA-on-nouveau, …)** — `--device /dev/dri/renderD128`, `--group-add
+  keep-groups`, SELinux boolean where enforcing; group-mapping rough edges are
+  currently active in Podman and `ls -l` on the target is the source of truth.
+  **CDI** (`--device nvidia.com/gpu=all`; host requires Container Toolkit
+  ≥ 1.18) is the NVIDIA-**proprietary** alternative only. `doctor`'s detection
+  matrix carries the nouveau row (nouveau ⇒ render-node recipe; CDI not
+  applicable). Exact recipes resolve in the spike; compose snippets carry the
+  validated versions.
 - Crash handling: no auto-restart of the compositor; dead session + explicit
   fresh `new` (06).
 
@@ -90,7 +105,9 @@ where it lives is in the table above.
 
 **Version-check pattern (§8):** startup checks Hyprland's IPC surface against
 a known-compatible range and fails with a specific, named error — a confusing
-downstream IPC failure becomes an immediate legible one. In-container startup
+downstream IPC failure becomes an immediate legible one. The gate covers the
+supported **config dialect** as well as the IPC surface (a generated config is
+a launch-time failure surface the IPC check alone would not catch). In-container startup
 additionally verifies the actual renderer and fails loud (03); it does not
 attempt to diagnose GPU passthrough from inside the container it can't see
 (that is `doctor`'s job, 10).
@@ -116,3 +133,11 @@ Podman → render-node access → headless Hyprland → virtual pointer/keyboard
 screen capture → wayvnc → noVNC → a real, non-llvmpipe WebGL renderer string
 in an actual browser. If the chain doesn't hold, the fallback (niri, or nested
 compositor) must be real and tested — not aspirational.
+
+The spike also proves, per 06/07: the `renderer.allow_software` override
+end-to-end and the launcher capture mechanism (browser GL string without any
+automation protocol); the cgroup delegation wiring in-container; the startup
+sweep against a killed manager's subtree; and the view credential + media
+handoff over a non-loopback bind. If the chosen build cannot run on llvmpipe
+at all (upstream #3516), the CI lane changes substrate (nested compositor or
+fixtures-only protocol tests) and says so.

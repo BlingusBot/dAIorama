@@ -40,7 +40,11 @@ architecture, not a design goal.
 - **TLS / certificate management / own cryptography.** Delegated to overlay networks (WireGuard-family, e.g. Tailscale) and mature reverse proxies.
 - **Broad package-manager coverage.** GitHub Releases, a Homebrew tap (client-only, see 09), crates.io. Community packaging may happen organically; don't chase it.
 - **Full IPC surface exposure at launch.** The internal capability registry grows toward comprehensive over time; the shipped default tool set is the essential set (05).
-- **Dashboard relay/tunneling for remote VNC.** Provisioned architecturally (the viewer is a noVNC widget fed by websocket data, so a relay can be swapped in later), deliberately not built now.
+- **Dashboard relay/tunneling for remote VNC.** Provisioned
+  architecturally (the viewer is a noVNC widget fed by websocket data, so a
+  relay can be swapped in later), deliberately not built now — v1 remote
+  viewing on shared shapes is explicit exposure only (07), and media
+  capability fetches are request-forwarding, not this relay.
 - **File transfer in and out of sessions.** Persisting a browser profile is a persistence problem and is in scope (09); moving files in/out (downloads, uploads) is a transfer problem and is deferred, named here so it isn't half-built.
 - **Audio virtualization, dynamic mid-session display changes.** v1 cuts, named. If audio is built later it follows the standing-stream shape the VNC feed already uses (05), not an MCP tool call.
 - **Live, zero-downtime manager upgrades.** Upgrading a shared manager briefly drops its sessions; documented tradeoff (10), no hot-swap infrastructure.
