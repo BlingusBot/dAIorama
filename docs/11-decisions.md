@@ -301,6 +301,33 @@ quoted in 04.
 
 ---
 
+## Settled context (carried — not to be relitigated)
+
+The P0 audit's "what holds" register, kept here so nothing in it gets silently reopened:
+
+- Manager is the only daemon; no hidden second process.
+- Stateless bridge: a harness restart costs nothing; sessions belong to the manager.
+- View creation, on-demand `get_view`, and `--view` are one forked-child mechanism — no duplicate build.
+- The lazy-start double-start race is closed by an atomic lock at the correct seam.
+- PDEATHSIG + explicitly-empty-registry-after-restart is a kernel-backed ownership story (scope caveat: B4).
+- Deny-by-default manifest + the always-on session-lifecycle exception are internally coherent — and the exception is genuinely necessary for bootstrapping.
+- `--remote` = one meaning, two address shapes (host:port or unix path).
+- Scopes split from the dot-path config with an honest rationale; runtime-dir fix single-sourced.
+- History's buffered-write/rotation reasoning (the write pattern, not the format, is the wear driver).
+- wayvnc-down ≠ session-down; the startup version-check pattern; missing-Hyprland refusal prints the exact per-package-manager install command.
+
+### Foundation — Compositor: Hyprland over niri · settled · home: 03
+
+Chosen for today's needs: documented, stable headless/no-display operation (niri's own documentation describes its headless backend as testing-grade, with an open design question on the virtual-output API); complete virtual-input protocol support (niri's gaps are serious enough that a companion patch project exists); direct prior art for this exact use case.
+*Rationale, recorded honestly:* the comparison was mixed — niri holds real non-aesthetic advantages (Rust memory safety in code sitting between the GPU and every client; a steadier release history). Hyprland wins on the two axes that matter today.
+*Rejected:* niri as primary (kept as the documented fallback if Hyprland's headless path proves unworkable; the nested-compositor workaround is the other fallback). A headless X11 stack was rejected earlier for the weaker rootless input story (XTest's weak access control; ydotool needing raw kernel input access).
+
+### Foundation — History storage writes · settled · home: 06, 08
+
+Buffered writer on a short interval; no fsync per call; rotation + retention bound the file.
+*Rationale:* the SSD-wear driver is the write *pattern*, not the format; losing seconds of buffered entries in a hard crash is acceptable because history is an operational aid, not the source of truth for session state — the registry holds that.
+*Rejected:* per-call fsync; unbounded retention; structured/database logging (solves a problem the design doesn't have).
+
 ## Open items roll-up (tracked, not omitted)
 
 1. **B9 rate-limit mechanism** — settled at P0 (07); numbers verify in the build.
