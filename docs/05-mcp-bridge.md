@@ -191,7 +191,9 @@ refusals always carry their own code.
   the trust decision remains the credential presented after it).
   `{protocol_version, min_supported}` in; `{protocol_version, min_supported,
   instance_id}` out. `version`, `status --json`, and readiness surface
-  `min_supported`.
+  `min_supported`. Edge cases, pinned: omitted `min_supported` is treated as
+  equal to `protocol_version`; inverted or empty ranges are
+  `version_incompatible`.
 - **Comparison rule**: a connection is allowed iff
   `max(client.min_supported, manager.min_supported) <= min(client.protocol_version, manager.protocol_version)`
   — i.e. the supported ranges must overlap. Otherwise: `version_incompatible`,

@@ -87,7 +87,8 @@ enforces quotas and tool manifests against it regardless of transport.
   `Daiorama-Scope`, `Daiorama-Scope-Token`; the bridge relays them unmodified
   and the manager validates on every call — the same presentation path as the
   instance token, for both hops. The manager's TCP RPC surface accepts the
-  same credential headers. **A claimed string is never authentication**; a
+  same credential presentation (same names; carriage per transport). **A
+  claimed string is never authentication**; a
   scope without a secret cannot be used over the network.
 - **local unix socket:** scope claims are cooperative and documented as such.
   The socket is filesystem-gated, and anything with code execution on the same

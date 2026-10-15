@@ -91,7 +91,8 @@ Single master table in 04 (ports, resolution, reaper off, history 8×4 MiB /
   call** — losing seconds of buffered entries in a hard crash is acceptable
   (operational aid, not the source of truth for session state).
 - Rotation: bounded by segments × cap (defaults in 04), oldest dropped;
-  retention window from session end (7 days, 04), then removed; the segment
+  retention window from session end — the transition out of `running`,
+  however caused (7 days, 04), then removed; the segment
   budget is text-only (persisted media has its own cap, above). Unbounded retention was the actual risk; this bounds it.
 - Records carry scope + origin (06). Not tamper-evident and not claimed to be
   (07 posture).
