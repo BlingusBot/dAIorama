@@ -1,0 +1,13 @@
+{
+  "name": "dai-p2-doctor",
+  "image": "localhost/daiorama/dai-l1:dev",
+  "restart_policy": "no",
+  "cap_drop": ["ALL"],
+  "devices": [
+    {"path": "/dev/dri/renderD128", "type": "c", "major": 226, "minor": 128, "fileMode": 438, "permissions": "rwm"}
+  ],
+  "mounts": [
+    {"type": "bind", "source": "/home/USER/services/dAIorama/p1-out", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": ["bash", "-c", "install -d -m 700 /tmp/xdg; XDG_RUNTIME_DIR=/tmp/xdg EGL_PLATFORM=surfaceless python3 /out/p2-doctor-probe.py > /out/p2-doctor-report.json 2>/out/p2-doctor-stderr.txt; echo exit=$? > /out/p2-doctor-exit.txt; cat /out/p2-doctor-exit.txt"]
+}

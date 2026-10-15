@@ -1,0 +1,57 @@
+========== PHASE 1: mutter GPU ==========
+mutter(gpu, env=gpu) alive=yes
+===== HYPR h1-gpu-cntrl (env: none) =====
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=21 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c36,c201")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+ALIVE sig=efb50993780079460b0cbed1363e2166a2de1d9f_1792086156_624632938
+-- instance renderer:
+DEBUG ]: Using: OpenGL ES 3.2 Mesa 26.2.4-1
+DEBUG ]: Renderer: NV117
+ok
+Monitor HEADLESS-D (ID 0):
+hypr socket: wayland-1
+grim OK 1920x1080
+
+===== HYPR h2-gpu-soft (env: LIBGL_ALWAYS_SOFTWARE=1 MESA_LOADER_DRIVER_OVERRIDE=llvmpipe) =====
+ALIVE sig=efb50993780079460b0cbed1363e2166a2de1d9f_1792086162_1400207888
+-- instance renderer:
+DEBUG ]: Using: OpenGL ES 3.2 Mesa 26.2.4-1
+DEBUG ]: Renderer: llvmpipe (LLVM 22.1.8, 256 bits)
+ok
+Monitor HEADLESS-D (ID 1):
+hypr socket: wayland-1
+failed to create buffer
+grim FAILED
+
+===== HYPR h2b-gpu-soft-browser (env: LIBGL_ALWAYS_SOFTWARE=1 MESA_LOADER_DRIVER_OVERRIDE=llvmpipe) =====
+ALIVE sig=efb50993780079460b0cbed1363e2166a2de1d9f_1792086167_663786807
+-- instance renderer:
+DEBUG ]: Using: OpenGL ES 3.2 Mesa 26.2.4-1
+DEBUG ]: Renderer: llvmpipe (LLVM 22.1.8, 256 bits)
+ok
+Monitor HEADLESS-D (ID 1):
+hypr socket: wayland-1
+failed to create buffer
+grim FAILED
+-- browser titles:
+	title: dai-webgl:NO WEBGL CONTEXT - Chromium
+	initialTitle: dai-webgl:NO WEBGL CONTEXT - Chromium
+failed to create buffer
+browser grim FAILED
+/out/p2-renderer-diag2.sh: line 59:   303 Killed                     timeout 40 env ${extra:-} WAYLAND_DISPLAY=$WS chromium --ozone-platform=wayland --no-sandbox --disable-dev-shm-usage --user-data-dir=/tmp/chrome-$label --window-size=1200,700 file:///tmp/webgl-test.html > /tmp/chromium-$label.log 2>&1
+
+========== PHASE 2: mutter software ==========
+mutter(soft, env=LIBGL_ALWAYS_SOFTWARE=1 MESA_LOADER_DRIVER_OVERRIDE=llvmpipe) alive=yes
+===== HYPR h3-soft-soft (env: LIBGL_ALWAYS_SOFTWARE=1 MESA_LOADER_DRIVER_OVERRIDE=llvmpipe) =====
+DEAD; stdout tail:
+wl_registry#2: error 0: invalid version for global zwp_linux_dmabuf_v1 (23): expected at most 3, got 4
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  CBackend::create() failed!
+Hyprland has crashed :( Consult the crash report at /root/.cache/hyprland/hyprlandCrashReport538.txt for more information.
+/bin/sh: 1: lspci: not found
+timeout: the monitored command dumped core
+/out/p2-renderer-diag2.sh: line 55:   536 Aborted                    timeout --kill-after=2 150 env ${extra:-} WAYLAND_DISPLAY=wayland-m Hyprland --i-am-really-stupid > /tmp/$label.log 2>&1
+instance tail:
+
+done
+exit=0

@@ -1,0 +1,13 @@
+{
+  "name": "dai-p2-resize",
+  "image": "localhost/daiorama/dai-l1:dev",
+  "restart_policy": "no",
+  "cap_drop": ["ALL"],
+  "devices": [
+    {"path": "/dev/dri/renderD128", "type": "c", "major": 226, "minor": 128, "fileMode": 438, "permissions": "rwm"}
+  ],
+  "mounts": [
+    {"type": "bind", "source": "/home/USER/services/dAIorama/p1-out", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": ["bash", "-c", "dbus-run-session -- bash /out/p2-resize-scale.sh > /out/p2-resize-scale.txt 2>&1; echo exit=$? >> /out/p2-resize-scale.txt"]
+}
