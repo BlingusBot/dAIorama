@@ -463,7 +463,7 @@ different kind of traffic, in the bridge's existing request path.
 - `08` — `view.advertise_base` added to the `view.*` family (manager-side).
 - `09` — compose snippets that serve remote viewers publish `6080-6099` and
   show the two config values.
-- Sign-off shortlist: this is the flip candidate — if Ygypt wants zero-config
+- Sign-off shortlist: this is the flip candidate — if the operator wants zero-config
   remote viewing in v1, the bridge proxy is the alternative and costs a WS
   relay build.
 
@@ -583,7 +583,7 @@ P1 exit (it is a spike exit criterion, list it in the same row).
 **P1 routing** — L1 on your box ✓ (proven: render node, GLES NV117,
 cap-drop=ALL). L2 on my side needs host-level podman: my container has no
 nested runtime, ro cgroupfs, renderD128 denied — so the NVIDIA/CDI leg runs at
-Ygypt's host level (or defers behind his call); I'll package the probe from
+the operator's host level (or defers behind that decision); I'll package the probe from
 your evidence pattern so it's one command wherever it runs. L3 fits my box as
 the CI hub if the llvmpipe substrate exists at all (userspace installs only —
 no root here); the substrate decision is in the spike list anyway.
