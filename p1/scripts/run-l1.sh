@@ -27,6 +27,9 @@ echo "sig=$SIG"
 hyprctl output create headless HEADLESS-T1 2>&1 | head -2
 sleep 1
 hyprctl monitors 2>&1 | sed -n '1,10p'
+echo "--- compositor renderer (instance log) ---"
+grep -E 'openRenderNode got drm device|Creating the Hypr OpenGL Renderer|Using: OpenGL|Vendor:|Renderer:' /tmp/xdg/hypr/$SIG/hyprland.log 2>/dev/null | head -10
+cp /tmp/xdg/hypr/$SIG/hyprland.log /out/hyprland-instance.log 2>/dev/null || true
 
 echo "===== C. input leg: foot window + wtype text ====="
 WS=$(ls /tmp/xdg | grep '^wayland-' | grep -v "^$WAYSOCK$" | head -1); echo "hyprland socket: $WS"

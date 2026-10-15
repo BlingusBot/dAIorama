@@ -11,12 +11,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       fontconfig fonts-dejavu-core \
       python3 curl procps ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-# Runtime notes (P1 L1):
-#  - headless: AQ_NO_KMS_REQUIREMENT=1 (documented fallback, 03-architecture) or
-#    Hyprland's dedicated virtual-output feature once confirmed on 0.56.x.
+# Runtime notes (P1 L1 — headless path as resolved):
+#  - Nested mode: an invisible minimal parent (mutter --headless; parents must advertise
+#    xdg_wm_base >= 6 -- weston/sway are rejected at bind) runs on this render node with
+#    no KMS and no seat; Hyprland runs nested and creates dedicated virtual outputs on
+#    demand (hyprctl output create headless <name>). Native standalone headless cannot
+#    start with aquamarine 0.15.1 (allocator/seat constraints; AQ_NO_KMS_REQUIREMENT
+#    relaxes only the KMS gate) -- see evidence/probes/ logs.
 #  - render node passed per-run via podman device /dev/dri/renderD128 (see run specs).
-#  - wayvnc + noVNC/websockify compose the remote leg; wtype covers keyboard input,
-#    pointer tooling TBD (wlr virtual-pointer) in the next iteration.
+#  - wayvnc + noVNC/websockify = remote leg; wtype = keyboard injection; wlrctl =
+#    pointer injection (zwlr_virtual_pointer).
 
 # Parent-compositor set for the nested path (aquamarine Wayland backend client-side).
 RUN apt-get update && apt-get install -y --no-install-recommends sway weston && rm -rf /var/lib/apt/lists/*
@@ -24,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends sway weston && 
 RUN apt-get update && (apt-get install -y --no-install-recommends niri || echo "niri not packaged") && rm -rf /var/lib/apt/lists/*
 
 # LD_PRELOAD shim: clamp bind versions aquamarine 0.15.1 requests beyond weston/wlroots
-# parents (xdg_wm_base 6, wl_compositor 6, wl_seat 9). Spike-only; see p1-out/headless8.
+# parents (xdg_wm_base 6, wl_compositor 6, wl_seat 9). Spike-only; see evidence/probes/dbg2.txt.
 COPY xdg-clamp.c /tmp/xdg-clamp.c
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev libwayland-dev \
     && gcc -O2 -shared -fPIC -o /usr/local/lib/xdg-clamp.so /tmp/xdg-clamp.c -ldl \

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build-l1.sh — build localhost/blingus/dai-l1:dev via the host podman REST socket
+# build-image.sh — build localhost/blingus/dai-l1:dev via the host podman REST socket
 # (there is no podman CLI inside the agent container). Logs to p1-out/l1-build.log.
 set -euo pipefail
 ROOT="/home/hermes/services/dAIorama"

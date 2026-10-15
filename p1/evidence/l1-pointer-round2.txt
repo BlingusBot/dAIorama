@@ -1,0 +1,46 @@
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=16 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c8,c1015")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+== active window before ==
+Window 5587e19e82d0 -> foot:
+	mapped: 1
+	hidden: 0
+	visible: 1
+	acceptsInput: 1
+	at: 21,21
+	size: 918,498
+	workspace: 1 (1)
+	floating: 0
+	monitor: 0
+	class: dai-pointer-test
+	title: foot
+	initialClass: dai-pointer-test
+	initialTitle: foot
+== cursorpos before ==
+480, 270
+== move into window + click ==
+move rc=0
+680, 420
+click rc=0
+== active window after click ==
+Window 5587e19e82d0 -> foot:
+	mapped: 1
+	hidden: 0
+	visible: 1
+	acceptsInput: 1
+	at: 21,21
+	size: 918,498
+	workspace: 1 (1)
+	floating: 0
+	monitor: 0
+	class: dai-pointer-test
+	title: foot
+	initialClass: dai-pointer-test
+	initialTitle: foot
+== wlrctl keyboard type ==
+rc=0
+grim A OK
+== wtype control ==
+rc=0
+grim B OK
+done
+exit=0

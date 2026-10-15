@@ -12,10 +12,12 @@ Golden run: `l1-chain-run2.txt` (+ logs + `l1-chain-input.png`, `l1-chain-webgl.
 3. child: `WAYLAND_DISPLAY=wayland-m Hyprland --i-am-really-stupid` — aquamarine Wayland backend connects;
    `hyprctl output create headless HEADLESS-T1` → HEADLESS-T1 1920x1080@60 monitor; GPU rendering (mesa 26.2.4, NV117).
 4. input: `wtype 'dAIorama-input-OK-123'` → typed text visible in a foot window in the captured frame.
+4b. pointer: `wlrctl` move deltas exact (cursorpos 480,270 → 780,470 → 657,539; round 2: 480,270 → 680,420), click rc=0, cursor visibly rendered at target. Quirk: `wlrctl keyboard type` rc=0 but no delivery on Hyprland 0.56.2 (focus correct) — `wtype` stays the keyboard path.
 5. capture: `grim` → PNG (screencopy, 69 globals incl. zwlr_screencopy_manager_v1 v3).
 6. remote: `wayvnc 127.0.0.1 5900` LISTENs; `websockify --web=/usr/share/novnc 6080 127.0.0.1:5900`; `curl /vnc.html` → HTTP 200.
 7. WebGL: chromium (ozone wayland) on the test page → title reports
    `RENDERER: ANGLE (Mesa, NV117, OpenGL ES 3.2)` — real GPU, not llvmpipe.
+8. repeatability: two consecutive clean runs (run3, run4) — `exit=0`, identical leg sequence, compositor renderer lines captured inline.
 
 Protocols present on Hyprland: zwlr_screencopy_manager_v1, zwlr_virtual_pointer_manager_v1 (v2),
 zwp_virtual_keyboard_manager_v1, zwlr_data_control_manager_v1, zwlr_output_manager_v1, wp_cursor_shape_manager_v1.
@@ -50,9 +52,9 @@ zwp_virtual_keyboard_manager_v1, zwlr_data_control_manager_v1, zwlr_output_manag
 
 ## Image
 `localhost/blingus/dai-l1:dev` — debian:sid + hyprland 0.56.2 + wayvnc 0.10.1 + wtype + grim + noVNC/websockify +
-mesa + mutter 50.5 + foot + chromium 155 + gcc/libwayland-dev + xdg-clamp.so. Built by `build-l1.sh`.
+mesa + mutter 50.5 + foot + chromium 155 + gcc/libwayland-dev + xdg-clamp.so. Built by `scripts/build-image.sh`.
 
 ## Next
-- Repo: branch `p1/l1-blingus` (spec repo) with harness + evidence + this note; draft PR.
-- Remaining legs to harden: pointer injection via wlr (wlrctl present — test), full noVNC render in a real browser
-  (websockify 200 checked; interactive check pending), repeatability (re-run twice clean), llvmpipe CI lane (L3, Esther).
+- Repo: `p1/` on branch `p1/l1-blingus` — harness + evidence + this note; PR #5 (Esther merges as the L1 bundle).
+  Pointer round + repeatability double-run folded; renderer evidence added.
+- Open after merge: resize/scale-path verification (spec amendment item), llvmpipe CI lane (L3, Esther).

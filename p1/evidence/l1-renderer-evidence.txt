@@ -1,0 +1,16 @@
+== L1 compositor-side renderer evidence ==
+(source: Hyprland instance log, nested run on mutter --headless, render node /dev/dri/renderD128)
+
+-- DRM attempt in-container (for context): the render-only path fails, the nested path is used --
+28:DEBUG from aquamarine ]: [libseat] [libseat/libseat.c:73] Seat opened with backend 'builtin'
+47:DEBUG from aquamarine ]: drm: Enumerated device /sys/devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1
+49:ERR from aquamarine ]: drm: Skipping device /sys/devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1, not a KMS device
+50:ERR from aquamarine ]: drm: Found no gpus to use, cannot continue
+53:DEBUG from aquamarine ]: Starting the Wayland backend!
+
+-- compositor renderer (Hyprland 0.56.2, aquamarine 0.15.1) --
+371:DEBUG ]: openRenderNode got drm device /dev/dri/renderD128
+374:DEBUG ]: Creating the Hypr OpenGL Renderer!
+375:DEBUG ]: Using: OpenGL ES 3.2 Mesa 26.2.4-1
+376:DEBUG ]: Vendor: Mesa
+377:DEBUG ]: Renderer: NV117
