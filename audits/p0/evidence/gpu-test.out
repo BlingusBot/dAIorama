@@ -1,0 +1,14 @@
+== id ==
+uid=0(root) gid=0(root) groups=0(root)
+== /dev/dri ==
+total 0
+crw-rw-rw-. 1 65534 65534 226, 128 Aug 20 17:55 renderD128
+== open+ioctl ==
+open O_RDWR OK
+DRM version: 1 4 2
+driver name: nouveau
+driver date: 0
+driver desc: nVidia Riva/TNT/GeForce/Quadro/Tesla/Tegra K1+
+GET_UNIQUE failed: [Errno 13] Permission denied
+== done ==
+exit=0

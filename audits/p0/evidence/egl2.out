@@ -1,0 +1,120 @@
+== python surfaceless (eglGetDisplay default) ==
+EGL_PLATFORM env: surfaceless
+eglGetDisplay(EGL_DEFAULT_DISPLAY): 0x670bc70 | err: 0x3000
+eglInitialize: True | version 1 5 | err: 0x3000
+  EGL_VENDOR: b'Mesa Project'
+  EGL_VERSION: b'1.5'
+  EGL_CLIENT_APIS: b'OpenGL OpenGL_ES '
+eglBindAPI(ES): True | err: 0x3000
+eglChooseConfig: True | configs: 1 | err: 0x3000
+pbuffer surface: True | err: 0x3000
+context: True | err: 0x3000
+makeCurrent: True | err: 0x3000
+  GL_VENDOR: Mesa
+  GL_RENDERER: NV117
+  GL_VERSION: OpenGL ES 3.2 Mesa 25.2.8-0ubuntu0.24.04.1
+rc=0
+
+== python gbm repeat (record of the crash path) ==
+gbm_create_device: True
+  proc eglGetPlatformDisplayEXT: 0x7efe4e2297b0
+/out/egl2-run.sh: line 9:     5 Segmentation fault      (core dumped) python3 /out/egl-test.py
+rc=139
+
+== apt: mesa-utils for eglinfo ==
+Setting up mesa-utils-bin:amd64 (9.0.0-2) ...
+Setting up mesa-utils (9.0.0-2) ...
+/usr/bin/eglinfo
+/usr/bin/glxinfo
+/usr/bin/es2_info
+
+== eglinfo surfaceless ==
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+EGL client extensions string:
+    EGL_EXT_client_extensions, EGL_EXT_device_base, 
+    EGL_EXT_device_enumeration, EGL_EXT_device_query, EGL_EXT_explicit_device, 
+    EGL_EXT_platform_base, EGL_EXT_platform_device, EGL_EXT_platform_wayland, 
+    EGL_EXT_platform_x11, EGL_EXT_platform_xcb, 
+    EGL_KHR_client_get_all_proc_addresses, EGL_KHR_debug, 
+    EGL_KHR_platform_gbm, EGL_KHR_platform_wayland, EGL_KHR_platform_x11, 
+    EGL_MESA_platform_gbm, EGL_MESA_platform_surfaceless
+
+GBM platform:
+eglinfo: eglInitialize failed
+
+Wayland platform:
+eglinfo: eglInitialize failed
+
+X11 platform:
+eglinfo: eglInitialize failed
+
+Surfaceless platform:
+EGL API version: 1.5
+EGL vendor string: Mesa Project
+EGL version string: 1.5
+EGL client APIs: OpenGL OpenGL_ES 
+EGL driver name: nouveau
+EGL extensions string:
+    EGL_ANDROID_blob_cache, EGL_EXT_config_select_group, 
+    EGL_EXT_create_context_robustness, EGL_EXT_image_dma_buf_import, 
+    EGL_EXT_image_dma_buf_import_modifiers, EGL_EXT_pixel_format_float, 
+    EGL_EXT_query_reset_notification_strategy, EGL_EXT_surface_compression, 
+    EGL_KHR_cl_event2, EGL_KHR_config_attribs, EGL_KHR_context_flush_control, 
+    EGL_KHR_create_context, EGL_KHR_create_context_no_error, 
+    EGL_KHR_fence_sync, EGL_KHR_get_all_proc_addresses, EGL_KHR_gl_colorspace, 
+    EGL_KHR_gl_renderbuffer_image, EGL_KHR_gl_texture_2D_image, 
+    EGL_KHR_gl_texture_3D_image, EGL_KHR_gl_texture_cubemap_image, 
+    EGL_KHR_image_base, EGL_KHR_no_config_context, EGL_KHR_reusable_sync, 
+    EGL_KHR_surfaceless_context, EGL_KHR_wait_sync, 
+    EGL_MESA_configless_context, EGL_MESA_gl_interop, 
+    EGL_MESA_image_dma_buf_export, EGL_MESA_query_driver, 
+    EGL_MESA_x11_native_visual_id
+OpenGL core profile vendor: Mesa
+OpenGL core profile renderer: NV117
+OpenGL core profile version: 4.3 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.1
+OpenGL core profile shading language version: 4.30
+OpenGL core profile extensions:
+    GL_AMD_conservative_depth, GL_AMD_draw_buffers_blend, 
+    GL_AMD_gpu_shader_int64, GL_AMD_multi_draw_indirect, 
+    GL_AMD_performance_monitor, GL_AMD_query_buffer_object, 
+    GL_AMD_seamless_cubemap_per_texture, GL_AMD_shader_trinary_minmax, 
+    GL_AMD_texture_texture4, GL_ANGLE_texture_compression_dxt3, 
+    GL_ANGLE_texture_compression_dxt5, GL_ARB_ES2_compatibility, 
+    GL_ARB_ES3_1_compatibility, GL_ARB_ES3_2_compatibility, 
+    GL_ARB_ES3_compatibility, GL_ARB_arrays_of_arrays, GL_ARB_base_instance, 
+    GL_ARB_bindless_texture, GL_ARB_blend_func_extended, 
+    GL_ARB_buffer_storage, GL_ARB_clear_buffer_object, GL_ARB_clear_texture, 
+    GL_ARB_clip_control, GL_ARB_color_buffer_float, 
+    GL_ARB_compressed_texture_pixel_storage, GL_ARB_compute_shader, 
+    GL_ARB_compute_variable_group_size, GL_ARB_conditional_render_inverted, 
+    GL_ARB_conservative_depth, GL_ARB_copy_buffer, GL_ARB_copy_image, 
+    GL_ARB_cull_distance, GL_ARB_debug_output, GL_ARB_depth_buffer_float, 
+    GL_ARB_depth_clamp, GL_ARB_derivative_control, GL_ARB_direct_state_access, 
+    GL_ARB_draw_buffers, GL_ARB_draw_buffers_blend, 
+    GL_ARB_draw_elements_base_vertex, GL_ARB_draw_indirect, 
+    GL_ARB_draw_instanced, GL_ARB_enhanced_layouts, 
+    GL_ARB_explicit_attrib_location, GL_ARB_explicit_uniform_location, 
+    GL_ARB_fragment_coord_conventions, GL_ARB_fragment_layer_viewport, 
+    GL_ARB_fragment_shader, GL_ARB_framebuffer_no_attachments, 
+    GL_ARB_framebuffer_object, GL_ARB_framebuffer_sRGB, 
+    GL_ARB_get_program_binary, GL_ARB_get_texture_sub_image, GL_ARB_gl_spirv, 
+    GL_ARB_gpu_shader5, GL_ARB_gpu_shader_fp64, GL_ARB_gpu_shader_int64, 
+    GL_ARB_half_float_pixel, GL_ARB_half_float_vertex, 
+    GL_ARB_indirect_parameters, GL_ARB_instanced_arrays, 
+    GL_ARB_internalformat_query, GL_ARB_internalformat_query2, 
+    GL_ARB_invalidate_subdata, GL_ARB_map_buffer_alignment, 
+    GL_ARB_map_buffer_range, GL_ARB_multi_bind, GL_ARB_multi_draw_indirect, 
+    GL_ARB_occlusion_query2, GL_ARB_parallel_shader_compile, 
+    GL_ARB_pipeline_statistics_query, GL_ARB_pixel_buffer_object, 
+    GL_ARB_point_sprite, GL_ARB_polygon_offset_clamp, 
+== eglinfo done ==
+
+== mesa pkg version ==
+libegl-mesa0:amd64 25.2.8-0ubuntu0.24.04.1
+libgl1-mesa-dri:amd64 25.2.8-0ubuntu0.24.04.1
+mesa-utils 9.0.0-2
+mesa-utils-bin:amd64 9.0.0-2
+== END ==
+== diag: done rc= 0

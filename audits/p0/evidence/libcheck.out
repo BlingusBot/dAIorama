@@ -1,0 +1,61 @@
+== dri dirs ==
+apple_dri.so
+armada-drm_dri.so
+asahi_dri.so
+crocus_dri.so
+d3d12_dri.so
+exynos_dri.so
+gm12u320_dri.so
+hdlcd_dri.so
+hx8357d_dri.so
+i915_dri.so
+ili9163_dri.so
+ili9225_dri.so
+ili9341_dri.so
+ili9486_dri.so
+imx-dcss_dri.so
+imx-drm_dri.so
+imx-lcdif_dri.so
+ingenic-drm_dri.so
+iris_dri.so
+kirin_dri.so
+kms_swrast_dri.so
+komeda_dri.so
+libdril_dri.so
+mali-dp_dri.so
+mcde_dri.so
+mediatek_dri.so
+meson_dri.so
+mi0283qt_dri.so
+mxsfb-drm_dri.so
+nouveau_dri.so
+== tools ==
+glxinfo: missing
+eglinfo: missing
+vulkaninfo: missing
+python3: /usr/bin/python3
+modetest: missing
+drmdevice: missing
+== libs ==
+libEGL.so.1
+libEGL.so.1.1.0
+libEGL_mesa.so.0
+libEGL_mesa.so.0.0.0
+libGL.so.1
+libGL.so.1.7.0
+libGLESv2.so.2
+libGLESv2.so.2.1.0
+libGLX.so.0
+libGLX.so.0.0.0
+libGLX_indirect.so.0
+libGLX_mesa.so.0
+libGLX_mesa.so.0.0.0
+libGLdispatch.so.0
+libGLdispatch.so.0.0.0
+libgbm.so.1
+libgbm.so.1.0.0
+libglib-2.0.so.0
+libglib-2.0.so.0.8000.0
+libvulkan.so.1
+== done ==
+exit=0

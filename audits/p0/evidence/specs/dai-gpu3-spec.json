@@ -1,0 +1,12 @@
+{
+  "name": "dai-gpu3",
+  "image": "localhost/agentuser/camoufox-service:latest",
+  "restart_policy": "no",
+  "devices": [
+    {"path": "/dev/dri/renderD128", "type": "c", "major": 226, "minor": 128, "fileMode": 438, "permissions": "rwm"}
+  ],
+  "mounts": [
+    {"type": "bind", "source": "/home/agentuser/services/dAIorama/probe-out", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": ["bash", "-c", "bash /out/gpu2-test.sh > /out/gpu3-test.out 2>&1; python3 /out/egl-test.py > /out/egl-test.out 2>&1; echo exit=$? >> /out/gpu3-test.out"]
+}

@@ -1,0 +1,17 @@
+== id ==
+uid=0(root) gid=0(root) groups=0(root)
+== /dev/dri ==
+total 0
+crw-rw-rw-. 1 65534 65534 226, 128 Aug 20 17:55 renderD128
+== open+ioctl (baseline) ==
+open O_RDWR OK
+DRM version: 1 4 2 | name: nouveau
+== EGL/GBM GLES context test ==
+gbm_create_device: True
+  proc eglGetPlatformDisplayEXT: 0x7fb705bdb7b0
+/out/gpu2-test.sh: line 22:     6 Segmentation fault      (core dumped) python3 /out/egl-test.py
+== cgroup rw test (embedded-shape precondition) ==
+mkdir: cannot create directory ‘/sys/fs/cgroup/dai’: Read-only file system
+cgroup mkdir FAIL (read-only cgroupfs)
+== done ==
+exit=0
