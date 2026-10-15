@@ -13,7 +13,8 @@
 //!
 //! Deliberate slice scope: tests drive the machinery with **stubbed binaries**; the real
 //! compositors land with the serve wiring inside the container image from `p1/l1/Containerfile`.
-//! Health checks and the containment scope attach in later slices — through this same table.
+//! Slice 3 adds the health pass (liveness + compositor responsiveness); the containment scope
+//! attaches with the serve wiring — through this same table.
 
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -24,7 +25,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::ipc::ErrorEnvelope;
-use crate::manager::{Resolution, SessionSpawner, SessionSpec};
+use crate::manager::{Resolution, SessionSpawner, SessionSpec, SessionState};
 
 /// The parent's wayland socket name inside each session's runtime dir.
 pub const PARENT_SOCKET: &str = "wayland-m";
@@ -61,8 +62,31 @@ struct ManagedSession {
     dir: PathBuf,
     parent: Child,
     child: Child,
-    #[allow(dead_code)] // carried for the health slice (hyprctl needs the signature)
     signature: String,
+}
+
+/// What one health pass saw (06 B3 inputs): both processes' liveness and whether the child
+/// compositor answers a trivial IPC query.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HealthReport {
+    pub parent_alive: bool,
+    pub child_alive: bool,
+    pub compositor_answers: bool,
+}
+
+impl HealthReport {
+    /// The registry state this report implies (06 B3 ladder): anything dead → `Dead`; a live
+    /// tree whose compositor does not answer → `Degraded` (transient; the manager engages the
+    /// kill path); both alive and answering → the healthy resting state, `Running`.
+    pub fn state(&self) -> SessionState {
+        if !self.parent_alive || !self.child_alive {
+            SessionState::Dead
+        } else if !self.compositor_answers {
+            SessionState::Degraded
+        } else {
+            SessionState::Running
+        }
+    }
 }
 
 /// The production spawner: spawns the chain as direct children, keeps the process table, and
@@ -111,6 +135,35 @@ impl LinuxSpawner {
     pub fn child_pids(&self, id: &str) -> Option<(u32, u32)> {
         let sessions = self.sessions.lock().expect("spawner table");
         sessions.get(id).map(|s| (s.parent.id(), s.child.id()))
+    }
+
+    /// One health pass over a session: child-process liveness via a non-blocking wait (a
+    /// died-but-unreaped child counts as dead — and gets reaped here, so no zombies), plus a
+    /// trivial compositor query. Missing session → `None`.
+    pub fn health(&self, id: &str) -> Option<HealthReport> {
+        let mut sessions = self.sessions.lock().expect("spawner table");
+        let session = sessions.get_mut(id)?;
+        let parent_alive = matches!(session.parent.try_wait(), Ok(None));
+        let child_alive = matches!(session.child.try_wait(), Ok(None));
+        let compositor_answers = child_alive && self.compositor_answers(session);
+        Some(HealthReport {
+            parent_alive,
+            child_alive,
+            compositor_answers,
+        })
+    }
+
+    fn compositor_answers(&self, session: &ManagedSession) -> bool {
+        Command::new(&self.config.hyprctl_bin)
+            .arg("version")
+            .env("XDG_RUNTIME_DIR", &session.dir)
+            .env("HYPRLAND_INSTANCE_SIGNATURE", &session.signature)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
     }
 }
 
@@ -422,5 +475,71 @@ mod tests {
         let spawner = LinuxSpawner::new(stub_config(&stubs, &tmp.path().join("run")));
         let error = spawner.kill_tree("nope").unwrap_err();
         assert_eq!(error.code, crate::ipc::ErrorCode::SessionNotFound);
+    }
+
+    /// hyprctl that stands in for a compositor that stopped answering: setup calls succeed,
+    /// the health query fails.
+    const HYPRCTL_FLAP_STUB: &str =
+        "#!/bin/sh\ncase \"$1\" in\n  version) exit 1 ;;\nesac\nexit 0\n";
+
+    fn kill9(pid: u32) {
+        let status = Command::new("sh")
+            .args(["-c", &format!("kill -9 {pid}")])
+            .status()
+            .expect("sh runs");
+        assert!(status.success(), "kill -9 {pid}");
+        // Give the kernel a moment to make the death observable to try_wait.
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    #[test]
+    fn health_walks_running_to_dead_when_the_child_dies() {
+        let tmp = tempfile::tempdir().unwrap();
+        let stubs = tmp.path().join("stubs");
+        fs::create_dir_all(&stubs).unwrap();
+        let runtime = tmp.path().join("run");
+        let spawner = LinuxSpawner::new(stub_config(&stubs, &runtime));
+
+        let id = spawner.spawn(&SessionSpec::default()).expect("spawn");
+        let report = spawner.health(&id).expect("session tracked");
+        assert_eq!(report.state(), SessionState::Running, "{report:?}");
+
+        let (_, child_pid) = spawner.child_pids(&id).unwrap();
+        kill9(child_pid);
+        let report = spawner.health(&id).expect("session tracked");
+        assert!(!report.child_alive, "{report:?}");
+        assert_eq!(report.state(), SessionState::Dead, "{report:?}");
+
+        // Teardown of a dead session still works (idempotent kill + cleanup).
+        spawner
+            .kill_tree(&id)
+            .expect("teardown of a dead session still works");
+    }
+
+    #[test]
+    fn health_reports_degraded_when_the_compositor_goes_silent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let stubs = tmp.path().join("stubs");
+        fs::create_dir_all(&stubs).unwrap();
+        let runtime = tmp.path().join("run");
+        let mut config = stub_config(&stubs, &runtime);
+        config.hyprctl_bin = write_stub(&stubs, "hyprctl-flap", HYPRCTL_FLAP_STUB);
+        let spawner = LinuxSpawner::new(config);
+
+        let id = spawner.spawn(&SessionSpec::default()).expect("spawn");
+        let report = spawner.health(&id).expect("session tracked");
+        assert!(report.parent_alive && report.child_alive, "{report:?}");
+        assert!(!report.compositor_answers, "{report:?}");
+        assert_eq!(report.state(), SessionState::Degraded, "{report:?}");
+        spawner.kill_tree(&id).expect("teardown");
+    }
+
+    #[test]
+    fn health_unknown_session_is_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        let stubs = tmp.path().join("stubs");
+        fs::create_dir_all(&stubs).unwrap();
+        let spawner = LinuxSpawner::new(stub_config(&stubs, &tmp.path().join("run")));
+        assert!(spawner.health("nope").is_none());
     }
 }
