@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>dai webgl probe</title></head>
+<body style="background:#111;color:#0f0;font:30px monospace;padding:24px">
+<div>dAIorama L1 WebGL probe</div>
+<canvas id="c" width="64" height="64" style="border:1px solid #0f0"></canvas>
+<div id="out" style="margin-top:16px;white-space:pre-wrap">...</div>
+<script>
+const c = document.getElementById('c');
+const gl = c.getContext('webgl2') || c.getContext('webgl');
+let s = 'NO WEBGL CONTEXT';
+if (gl) {
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  s = 'RENDERER: ' + (dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER))
+    + '\nVENDOR:   ' + (dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR))
+    + '\nVERSION:  ' + gl.getParameter(gl.VERSION);
+}
+document.getElementById('out').textContent = s;
+document.title = 'dai-webgl:' + s.replace(/\n/g, ' | ');
+</script>
+</body></html>

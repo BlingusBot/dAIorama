@@ -1,0 +1,235 @@
+== /run/udev visible? ==
+ls: cannot access '/run/udev/': No such file or directory
+
+== /sys/class/drm ==
+card1
+card1-DP-1
+card1-DP-2
+card1-DVI-I-1
+renderD128
+version
+
+===== ATTEMPT: LIBSEAT_BACKEND=builtin =====
+/out/headless4.sh: line 37:    14 Aborted                    (core dumped) Hyprland --i-am-really-stupid > /tmp/hypr-$MODE.log 2>&1
+pid=14 alive=no
+--- hypr-builtin.log: aquamarine/drm/session lines ---
+59:[1;32mDEBUG [0mfrom aquamarine ]: Creating an Aquamarine backend!
+60:[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [seatd/seat.c:48] Created VT-bound seat seat0
+61:[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [seatd/server.c:145] New client connected (pid: 14, uid: 0, gid: 0)
+62:[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [libseat/backend/seatd.c:706] Started embedded seatd
+63:[1;31mERR [0mfrom aquamarine ]: [libseat] [common/terminal.c:162] Could not open target tty: No such file or directory
+64:[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/seat.c:70] Could not open tty0 to update VT: No such file or directory
+65:[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [seatd/seat.c:248] Added client 0 to seat0
+66:[1;31mERR [0mfrom aquamarine ]: [libseat] [common/terminal.c:162] Could not open target tty: No such file or directory
+67:[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/seat.c:80] Could not open terminal for VT 0: No such file or directory
+68:[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/seat.c:557] Could not open VT for client
+69:[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [libseat/libseat.c:62] Seat opened with backend 'builtin'
+70:[1;33mWARN [0mfrom aquamarine ]: libinput: plugin support is not available in this libinput build
+71:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event3  - skip unconfigured input device '/dev/input/event3'
+72:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event4  - skip unconfigured input device '/dev/input/event4'
+73:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event11 - skip unconfigured input device '/dev/input/event11'
+74:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event12 - skip unconfigured input device '/dev/input/event12'
+75:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event13 - skip unconfigured input device '/dev/input/event13'
+76:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event14 - skip unconfigured input device '/dev/input/event14'
+77:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event7  - skip unconfigured input device '/dev/input/event7'
+78:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event8  - skip unconfigured input device '/dev/input/event8'
+79:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event9  - skip unconfigured input device '/dev/input/event9'
+80:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event10 - skip unconfigured input device '/dev/input/event10'
+81:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event1  - skip unconfigured input device '/dev/input/event1'
+82:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event0  - skip unconfigured input device '/dev/input/event0'
+83:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event6  - skip unconfigured input device '/dev/input/event6'
+84:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event2  - skip unconfigured input device '/dev/input/event2'
+85:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event5  - skip unconfigured input device '/dev/input/event5'
+86:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event16 - skip unconfigured input device '/dev/input/event16'
+87:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event15 - skip unconfigured input device '/dev/input/event15'
+88:[1;32mDEBUG [0mfrom aquamarine ]: drm: Enumerated device /sys/devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1
+89:[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/seat.c:334] Could not open device: client is not active
+90:[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/client.c:229] Could not open device: Operation not permitted
+91:[1;31mERR [0mfrom aquamarine ]: libseat: Couldn't open device at /dev/dri/card1
+92:[1;34mTRACE [0mfrom aquamarine ]: drm: Device /dev/dri/card1 has 0 builtin panels
+93:[1;32mDEBUG [0mfrom aquamarine ]: drm: Explicit device list /dev/dri/renderD128
+94:[1;31mERR [0mfrom aquamarine ]: drm: Failed to canonicalize path /dev/dri/renderD128
+95:[1;31mERR [0mfrom aquamarine ]: drm: Explicit device /dev/dri/renderD128 not found
+96:[1;31mERR [0mfrom aquamarine ]: drm: Found no gpus to use, cannot continue
+97:[1;31mERR [0mfrom aquamarine ]: DRM Backend failed
+98:[1;32mDEBUG [0mfrom aquamarine ]: Starting the Aquamarine backend!
+99:[1;32mDEBUG [0mfrom aquamarine ]: Starting the Wayland backend!
+100:[1;31mERR [0mfrom aquamarine ]: Wayland backend cannot start: wl_display_connect failed (is a wayland compositor running?)
+101:[1;31mERR [0mfrom aquamarine ]: Requested backend (wayland) could not start, enabling fallbacks
+102:[1;31mERR [0mfrom aquamarine ]: Implementation wayland failed, erasing.
+103:[1;35mCRIT [0mfrom aquamarine ]: Cannot open backend: no allocator available
+104:[1;35mCRIT [0m]: m_pAqBackend couldn't start! This usually means aquamarine could not find a GPU or encountered some issues. Make sure you're running either on a tty or on a Wayland session, NOT an X11 one.
+105:[1;35mCRIT [0m]: Critical error thrown: CBackend::create() failed!
+107:  what():  CBackend::create() failed!
+110:[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [seatd/client.c:480] Client disconnected
+111:[1;31mERR [0mfrom aquamarine ]: [libseat] [common/terminal.c:162] Could not open target tty: No such file or directory
+112:[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/seat.c:94] Could not open terminal to clean up VT 0: No such file or directory
+113:[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [seatd/seat.c:297] Removed client 0 from seat0
+114:[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [libseat/backend/seatd.c:718] Stopped embedded seatd
+--- log tail 60 ---
+DEBUG ]: Creating the EventManager!
+DEBUG ]: Using config: /root/hypr.conf
+DEBUG ]: Creating the PointerManager!
+DEBUG ]: Creating the AsyncResourceGatherer!
+[1;32mDEBUG [0mfrom aquamarine ]: Creating an Aquamarine backend!
+[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [seatd/seat.c:48] Created VT-bound seat seat0
+[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [seatd/server.c:145] New client connected (pid: 14, uid: 0, gid: 0)
+[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [libseat/backend/seatd.c:706] Started embedded seatd
+[1;31mERR [0mfrom aquamarine ]: [libseat] [common/terminal.c:162] Could not open target tty: No such file or directory
+[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/seat.c:70] Could not open tty0 to update VT: No such file or directory
+[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [seatd/seat.c:248] Added client 0 to seat0
+[1;31mERR [0mfrom aquamarine ]: [libseat] [common/terminal.c:162] Could not open target tty: No such file or directory
+[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/seat.c:80] Could not open terminal for VT 0: No such file or directory
+[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/seat.c:557] Could not open VT for client
+[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [libseat/libseat.c:62] Seat opened with backend 'builtin'
+[1;33mWARN [0mfrom aquamarine ]: libinput: plugin support is not available in this libinput build
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event3  - skip unconfigured input device '/dev/input/event3'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event4  - skip unconfigured input device '/dev/input/event4'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event11 - skip unconfigured input device '/dev/input/event11'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event12 - skip unconfigured input device '/dev/input/event12'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event13 - skip unconfigured input device '/dev/input/event13'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event14 - skip unconfigured input device '/dev/input/event14'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event7  - skip unconfigured input device '/dev/input/event7'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event8  - skip unconfigured input device '/dev/input/event8'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event9  - skip unconfigured input device '/dev/input/event9'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event10 - skip unconfigured input device '/dev/input/event10'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event1  - skip unconfigured input device '/dev/input/event1'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event0  - skip unconfigured input device '/dev/input/event0'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event6  - skip unconfigured input device '/dev/input/event6'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event2  - skip unconfigured input device '/dev/input/event2'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event5  - skip unconfigured input device '/dev/input/event5'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event16 - skip unconfigured input device '/dev/input/event16'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event15 - skip unconfigured input device '/dev/input/event15'
+[1;32mDEBUG [0mfrom aquamarine ]: drm: Enumerated device /sys/devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1
+[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/seat.c:334] Could not open device: client is not active
+[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/client.c:229] Could not open device: Operation not permitted
+[1;31mERR [0mfrom aquamarine ]: libseat: Couldn't open device at /dev/dri/card1
+[1;34mTRACE [0mfrom aquamarine ]: drm: Device /dev/dri/card1 has 0 builtin panels
+[1;32mDEBUG [0mfrom aquamarine ]: drm: Explicit device list /dev/dri/renderD128
+[1;31mERR [0mfrom aquamarine ]: drm: Failed to canonicalize path /dev/dri/renderD128
+[1;31mERR [0mfrom aquamarine ]: drm: Explicit device /dev/dri/renderD128 not found
+[1;31mERR [0mfrom aquamarine ]: drm: Found no gpus to use, cannot continue
+[1;31mERR [0mfrom aquamarine ]: DRM Backend failed
+[1;32mDEBUG [0mfrom aquamarine ]: Starting the Aquamarine backend!
+[1;32mDEBUG [0mfrom aquamarine ]: Starting the Wayland backend!
+[1;31mERR [0mfrom aquamarine ]: Wayland backend cannot start: wl_display_connect failed (is a wayland compositor running?)
+[1;31mERR [0mfrom aquamarine ]: Requested backend (wayland) could not start, enabling fallbacks
+[1;31mERR [0mfrom aquamarine ]: Implementation wayland failed, erasing.
+[1;35mCRIT [0mfrom aquamarine ]: Cannot open backend: no allocator available
+[1;35mCRIT [0m]: m_pAqBackend couldn't start! This usually means aquamarine could not find a GPU or encountered some issues. Make sure you're running either on a tty or on a Wayland session, NOT an X11 one.
+[1;35mCRIT [0m]: Critical error thrown: CBackend::create() failed!
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  CBackend::create() failed!
+failed to mkdir() crash report directory
+No such file or directory
+[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [seatd/client.c:480] Client disconnected
+[1;31mERR [0mfrom aquamarine ]: [libseat] [common/terminal.c:162] Could not open target tty: No such file or directory
+[1;31mERR [0mfrom aquamarine ]: [libseat] [seatd/seat.c:94] Could not open terminal to clean up VT 0: No such file or directory
+[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [seatd/seat.c:297] Removed client 0 from seat0
+[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [libseat/backend/seatd.c:718] Stopped embedded seatd
+
+===== ATTEMPT: LIBSEAT_BACKEND=seatd =====
+/out/headless4.sh: line 37:    25 Aborted                    (core dumped) Hyprland --i-am-really-stupid > /tmp/hypr-$MODE.log 2>&1
+pid=25 alive=no
+--- hypr-seatd.log: aquamarine/drm/session lines ---
+59:[1;32mDEBUG [0mfrom aquamarine ]: Creating an Aquamarine backend!
+60:[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [libseat/libseat.c:62] Seat opened with backend 'seatd'
+61:[1;33mWARN [0mfrom aquamarine ]: libinput: plugin support is not available in this libinput build
+62:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event3  - skip unconfigured input device '/dev/input/event3'
+63:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event4  - skip unconfigured input device '/dev/input/event4'
+64:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event11 - skip unconfigured input device '/dev/input/event11'
+65:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event12 - skip unconfigured input device '/dev/input/event12'
+66:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event13 - skip unconfigured input device '/dev/input/event13'
+67:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event14 - skip unconfigured input device '/dev/input/event14'
+68:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event7  - skip unconfigured input device '/dev/input/event7'
+69:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event8  - skip unconfigured input device '/dev/input/event8'
+70:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event9  - skip unconfigured input device '/dev/input/event9'
+71:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event10 - skip unconfigured input device '/dev/input/event10'
+72:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event1  - skip unconfigured input device '/dev/input/event1'
+73:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event0  - skip unconfigured input device '/dev/input/event0'
+74:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event6  - skip unconfigured input device '/dev/input/event6'
+75:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event2  - skip unconfigured input device '/dev/input/event2'
+76:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event5  - skip unconfigured input device '/dev/input/event5'
+77:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event16 - skip unconfigured input device '/dev/input/event16'
+78:[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event15 - skip unconfigured input device '/dev/input/event15'
+79:[1;32mDEBUG [0mfrom aquamarine ]: drm: Enumerated device /sys/devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1
+80:[1;31mERR [0mfrom aquamarine ]: libseat: Couldn't open device at /dev/dri/card1
+81:[1;34mTRACE [0mfrom aquamarine ]: drm: Device /dev/dri/card1 has 0 builtin panels
+82:[1;32mDEBUG [0mfrom aquamarine ]: drm: Explicit device list /dev/dri/renderD128
+83:[1;31mERR [0mfrom aquamarine ]: drm: Failed to canonicalize path /dev/dri/renderD128
+84:[1;31mERR [0mfrom aquamarine ]: drm: Explicit device /dev/dri/renderD128 not found
+85:[1;31mERR [0mfrom aquamarine ]: drm: Found no gpus to use, cannot continue
+86:[1;31mERR [0mfrom aquamarine ]: DRM Backend failed
+87:[1;32mDEBUG [0mfrom aquamarine ]: Starting the Aquamarine backend!
+88:[1;32mDEBUG [0mfrom aquamarine ]: Starting the Wayland backend!
+89:[1;31mERR [0mfrom aquamarine ]: Wayland backend cannot start: wl_display_connect failed (is a wayland compositor running?)
+90:[1;31mERR [0mfrom aquamarine ]: Requested backend (wayland) could not start, enabling fallbacks
+91:[1;31mERR [0mfrom aquamarine ]: Implementation wayland failed, erasing.
+92:[1;35mCRIT [0mfrom aquamarine ]: Cannot open backend: no allocator available
+93:[1;35mCRIT [0m]: m_pAqBackend couldn't start! This usually means aquamarine could not find a GPU or encountered some issues. Make sure you're running either on a tty or on a Wayland session, NOT an X11 one.
+94:[1;35mCRIT [0m]: Critical error thrown: CBackend::create() failed!
+96:  what():  CBackend::create() failed!
+--- log tail 60 ---
+DEBUG ]: New rlimit: soft -> 524288, hard -> 524288
+WARN ]: WARNING: Hyprland is being launched without start-hyprland. This is highly advised against.
+DEBUG ]: Creating the EventLoopManager!
+DEBUG ]: Creating the KeybindManager!
+DEBUG ]: Creating the AnimationManager!
+DEBUG ]: Creating the DynamicPermissionManager!
+DEBUG ]: Creating the MonitorState!
+DEBUG ]: Creating the WorkspaceState!
+DEBUG ]: Creating the ConfigManager!
+DEBUG ]: [cfg] Config is either explicit or special.
+DEBUG ]: [cfg] Config is NOT lua, loading regular mgr
+DEBUG ]: Using config: /root/hypr.conf
+DEBUG ]: !!!!HEY YOU, YES YOU!!!!: further logs to stdout / logfile are disabled by default. BEFORE SENDING THIS LOG, ENABLE THEM. Use debug:disable_logs = false to do so: https://wiki.hypr.land/Configuring/Basics/Variables/#debug
+DEBUG ]: Creating the Error Overlay!
+DEBUG ]: Creating the LayoutManager!
+DEBUG ]: Creating the TokenManager!
+DEBUG ]: Creating the EventManager!
+DEBUG ]: Using config: /root/hypr.conf
+DEBUG ]: Creating the PointerManager!
+DEBUG ]: Creating the AsyncResourceGatherer!
+[1;32mDEBUG [0mfrom aquamarine ]: Creating an Aquamarine backend!
+[1;32mDEBUG [0mfrom aquamarine ]: [libseat] [libseat/libseat.c:62] Seat opened with backend 'seatd'
+[1;33mWARN [0mfrom aquamarine ]: libinput: plugin support is not available in this libinput build
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event3  - skip unconfigured input device '/dev/input/event3'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event4  - skip unconfigured input device '/dev/input/event4'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event11 - skip unconfigured input device '/dev/input/event11'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event12 - skip unconfigured input device '/dev/input/event12'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event13 - skip unconfigured input device '/dev/input/event13'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event14 - skip unconfigured input device '/dev/input/event14'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event7  - skip unconfigured input device '/dev/input/event7'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event8  - skip unconfigured input device '/dev/input/event8'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event9  - skip unconfigured input device '/dev/input/event9'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event10 - skip unconfigured input device '/dev/input/event10'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event1  - skip unconfigured input device '/dev/input/event1'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event0  - skip unconfigured input device '/dev/input/event0'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event6  - skip unconfigured input device '/dev/input/event6'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event2  - skip unconfigured input device '/dev/input/event2'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event5  - skip unconfigured input device '/dev/input/event5'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event16 - skip unconfigured input device '/dev/input/event16'
+[1;32mDEBUG [0mfrom aquamarine ]: [libinput] event15 - skip unconfigured input device '/dev/input/event15'
+[1;32mDEBUG [0mfrom aquamarine ]: drm: Enumerated device /sys/devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1
+[1;31mERR [0mfrom aquamarine ]: libseat: Couldn't open device at /dev/dri/card1
+[1;34mTRACE [0mfrom aquamarine ]: drm: Device /dev/dri/card1 has 0 builtin panels
+[1;32mDEBUG [0mfrom aquamarine ]: drm: Explicit device list /dev/dri/renderD128
+[1;31mERR [0mfrom aquamarine ]: drm: Failed to canonicalize path /dev/dri/renderD128
+[1;31mERR [0mfrom aquamarine ]: drm: Explicit device /dev/dri/renderD128 not found
+[1;31mERR [0mfrom aquamarine ]: drm: Found no gpus to use, cannot continue
+[1;31mERR [0mfrom aquamarine ]: DRM Backend failed
+[1;32mDEBUG [0mfrom aquamarine ]: Starting the Aquamarine backend!
+[1;32mDEBUG [0mfrom aquamarine ]: Starting the Wayland backend!
+[1;31mERR [0mfrom aquamarine ]: Wayland backend cannot start: wl_display_connect failed (is a wayland compositor running?)
+[1;31mERR [0mfrom aquamarine ]: Requested backend (wayland) could not start, enabling fallbacks
+[1;31mERR [0mfrom aquamarine ]: Implementation wayland failed, erasing.
+[1;35mCRIT [0mfrom aquamarine ]: Cannot open backend: no allocator available
+[1;35mCRIT [0m]: m_pAqBackend couldn't start! This usually means aquamarine could not find a GPU or encountered some issues. Make sure you're running either on a tty or on a Wayland session, NOT an X11 one.
+[1;35mCRIT [0m]: Critical error thrown: CBackend::create() failed!
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  CBackend::create() failed!
+failed to mkdir() crash report directory
+No such file or directory
+
+done rc=0
+exit=0

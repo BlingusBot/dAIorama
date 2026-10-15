@@ -1,0 +1,15 @@
+chromium               /usr/bin/chromium
+chromium-browser       MISSING
+mutter                 /usr/bin/mutter
+foot                   /usr/bin/foot
+hyprland-guiutils      MISSING
+wlrctl                 /usr/bin/wlrctl
+wayvnc                 /usr/bin/wayvnc
+websockify             /usr/bin/websockify
+grim                   /usr/bin/grim
+wtype                  /usr/bin/wtype
+hyprctl                /usr/bin/hyprctl
+Hyprland               /usr/bin/Hyprland
+
+Chromium 155.0.8059.39 built on Debian GNU/Linux forky/sid
+mutter 50.5

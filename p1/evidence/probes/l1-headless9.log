@@ -1,0 +1,156 @@
+-rwxr-xr-x. 1 root root 15648 Oct 15 13:22 /usr/local/lib/xdg-clamp.so
+===== parent: weston =====
+parent pid=8 alive=yes
+Date: 2026-10-15 UTC
+[13:23:37.971] weston 16.0.0
+               https://wayland.freedesktop.org
+               Bug reports to: https://gitlab.freedesktop.org/wayland/weston/issues/
+               Build: 16.0.0
+[13:23:37.971] Command line: weston --backend=headless-backend.so --renderer=gl --socket=wayland-w --width=1920 --height=1080
+[13:23:37.971] OS: Linux, 7.1.4-200.fc44.x86_64, #1 SMP PREEMPT_DYNAMIC Sat Jul 18 19:16:16 UTC 2026, x86_64
+[13:23:37.971] Flight recorder: enabled, scopes subscribed: log
+[13:23:37.971] Starting with no config file.
+[13:23:37.971] Output repaint window is 7 ms maximum.
+[13:23:37.972] Loading module '/usr/lib/x86_64-linux-gnu/libweston-16/headless-backend.so'
+[13:23:37.977] Loading module '/usr/lib/x86_64-linux-gnu/libweston-16/gl-renderer.so'
+[13:23:38.008] Using rendering device: /dev/dri/renderD128
+[13:23:38.015] EGL version: 1.5
+[13:23:38.015] EGL vendor: Mesa Project
+parent socket: wayland-w
+-- shim load check:
+[xdg-clamp] loaded
+	linux-vdso.so.1 (0x00007f92d1345000)
+	/usr/local/lib/xdg-clamp.so (0x00007f92d1333000)
+	libc.so.6 => /usr/lib/x86_64-linux-gnu/libc.so.6 (0x00007f92d1134000)
+--- parent globals (seat/compositor/xdg/dmabuf) ---
+interface: 'wl_compositor',                              version:  5, name:  1
+interface: 'zwp_linux_dmabuf_v1',                        version:  5, name: 17
+interface: 'xdg_wm_base',                                version:  5, name: 23
+--- launch Hyprland nested (LD_PRELOAD=shim) ---
+/out/headless9.sh: line 37:    32 Aborted                    (core dumped) env WAYLAND_DISPLAY=$PSOCK LD_PRELOAD=$CLAMP Hyprland --i-am-really-stupid > /tmp/hypr8-$PNAME.log 2>&1
+hyprland pid=32 alive=no
+--- hypr8-weston.log key lines ---
+1:[xdg-clamp] loaded
+58:DEBUG ]: Disabling stdout logs (debug.enable_stdout_logs = 0). Further logs will be written to /tmp/xdg/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792070624_1660271496/hyprland.log
+61:wl_registry#2: error 0: invalid version for global wl_compositor (1): expected at most 5, got 6
+62:terminate called after throwing an instance of 'std::runtime_error'
+65:[xdg-clamp] loaded
+67:[xdg-clamp] loaded
+68:[xdg-clamp] loaded
+69:[xdg-clamp] loaded
+70:[xdg-clamp] loaded
+--- tail 40 ---
+             rrrrxxxx        uuvvvvvc             
+                rrxxxxxxnnnnuuuuuv                
+                    xxxxxnnnnu                    
+
+
+
+[1;33mWARN [0m]: Failed to change process scheduling strategy
+[!!WARNING!!] XDG_RUNTIME_DIR looks non-standard. Proceeding anyways...
+DEBUG ]: Old rlimit: soft -> 524288, hard -> 524288
+DEBUG ]: New rlimit: soft -> 524288, hard -> 524288
+WARN ]: WARNING: Hyprland is being launched without start-hyprland. This is highly advised against.
+DEBUG ]: Creating the EventLoopManager!
+DEBUG ]: Creating the KeybindManager!
+DEBUG ]: Creating the AnimationManager!
+DEBUG ]: Creating the DynamicPermissionManager!
+DEBUG ]: Creating the MonitorState!
+DEBUG ]: Creating the WorkspaceState!
+DEBUG ]: Creating the ConfigManager!
+DEBUG ]: [cfg] Config is either explicit or special.
+DEBUG ]: [cfg] Config is NOT lua, loading regular mgr
+DEBUG ]: Using config: /root/hypr.conf
+DEBUG ]: !!!!HEY YOU, YES YOU!!!!: further logs to stdout / logfile are disabled by default. BEFORE SENDING THIS LOG, ENABLE THEM. Use debug:disable_logs = false to do so: https://wiki.hypr.land/Configuring/Basics/Variables/#debug
+DEBUG ]: Creating the Error Overlay!
+DEBUG ]: Creating the LayoutManager!
+DEBUG ]: Creating the TokenManager!
+DEBUG ]: Creating the EventManager!
+DEBUG ]: Using config: /root/hypr.conf
+DEBUG ]: Disabling stdout logs (debug.enable_stdout_logs = 0). Further logs will be written to /tmp/xdg/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792070624_1660271496/hyprland.log
+DEBUG ]: Creating the PointerManager!
+DEBUG ]: Creating the AsyncResourceGatherer!
+wl_registry#2: error 0: invalid version for global wl_compositor (1): expected at most 5, got 6
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  CBackend::create() failed!
+Hyprland has crashed :( Consult the crash report at /root/.cache/hyprland/hyprlandCrashReport32.txt for more information.
+[xdg-clamp] loaded
+/bin/sh: 1: lspci: not found
+[xdg-clamp] loaded
+[xdg-clamp] loaded
+[xdg-clamp] loaded
+[xdg-clamp] loaded
+
+===== parent: sway =====
+parent pid=50 alive=yes
+Failed to connect to user scope bus via local transport: No such file or directory
+2026-10-15 13:24:00 - [main.c:328] Could not find config for output HEADLESS-1 ((null))
+00:00:00.020 [INFO] [swaybar/tray/icon.c:339] Warning: no icon themes loaded
+parent socket: wayland-1
+-- shim load check:
+[xdg-clamp] loaded
+	linux-vdso.so.1 (0x00007f2020348000)
+	/usr/local/lib/xdg-clamp.so (0x00007f2020336000)
+	libc.so.6 => /usr/lib/x86_64-linux-gnu/libc.so.6 (0x00007f2020137000)
+--- parent globals (seat/compositor/xdg/dmabuf) ---
+interface: 'zwp_linux_dmabuf_v1',                        version:  5, name:  3
+interface: 'wl_compositor',                              version:  6, name:  4
+interface: 'xdg_wm_base',                                version:  5, name: 12
+interface: 'wl_seat',                                    version:  9, name: 54
+--- launch Hyprland nested (LD_PRELOAD=shim) ---
+/out/headless9.sh: line 37:    96 Aborted                    (core dumped) env WAYLAND_DISPLAY=$PSOCK LD_PRELOAD=$CLAMP Hyprland --i-am-really-stupid > /tmp/hypr8-$PNAME.log 2>&1
+hyprland pid=96 alive=no
+--- hypr8-sway.log key lines ---
+1:[xdg-clamp] loaded
+58:DEBUG ]: Disabling stdout logs (debug.enable_stdout_logs = 0). Further logs will be written to /tmp/xdg/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792070646_950400951/hyprland.log
+61:wl_registry#2: error 0: invalid version for global xdg_wm_base (12): expected at most 5, got 6
+62:terminate called after throwing an instance of 'std::runtime_error'
+65:[xdg-clamp] loaded
+67:[xdg-clamp] loaded
+68:[xdg-clamp] loaded
+69:[xdg-clamp] loaded
+70:[xdg-clamp] loaded
+--- tail 40 ---
+             rrrrxxxx        uuvvvvvc             
+                rrxxxxxxnnnnuuuuuv                
+                    xxxxxnnnnu                    
+
+
+
+[1;33mWARN [0m]: Failed to change process scheduling strategy
+[!!WARNING!!] XDG_RUNTIME_DIR looks non-standard. Proceeding anyways...
+DEBUG ]: Old rlimit: soft -> 524288, hard -> 524288
+DEBUG ]: New rlimit: soft -> 524288, hard -> 524288
+WARN ]: WARNING: Hyprland is being launched without start-hyprland. This is highly advised against.
+DEBUG ]: Creating the EventLoopManager!
+DEBUG ]: Creating the KeybindManager!
+DEBUG ]: Creating the AnimationManager!
+DEBUG ]: Creating the DynamicPermissionManager!
+DEBUG ]: Creating the MonitorState!
+DEBUG ]: Creating the WorkspaceState!
+DEBUG ]: Creating the ConfigManager!
+DEBUG ]: [cfg] Config is either explicit or special.
+DEBUG ]: [cfg] Config is NOT lua, loading regular mgr
+DEBUG ]: Using config: /root/hypr.conf
+DEBUG ]: !!!!HEY YOU, YES YOU!!!!: further logs to stdout / logfile are disabled by default. BEFORE SENDING THIS LOG, ENABLE THEM. Use debug:disable_logs = false to do so: https://wiki.hypr.land/Configuring/Basics/Variables/#debug
+DEBUG ]: Creating the Error Overlay!
+DEBUG ]: Creating the LayoutManager!
+DEBUG ]: Creating the TokenManager!
+DEBUG ]: Creating the EventManager!
+DEBUG ]: Using config: /root/hypr.conf
+DEBUG ]: Disabling stdout logs (debug.enable_stdout_logs = 0). Further logs will be written to /tmp/xdg/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792070646_950400951/hyprland.log
+DEBUG ]: Creating the PointerManager!
+DEBUG ]: Creating the AsyncResourceGatherer!
+wl_registry#2: error 0: invalid version for global xdg_wm_base (12): expected at most 5, got 6
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  CBackend::create() failed!
+Hyprland has crashed :( Consult the crash report at /root/.cache/hyprland/hyprlandCrashReport96.txt for more information.
+[xdg-clamp] loaded
+/bin/sh: 1: lspci: not found
+[xdg-clamp] loaded
+[xdg-clamp] loaded
+[xdg-clamp] loaded
+[xdg-clamp] loaded
+
+== done ==
+exit=0

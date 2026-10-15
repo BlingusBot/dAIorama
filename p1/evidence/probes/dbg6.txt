@@ -1,0 +1,94 @@
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Reloaded configuration
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Reloaded configuration
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Reloaded configuration
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Reloaded configuration
+apt rc=0
+mutter alive=yes
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=838 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c417,c982")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+hyprland alive=yes
+sig=efb50993780079460b0cbed1363e2166a2de1d9f_1792071067_2008121556
+--- instances ---
+instance efb50993780079460b0cbed1363e2166a2de1d9f_1792071067_2008121556:
+	time: 1792071067
+	pid: 838
+	wl socket: wayland-1
+
+
+
+--- version ---
+Hyprland 0.56.2 built from branch v0.56.2 at commit efb50993780079460b0cbed1363e2166a2de1d9f clean ([gha] Nix: update inputs).
+Date: Wed Aug 5 14:13:21 2026
+Tag: v0.56.2, commits: 7661
+
+Libraries:
+Hyprgraphics: built against 0.5.1, system has unknown
+Hyprutils: built against 0.14.2, system has unknown
+Hyprcursor: built against 0.1.13, system has unknown
+Hyprlang: built against 0.6.8, system has unknown
+Aquamarine: built against 0.15.0, system has unknown
+--- monitors ---
+unknown request
+--- output create headless HEADLESS-T1 ---
+ok
+--- monitors after ---
+Monitor HEADLESS-T1 (ID 0):
+	1920x1080@60.00000 at 0x0
+	description: 
+	make: 
+	model: 
+	physical size (mm): 0x0
+	serial: 
+	active workspace: 1 (1)
+	special workspace: 0 ()
+	reserved: 0 0 0 0
+	scale: 2
+	transform: 0
+	focused: yes
+	dpmsStatus: 1
+	vrr: false
+	solitary: 0
+	solitaryBlockedBy: notification,windowed mode,missing candidate
+	activelyTearing: false
+	tearingBlockedBy: next frame is not torn,user settings,not supported by monitor,missing candidate
+	directScanoutTo: 0
+	directScanoutBlockedBy: user settings,software renders/cursors,missing candidate
+	disabled: false
+	currentFormat: XRGB8888
+	mirrorOf: none
+	availableModes: 1920x1080@60.00Hz 
+	colorManagementPreset: srgb
+	sdrBrightness: 1
+	sdrSaturation: 1
+	sdrMinLuminance: 0.2
+	sdrMaxLuminance: 80
+	hardwareCursorsInUse: true
+
+
+--- activeworkspace ---
+workspace ID 1 (1) on monitor HEADLESS-T1:
+	monitorID: 0
+	windows: 0
+	hasfullscreen: 0
+	lastwindow: 0x0
+	lastwindowtitle: 
+	ispersistent: 0
+	tiledLayout: dwindle
+
+
+hypr socket: wayland-1
+--- grim ---
+-rw-r--r--. 1 root root 49965 Oct 15 13:31 /tmp/shot-m.png
+grim OK
+--- hyprland global count ---
+69
+--- key protocols present? ---
+interface: 'wp_cursor_shape_manager_v1',                 version:  2, name: 10
+interface: 'zwp_virtual_keyboard_manager_v1',            version:  1, name: 29
+interface: 'zwlr_virtual_pointer_manager_v1',            version:  2, name: 30
+interface: 'zwlr_output_manager_v1',                     version:  4, name: 31
+interface: 'zwlr_data_control_manager_v1',               version:  2, name: 38
+interface: 'zwlr_screencopy_manager_v1',                 version:  3, name: 61
+--- evidence copy ---
+done
+exit=0
