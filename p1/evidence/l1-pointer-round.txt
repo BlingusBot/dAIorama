@@ -1,0 +1,40 @@
+mutter alive=yes
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=17 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c37,c826")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+ok
+socket=wayland-1 sig=efb50993780079460b0cbed1363e2166a2de1d9f_1792071924_667690479
+===== renderer evidence (compositor side) =====
+GPU information: 
+===== wlrctl usage =====
+Usage: wlrctl [options] [keyboard|pointer|toplevel] <action>
+
+  -h, --help     Show a help message and quit
+  -v, --version  Show a version number and quit
+
+--- pointer subcommand:
+Unknown pointer action: '--help'
+===== baseline =====
+cursorpos: 480, 270
+===== step 1: wlrctl pointer move 300 200 =====
+rc=0
+cursorpos: 780, 470
+===== step 2: wlrctl pointer move -123 77 =====
+rc=0
+cursorpos: 657, 539
+===== step 3: wlrctl pointer click left (rc only; no client target) =====
+rc=0
+===== step 4: wlrctl pointer scroll =====
+rc=0
+===== step 5: foot + wlrctl keyboard type =====
+rc=0
+	class: dai-pointer-test
+	title: foot
+===== capture =====
+grim OK
+===== deltas =====
+C0: 480, 270
+C1: 780, 470
+C2: 657, 539
+instance log copied
+done
+exit=0

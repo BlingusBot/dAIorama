@@ -1,0 +1,88 @@
+===== A. parent: mutter --headless (render node, no KMS) =====
+mutter alive=yes
+libmutter-Message: 13:48:31.151: Running Mutter (using mutter 50.5) as a Wayland display server
+libmutter-Message: 13:48:31.234: Added device '/dev/dri/renderD128' (nouveau) using no mode setting.
+libmutter-Message: 13:48:31.240: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 13:48:31.240: Boot VGA GPU /dev/dri/renderD128 selected as primary
+libmutter-Message: 13:48:31.301: Added virtual monitor Meta-0
+===== B. child: Hyprland nested =====
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=24 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c249,c468")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+hyprland alive=yes
+sig=efb50993780079460b0cbed1363e2166a2de1d9f_1792072119_1292725060
+ok
+Monitor HEADLESS-T1 (ID 0):
+	1920x1080@60.00000 at 0x0
+	description: 
+	make: 
+	model: 
+	physical size (mm): 0x0
+	serial: 
+	active workspace: 1 (1)
+	special workspace: 0 ()
+	reserved: 0 0 0 0
+--- compositor renderer (instance log) ---
+DEBUG ]: openRenderNode got drm device /dev/dri/renderD128
+DEBUG ]: Creating the Hypr OpenGL Renderer!
+DEBUG ]: Using: OpenGL ES 3.2 Mesa 26.2.4-1
+DEBUG ]: Vendor: Mesa
+DEBUG ]: Renderer: NV117
+===== C. input leg: foot window + wtype text =====
+hyprland socket: wayland-1
+foot alive=yes
+Window 55ad12e74330 -> foot:
+	class: dai-input-test
+	title: foot
+grim input-shot OK
+===== D. remote leg: wayvnc + websockify/noVNC =====
+wayvnc alive=yes
+tcp        0      0 127.0.0.1:5900          0.0.0.0:*               LISTEN     
+websockify alive=yes
+noVNC vnc.html HTTP 200
+17810 /tmp/vnc.html
+WebSocket server settings:
+  - Listen on :6080
+  - Web server. Web root: /usr/share/novnc
+===== E. WebGL leg: chromium (wayland) on the test page =====
+chromium alive=yes
+	class: dai-input-test
+	title: foot
+	class: chromium
+	title: dai-webgl:RENDERER: ANGLE (Mesa, NV117, OpenGL ES 3.2) | VENDOR: Google Inc. (Mesa) | VERSION: WebGL 2.0 (OpenGL ES 3.0 Chromium) - Chromium
+grim webgl-shot OK
+===== F. evidence copies =====
+-rw-r--r--. 1 root root 238709 Oct 15 13:35 l1-build.log
+-rw-r--r--. 1 root root   1331 Oct 15 13:49 l1-chain-chromium.log
+-rw-r--r--. 1 root root    154 Oct 15 13:49 l1-chain-foot.log
+-rw-r--r--. 1 root root   5600 Oct 15 13:49 l1-chain-hypr.log
+-rw-r--r--. 1 root root  28624 Oct 15 13:48 l1-chain-input.png
+-rw-r--r--. 1 root root    767 Oct 15 13:49 l1-chain-mutter.log
+-rw-r--r--. 1 root root   3317 Oct 15 13:36 l1-chain-run1.txt
+-rw-r--r--. 1 root root   3454 Oct 15 13:37 l1-chain-run2.txt
+-rw-r--r--. 1 root root   4152 Oct 15 13:48 l1-chain-run3.txt
+-rw-r--r--. 1 root root   2179 Oct 15 13:49 l1-chain-run4.txt
+-rw-r--r--. 1 root root      0 Oct 15 13:49 l1-chain-wayvnc.log
+-rw-r--r--. 1 root root 133233 Oct 15 13:49 l1-chain-webgl.png
+-rw-r--r--. 1 root root    170 Oct 15 13:49 l1-chain-websockify.log
+-rw-r--r--. 1 root root   3990 Oct 15 13:46 l1-chain.sh
+-rw-r--r--. 1 root root    742 Oct 15 12:53 l1-headless1.log
+-rw-r--r--. 1 root root   3773 Oct 15 12:53 l1-headless2.log
+-rw-r--r--. 1 root root   5358 Oct 15 12:57 l1-headless3.log
+-rw-r--r--. 1 root root  20384 Oct 15 13:05 l1-headless4.log
+-rw-r--r--. 1 root root   4009 Oct 15 13:11 l1-headless6.log
+-rw-r--r--. 1 root root   3037 Oct 15 13:12 l1-headless7.log
+-rw-r--r--. 1 root root   4628 Oct 15 13:20 l1-headless8.log
+-rw-r--r--. 1 root root   8140 Oct 15 13:24 l1-headless9.log
+-rw-r--r--. 1 root root   4681 Oct 15 12:53 l1-inspect2.txt
+-rw-r--r--. 1 root root   3277 Oct 15 12:54 l1-inspect3.txt
+-rw-r--r--. 1 root root  49965 Oct 15 13:31 l1-mutter-shot.png
+-rw-r--r--. 1 root root  24107 Oct 15 13:45 l1-pointer-round.png
+-rw-r--r--. 1 root root   1233 Oct 15 13:45 l1-pointer-round.txt
+-rw-r--r--. 1 root root   1022 Oct 15 13:47 l1-pointer-round2.txt
+-rw-r--r--. 1 root root  23875 Oct 15 13:47 l1-pointer-round2a.png
+-rw-r--r--. 1 root root  25619 Oct 15 13:47 l1-pointer-round2b.png
+-rw-r--r--. 1 root root    977 Oct 15 13:46 l1-renderer-evidence.txt
+-rw-r--r--. 1 root root   3268 Oct 15 12:51 l1-smoke.txt
+===== G. teardown =====
+done
+exit=0

@@ -1,0 +1,9 @@
+{
+  "name": "dai-l1-verify-tools",
+  "image": "localhost/blingus/dai-l1:dev",
+  "restart_policy": "no",
+  "mounts": [
+    {"type": "bind", "source": "/home/blingus/services/dAIorama/p1-out", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": ["bash", "-c", "exec > /out/verify-tools.txt 2>&1; for b in chromium chromium-browser mutter foot hyprland-guiutils wlrctl wayvnc websockify grim wtype hyprctl Hyprland; do printf '%-22s ' $b; command -v $b || echo MISSING; done; echo; chromium --version 2>&1 | head -2; mutter --version 2>&1 | head -1"]
+}

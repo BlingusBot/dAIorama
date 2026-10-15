@@ -1,0 +1,64 @@
+== header: wl_registry_bind inline ==
+ */
+static inline void *
+wl_registry_bind(struct wl_registry *wl_registry, uint32_t name, const struct wl_interface *interface, uint32_t version)
+{
+	struct wl_proxy *id;
+
+	id = wl_proxy_marshal_flags((struct wl_proxy *) wl_registry,
+			 WL_REGISTRY_BIND, interface, version, 0, name, interface->name, version, NULL);
+
+	return (void *) id;
+}
+
+/**
+ * @ingroup iface_wl_callback
+ * @struct wl_callback_listener
+ */
+struct wl_callback_listener {
+	/**
+	 * done event
+	 *
+	 * Notify the client when the related request is done.
+
+== exported marshal symbols ==
+0000000000008e10 T wl_proxy_marshal
+0000000000009050 T wl_proxy_marshal_array
+0000000000008e00 T wl_proxy_marshal_array_constructor
+0000000000008de0 T wl_proxy_marshal_array_constructor_versioned
+0000000000008af0 T wl_proxy_marshal_array_flags
+0000000000008f30 T wl_proxy_marshal_constructor
+0000000000009060 T wl_proxy_marshal_constructor_versioned
+0000000000009180 T wl_proxy_marshal_flags
+0000000000012c40 D wl_registry_interface
+
+== marshal array symbol present? ==
+1
+
+== mutter install (sid 50.5) ==
+apt rc=0
+update-alternatives: warning: skip creation of /usr/share/man/man1/x-window-manager.1.gz because associated file /usr/share/man/man1/mutter.1.gz (of link group x-window-manager) does not exist
+Processing triggers for libc-bin (2.43-7) ...
+/usr/bin/mutter
+mutter 50.5
+
+== mutter --help (first 40) ==
+Usage:
+  mutter [OPTION…] [[--] COMMAND [ARGUMENT…]]
+
+Help Options:
+  -h, --help                        Show help options
+
+Application Options:
+  --wayland                         Run as a wayland compositor
+  --no-x11                          Run wayland compositor without starting Xwayland
+  --wayland-display                 Specify Wayland display name to use
+  --display-server                  Run as a full display server, rather than nested
+  --headless                        Run as a headless display server
+  --virtual-monitor                 Add persistent virtual monitor (WxH or WxH@R)
+  --devkit                          Run development kit
+  --profile=FILE                    Profile performance using trace instrumentation
+  --debug-control                   Enable debug control D-Bus interface
+  --version                         Print version
+  --mutter-plugin=PLUGIN            Mutter plugin to use
+

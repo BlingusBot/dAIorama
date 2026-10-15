@@ -1,0 +1,10 @@
+libmutter-Message: 13:36:49.497: Running Mutter (using mutter 50.5) as a Wayland display server
+libmutter-Message: 13:36:49.594: Added device '/dev/dri/renderD128' (nouveau) using no mode setting.
+libmutter-Message: 13:36:49.596: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 13:36:49.597: Boot VGA GPU /dev/dri/renderD128 selected as primary
+libmutter-Message: 13:36:49.653: Added virtual monitor Meta-0
+libmutter-Message: 13:36:49.655: Using Wayland display name 'wayland-m'
+
+(mutter:7): mutter-WARNING **: 13:36:49.660: Failed to acquire org.freedesktop.locale1 proxy: Could not connect: No such file or directory
+
+(mutter:7): libmutter-WARNING **: 13:36:49.661: Failed to connect to colord daemon: Could not connect: No such file or directory

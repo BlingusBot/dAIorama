@@ -1,0 +1,41 @@
+# dai-l1 — L1 preflight image: headless Hyprland + wayvnc + input + noVNC stack
+# Base: Debian sid — hyprland 0.56.2 ships in sid main; trixie has none (verified 2026-10-15).
+FROM docker.io/library/debian:sid-slim
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      hyprland wayvnc wtype grim slurp \
+      novnc websockify \
+      xwayland seatd dbus dbus-x11 \
+      mesa-utils libgl1-mesa-dri libegl1 libgles2 libgbm1 \
+      wayland-utils \
+      fontconfig fonts-dejavu-core \
+      python3 curl procps ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+# Runtime notes (P1 L1 — headless path as resolved):
+#  - Nested mode: an invisible minimal parent (mutter --headless; parents must advertise
+#    xdg_wm_base >= 6 -- weston/sway are rejected at bind) runs on this render node with
+#    no KMS and no seat; Hyprland runs nested and creates dedicated virtual outputs on
+#    demand (hyprctl output create headless <name>). Native standalone headless cannot
+#    start with aquamarine 0.15.1 (allocator/seat constraints; AQ_NO_KMS_REQUIREMENT
+#    relaxes only the KMS gate) -- see evidence/probes/ logs.
+#  - render node passed per-run via podman device /dev/dri/renderD128 (see run specs).
+#  - wayvnc + noVNC/websockify = remote leg; wtype = keyboard injection; wlrctl =
+#    pointer injection (zwlr_virtual_pointer).
+
+# Parent-compositor set for the nested path (aquamarine Wayland backend client-side).
+RUN apt-get update && apt-get install -y --no-install-recommends sway weston && rm -rf /var/lib/apt/lists/*
+# niri (spec's documented fallback) — install if packaged.
+RUN apt-get update && (apt-get install -y --no-install-recommends niri || echo "niri not packaged") && rm -rf /var/lib/apt/lists/*
+
+# LD_PRELOAD shim: clamp bind versions aquamarine 0.15.1 requests beyond weston/wlroots
+# parents (xdg_wm_base 6, wl_compositor 6, wl_seat 9). Spike-only; see evidence/probes/dbg2.txt.
+COPY xdg-clamp.c /tmp/xdg-clamp.c
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev libwayland-dev \
+    && gcc -O2 -shared -fPIC -o /usr/local/lib/xdg-clamp.so /tmp/xdg-clamp.c -ldl \
+    && rm -f /tmp/xdg-clamp.c && rm -rf /var/lib/apt/lists/*
+
+# L1 chain-runner set: mutter (headless parent), foot (wayland terminal), chromium (WebGL leg).
+RUN apt-get update && apt-get install -y --no-install-recommends mutter foot && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && (apt-get install -y --no-install-recommends hyprland-guiutils || echo no-guiutils) && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && (apt-get install -y --no-install-recommends chromium || echo no-chromium) && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && (apt-get install -y --no-install-recommends wlrctl || echo no-wlrctl) && rm -rf /var/lib/apt/lists/*
