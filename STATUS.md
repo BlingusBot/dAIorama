@@ -16,8 +16,8 @@ are read-when-on pointers)._
 - **Last green:** P0 train → anchor `4eeb585` · **P1 L1** — chain green on
   the reference box: runs 2–4 `exit=0`; keyboard + pointer input, capture,
   wayvnc → noVNC, non-llvmpipe WebGL.
-- **Next:** P1 — L3 llvmpipe CI lane (Esther) · resize/scale path
-  verification · L2 NVIDIA/CDI (operator's call).
+- **Next:** P2 in flight — full phase map in `PLAN.md` (L3 llvmpipe lane +
+  resize/scale ride P2; L2 NVIDIA/CDI stays the operator's call).
 - **Open (admitted into build, with deadlines):** rate-limit numbers (verify in
   build) · Hyprland version range + GPU recipes → P1 exit · renderer
   re-verification mechanism → P1 exit · resize/scale path → P1 exit ·
