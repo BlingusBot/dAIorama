@@ -11,7 +11,8 @@ are read-when-on pointers)._
 - **Repo target:** lane keeps the fork workflow (`EstherOS/dAIorama`);
   upstream `ygypt/dAIorama` accepts our PRs whenever we send them
   (operator, 2026-10-15). First upstream PR: `ygypt/dAIorama#1` (frozen
-  spec + P0 trail + P1 L1 bundle).
+  spec + P0 trail + P1 L1 bundle) — **merged** 2026-10-15, upstream `main`
+  @ `fc376c4`.
 - **Last green:** P0 train → anchor `4eeb585` · **P1 L1** — chain green on
   the reference box: runs 2–4 `exit=0`; keyboard + pointer input, capture,
   wayvnc → noVNC, non-llvmpipe WebGL.
