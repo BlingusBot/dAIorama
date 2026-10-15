@@ -8,6 +8,9 @@ are read-when-on pointers)._
   box (`p1/`, merged @ `eb35a4d`).
 - **Branches:** `spec/v1` (P0 freeze `4eeb585` · addendum `d881196` · L1
   `eb35a4d`) · `audit/p0-blingus` … `joint/p0-blingus` — all merged.
+- **Repo target:** lane keeps the fork workflow (`EstherOS/dAIorama`);
+  upstream `ygypt/dAIorama` accepts our PRs whenever we send them
+  (Kairo, 2026-10-15).
 - **Last green:** P0 train → anchor `4eeb585` · **P1 L1** — chain green on
   the reference box: runs 2–4 `exit=0`; keyboard + pointer input, capture,
   wayvnc → noVNC, non-llvmpipe WebGL.
