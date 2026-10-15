@@ -15,8 +15,9 @@ cross-verified by Blingus (PR `p2/plan-esther`); refined at each phase entry.
 
 ## Carried proofs (from 09's spike list; these have phase homes now)
 
-- renderer override end-to-end + launcher capture -> P2 (runtime).
-- cgroup delegation wiring in-container + startup sweep vs a killed manager -> P2.
+- renderer override end-to-end + launcher capture -> P2 (runtime; own W2 line).
+- cgroup delegation wiring in-container + startup sweep vs a killed manager -> P2
+  (opening evidence: PR #7 — three containment classes).
 - resize/scale path -> P2 (spawner creation params; L1-extension run on the reference box).
 - llvmpipe CI lane (L3) -> P2 (Esther; GitHub Actions on the public repo once token
   `workflow` scope lands; env wiring deferred to operator).
@@ -29,14 +30,20 @@ Ships: one `daiorama` binary whose CLI + manager drive real headless sessions on
 reference box (create/list/close/status, control dispatch, config, containment).
 
 - W1 contract layer (Esther) — scaffolding, IPC frame + codes, config module, fake-manager
-  fixtures + conformance suite. In flight: `p2/fixtures-esther`.
+  fixtures + conformance suite; fixtures pin registry/tombstone transitions (close-of-closed,
+  reap, transition-out-of-running however caused) so both halves test the same edges.
+  In flight: `p2/fixtures-esther`.
 - W2 session runtime (Blingus) — spawner (L1 chain as a daemon-managed child), registry +
   state machine, health checks, teardown + parent-death, startup sweep, cgroup scope +
-  limits + off-mode, renderer check + launcher capture, resize/scale at creation.
+  limits + off-mode, resize/scale at creation.
+- Renderer gate (Blingus, own W2 line) — real-GPU assert at creation,
+  `renderer.allow_software` override end-to-end (config key per 08, semantics per 06),
+  launcher capture.
 - W3 CLI wiring (Esther) — cold/hot live, lazy start, drain/daemon semantics, config
-  reload semantics, doctor's CLI side.
-- W4 containment proof (Blingus; Esther verifies) — raw cgroup evidence: scope, kill path,
-  sweep, off-mode cost; compose wiring.
+  reload semantics, doctor CLI formatting (host-side doctor probes are runtime-side, W2/W4).
+- W4 containment proof (Blingus; Esther verifies) — raw cgroup evidence (opening matrix:
+  PR #7; three classes named in the fixtures README), scope, kill path, sweep, off-mode
+  cost; compose wiring.
 - W5 CI lane (Esther) — llvmpipe protocol lane; local fallback until env lands.
 
 Exit: lifecycle verbs headless on the real chain; fixtures green both boxes; containment
