@@ -1,0 +1,12 @@
+{
+  "name": "dai-egl2",
+  "image": "localhost/agentuser/camoufox-service:latest",
+  "restart_policy": "no",
+  "devices": [
+    {"path": "/dev/dri/renderD128", "type": "c", "major": 226, "minor": 128, "fileMode": 438, "permissions": "rwm"}
+  ],
+  "mounts": [
+    {"type": "bind", "source": "/home/agentuser/services/dAIorama/probe-out", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": ["bash", "-c", "bash /out/egl2-run.sh; echo '== diag: done rc=' $? >> /out/egl2.out"]
+}

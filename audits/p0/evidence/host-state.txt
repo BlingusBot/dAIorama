@@ -1,0 +1,284 @@
+===== host os-release
+NAME="Aurora"
+VERSION="44.20260819.1 (Kinoite)"
+VERSION_ID=44
+VERSION_CODENAME="Stargazer"
+PRETTY_NAME="Aurora (Version: 44.20260819.1)"
+
+===== host kernel
+Linux version 7.1.4-200.fc44.x86_64 (mockbuild@0e799cccde284e4a829ae8b1987d7732) (gcc (GCC) 16.1.1 20260515 (Red Hat 16.1.1-2), GNU ld version 2.46.1-1.fc44) #1 SMP PREEMPT_DYNAMIC Sat Jul 18 19:16:16 UTC 2026
+
+===== /dev/dri numeric
+/hostdev/dri directory 65534:65534 755
+/hostdev/dri/by-path directory 65534:65534 755
+/hostdev/dri/card1 character special file 65534:65534 660
+/hostdev/dri/renderD128 character special file 65534:65534 666
+
+===== /dev/dri ls -ln
+total 0
+drwxr-xr-x. 2 65534 65534       80 Aug 20 17:55 by-path
+crw-rw----+ 1 65534 65534 226,   1 Aug 20 17:55 card1
+crw-rw-rw-. 1 65534 65534 226, 128 Aug 20 17:55 renderD128
+
+===== /dev/nvidia numeric
+stat: cannot statx '/hostdev/nvidia*': No such file or directory
+
+===== /dev/uinput + drm misc
+/hostdev/uinput character special file 65534:65534 660
+/hostdev/drm_dp_aux0 character special file 65534:65534 600
+/hostdev/drm_dp_aux1 character special file 65534:65534 600
+
+===== /dev/input numeric (first 12)
+total 0
+drwxr-xr-x. 2 65534 65534    140 Aug 20 17:55 by-id
+drwxr-xr-x. 2 65534 65534    340 Aug 20 17:55 by-path
+crw-rw----. 1 65534 65534 13, 64 Aug 20 17:55 event0
+crw-rw----. 1 65534 65534 13, 65 Aug 20 17:55 event1
+crw-rw----. 1 65534 65534 13, 74 Aug 20 17:55 event10
+crw-rw----. 1 65534 65534 13, 75 Aug 20 17:55 event11
+crw-rw----. 1 65534 65534 13, 76 Aug 20 17:55 event12
+crw-rw----. 1 65534 65534 13, 77 Aug 20 17:55 event13
+crw-rw----. 1 65534 65534 13, 78 Aug 20 17:55 event14
+crw-rw----. 1 65534 65534 13, 79 Oct 15 06:26 event15
+crw-rw----. 1 65534 65534 13, 80 Oct 15 06:26 event16
+crw-rw----. 1 65534 65534 13, 66 Aug 20 17:55 event2
+crw-rw----. 1 65534 65534 13, 67 Aug 20 17:55 event3
+
+===== /sys/class/drm
+total 0
+drwxr-xr-x. 2 nobody nogroup    0 Oct 15 06:26 .
+drwxr-xr-t. 1 root   root      30 Oct 15 06:28 ..
+lrwxrwxrwx. 1 nobody nogroup    0 Oct 15 06:26 card1 -> ../../devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1
+lrwxrwxrwx. 1 nobody nogroup    0 Oct 15 06:26 card1-DP-1 -> ../../devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1/card1-DP-1
+lrwxrwxrwx. 1 nobody nogroup    0 Oct 15 06:26 card1-DP-2 -> ../../devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1/card1-DP-2
+lrwxrwxrwx. 1 nobody nogroup    0 Oct 15 06:26 card1-DVI-I-1 -> ../../devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1/card1-DVI-I-1
+lrwxrwxrwx. 1 nobody nogroup    0 Oct 15 06:26 renderD128 -> ../../devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/renderD128
+-r--r--r--. 1 nobody nogroup 4096 Oct 15 06:26 version
+
+===== drm uevents
+
+===== modules nouveau/nvidia
+nouveau
+-- nouveau version: none
+-- nvidia version: none
+
+===== /proc/driver
+total 0
+dr-xr-xr-x. 4 nobody nogroup  0 Oct 14 17:26 .
+drwxr-xr-t. 1 root   root    26 Oct 15 06:28 ..
+-r--r--r--. 1 nobody nogroup  0 Oct 15 06:26 nvram
+-r--r--r--. 1 nobody nogroup  0 Oct 15 06:26 rtc
+cat: /hostproc/driver/nvidia/version: No such file or directory
+
+===== host groups
+root:x:0:
+wheel:x:10:adminuser
+wbpriv:x:88:
+wsdd:x:961:
+davfs2:x:960:
+adminuser:x:1000:
+agentuser:x:1001:
+
+===== host passwd (agentuser/adminuser)
+adminuser:x:1000:1000:adminuser:/var/home/adminuser:/bin/bash
+agentuser:x:1001:1001::/var/home/agentuser:/bin/bash
+
+===== cgroup root controllers
+cpuset cpu io memory hugetlb pids rdma misc dmem
+-- root subtree_control:
+cpu io memory pids
+
+===== user-1001 slice
+cgroup.controllers
+cgroup.events
+cgroup.freeze
+cgroup.kill
+cgroup.max.depth
+cgroup.max.descendants
+cgroup.pressure
+cgroup.procs
+cgroup.stat
+cgroup.stat.local
+cgroup.subtree_control
+cgroup.threads
+cgroup.type
+cpu.idle
+cpu.max
+cpu.max.burst
+cpu.pressure
+cpu.stat
+cpu.stat.local
+cpu.uclamp.max
+cpu.uclamp.min
+cpu.weight
+cpu.weight.nice
+io.bfq.weight
+io.latency
+io.max
+io.pressure
+io.prio.class
+io.stat
+io.weight
+irq.pressure
+memory.current
+memory.events
+memory.events.local
+memory.high
+memory.low
+memory.max
+memory.min
+memory.numa_stat
+memory.oom.group
+memory.peak
+memory.pressure
+memory.reclaim
+memory.stat
+memory.swap.current
+memory.swap.events
+memory.swap.high
+memory.swap.max
+memory.swap.peak
+memory.zswap.current
+memory.zswap.max
+memory.zswap.writeback
+pids.current
+pids.events
+pids.events.local
+pids.max
+pids.peak
+session-1647.scope
+session-1649.scope
+user@1001.service
+-- user@1001 controllers:
+cpu io memory pids
+-- user@1001 subtree_control:
+cpu io memory pids
+-- children:
+app.slice
+background.slice
+cgroup.controllers
+cgroup.events
+cgroup.freeze
+cgroup.kill
+cgroup.max.depth
+cgroup.max.descendants
+cgroup.pressure
+cgroup.procs
+cgroup.stat
+cgroup.stat.local
+cgroup.subtree_control
+cgroup.threads
+cgroup.type
+cpu.idle
+cpu.max
+cpu.max.burst
+cpu.pressure
+cpu.stat
+cpu.stat.local
+cpu.uclamp.max
+cpu.uclamp.min
+cpu.weight
+cpu.weight.nice
+init.scope
+io.bfq.weight
+io.latency
+io.max
+io.pressure
+io.prio.class
+io.stat
+io.weight
+irq.pressure
+memory.current
+memory.events
+memory.events.local
+memory.high
+memory.low
+memory.max
+memory.min
+memory.numa_stat
+memory.oom.group
+memory.peak
+memory.pressure
+memory.reclaim
+memory.stat
+memory.swap.current
+memory.swap.events
+memory.swap.high
+memory.swap.max
+memory.swap.peak
+memory.zswap.current
+memory.zswap.max
+memory.zswap.writeback
+pids.current
+pids.events
+pids.events.local
+pids.max
+pids.peak
+session.slice
+user.slice
+
+===== quadlet service cgroup
+app.slice
+background.slice
+cgroup.controllers
+cgroup.events
+cgroup.freeze
+cgroup.kill
+cgroup.max.depth
+cgroup.max.descendants
+cgroup.pressure
+cgroup.procs
+cgroup.stat
+cgroup.stat.local
+cgroup.subtree_control
+cgroup.threads
+cgroup.type
+cpu.idle
+cpu.max
+cpu.max.burst
+cpu.pressure
+cpu.stat
+cpu.stat.local
+cpu.uclamp.max
+cpu.uclamp.min
+cpu.weight
+cpu.weight.nice
+init.scope
+io.bfq.weight
+io.latency
+io.max
+io.pressure
+io.prio.class
+io.stat
+io.weight
+irq.pressure
+memory.current
+memory.events
+memory.events.local
+memory.high
+memory.low
+memory.max
+memory.min
+memory.numa_stat
+memory.oom.group
+memory.peak
+memory.pressure
+memory.reclaim
+memory.stat
+memory.swap.current
+memory.swap.events
+memory.swap.high
+memory.swap.max
+memory.swap.peak
+memory.zswap.current
+memory.zswap.max
+memory.zswap.writeback
+pids.current
+pids.events
+pids.events.local
+pids.max
+pids.peak
+session.slice
+user.slice
+
+===== done

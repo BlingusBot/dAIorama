@@ -1,0 +1,23 @@
+{
+  "name": "daiorama-host-probe",
+  "image": "localhost/agentuser/camoufox-service:latest",
+  "privileged": true,
+  "restart_policy": "no",
+  "mounts": [
+    {"type": "bind", "source": "/dev", "destination": "/hostdev", "options": ["rbind", "ro"]},
+    {"type": "bind", "source": "/sys/class/drm", "destination": "/hostsys/drm", "options": ["rbind", "ro"]},
+    {"type": "bind", "source": "/sys/module", "destination": "/hostsys/module", "options": ["rbind", "ro"]},
+    {"type": "bind", "source": "/sys/fs/cgroup", "destination": "/hostsys/cgroup", "options": ["rbind", "ro"]},
+    {"type": "bind", "source": "/proc/driver", "destination": "/hostproc/driver", "options": ["rbind", "ro"]},
+    {"type": "bind", "source": "/proc/version", "destination": "/hostproc/version", "options": ["ro"]},
+    {"type": "bind", "source": "/etc/group", "destination": "/hostetc/group", "options": ["ro"]},
+    {"type": "bind", "source": "/etc/passwd", "destination": "/hostetc/passwd", "options": ["ro"]},
+    {"type": "bind", "source": "/etc/os-release", "destination": "/hostetc/os-release", "options": ["ro"]},
+    {"type": "bind", "source": "/home/agentuser/services/dAIorama/probe-out", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": [
+    "bash",
+    "-c",
+    "exec > /out/host-state.txt 2>&1; echo '===== host os-release'; grep -E '^(NAME|VERSION|PRETTY)' /hostetc/os-release; echo; echo '===== host kernel'; cat /hostproc/version; echo; echo '===== /dev/dri numeric'; stat -c '%n %F %u:%g %a' /hostdev/dri /hostdev/dri/* 2>&1; echo; echo '===== /dev/dri ls -ln'; ls -ln /hostdev/dri/ 2>&1; echo; echo '===== /dev/nvidia numeric'; stat -c '%n %F %u:%g %a' /hostdev/nvidia* 2>&1; echo; echo '===== /dev/uinput + drm misc'; stat -c '%n %F %u:%g %a' /hostdev/uinput /hostdev/drm_dp_aux* 2>&1; echo; echo '===== /dev/input numeric (first 12)'; ls -ln /hostdev/input/ 2>&1 | head -14; echo; echo '===== /sys/class/drm'; ls -la /hostsys/drm/ 2>&1; echo; echo '===== drm uevents'; for c in /hostsys/drm/card[0-9]* /hostsys/drm/renderD*; do [ -e \"$c\" ] || continue; echo \"-- $c\"; cat \"$c/device/uevent\" 2>/dev/null; done; echo; echo '===== modules nouveau/nvidia'; ls /hostsys/module/ | grep -Ei 'nouveau|nvidia|amdgpu|i915|virtio_gpu'; echo \"-- nouveau version: $(cat /hostsys/module/nouveau/version 2>/dev/null || echo none)\"; echo \"-- nvidia version: $(cat /hostsys/module/nvidia/version 2>/dev/null || echo none)\"; echo; echo '===== /proc/driver'; ls -la /hostproc/driver/ 2>&1; cat /hostproc/driver/nvidia/version 2>&1; echo; echo '===== host groups'; cat /hostetc/group; echo; echo '===== host passwd (agentuser/adminuser)'; grep -E 'agentuser|adminuser' /hostetc/passwd; echo; echo '===== cgroup root controllers'; cat /hostsys/cgroup/cgroup.controllers; echo '-- root subtree_control:'; cat /hostsys/cgroup/cgroup.subtree_control; echo; echo '===== user-1001 slice'; ls /hostsys/cgroup/user.slice/user-1001.slice/ 2>&1; echo '-- user@1001 controllers:'; cat /hostsys/cgroup/user.slice/user-1001.slice/user@1001.service/cgroup.controllers 2>&1; echo '-- user@1001 subtree_control:'; cat /hostsys/cgroup/user.slice/user-1001.slice/user@1001.service/cgroup.subtree_control 2>&1; echo '-- children:'; ls /hostsys/cgroup/user.slice/user-1001.slice/user@1001.service/ 2>&1; echo; echo '===== quadlet service cgroup'; ls /hostsys/cgroup/user.slice/user-1001.slice/user@1001.service/ 2>/dev/null; echo; echo '===== done'"
+  ]
+}
