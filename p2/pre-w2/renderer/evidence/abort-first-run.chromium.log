@@ -1,0 +1,6 @@
+[70:97:1015/173806.103629:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+[70:70:1015/173806.122241:ERROR:ui/ozone/platform/wayland/host/wayland_connection.cc:210] Failed to connect to Wayland display: Connection refused (111)
+[70:70:1015/173806.122270:ERROR:ui/ozone/platform/wayland/ozone_platform_wayland.cc:288] Failed to initialize Wayland platform
+[70:70:1015/173806.122311:ERROR:ui/aura/env.cc:246] The platform failed to initialize.  Exiting.
+[90:90:0100/000000.146190:ERROR:content/zygote/zygote_linux.cc:662] write: Broken pipe (32)
+[91:91:0100/000000.147722:ERROR:content/zygote/zygote_linux.cc:662] write: Broken pipe (32)

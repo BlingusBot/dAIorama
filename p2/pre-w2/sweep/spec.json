@@ -1,0 +1,10 @@
+{
+  "name": "dai-p2-sweep",
+  "image": "localhost/daiorama/dai-l1:dev",
+  "restart_policy": "no",
+  "privileged": true,
+  "mounts": [
+    {"type": "bind", "source": "/home/USER/services/dAIorama/p1-out", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": ["bash", "-c", "bash /out/p2-sweep-probe.sh > /out/p2-sweep-probe.txt 2>&1; echo exit=$? >> /out/p2-sweep-probe.txt"]
+}

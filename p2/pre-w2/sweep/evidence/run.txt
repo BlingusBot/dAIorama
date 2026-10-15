@@ -1,0 +1,51 @@
+===== A. keeper prep =====
+nsroot subtree_control: [cpu memory pids]
+nsroot procs after prep: []
+===== B. session scope + limits =====
+scope procs: [8
+9]
+readbacks: memory.max=99999744 pids.max=64
+===== B2. fork inheritance: children born AFTER parent is in the scope land in the scope =====
+forked-child cgroup: [0::/dai-inh]
+scope procs (parent+child): [15
+18]
+/out/p2-sweep-probe.sh: line 42:    15 Killed                     python3 -c "
+import os, time
+os.system('echo %d > /sys/fs/cgroup/dai-inh/cgroup.procs' % os.getpid())
+pid = os.fork()
+if pid == 0:
+    open('/tmp/inh.txt','w').write(open('/proc/self/cgroup').read().strip())
+    time.sleep(600); os._exit(0)
+time.sleep(600)
+"
+post-kill: []
+inherit scope removed
+===== C. kill path: cgroup.kill =====
+/out/p2-sweep-probe.sh: line 48:     8 Killed                     sleep 600
+/out/p2-sweep-probe.sh: line 48:     9 Killed                     sleep 600
+procs after kill: []
+spawner alive=no; client alive=no
+scope rmdir OK
+===== D. PDEATHSIG: child dies when parent is SIGKILLed =====
+manager=31 child=33
+/out/p2-sweep-probe.sh: line 70:    31 Killed                     python3 -c "
+import os, signal, time, ctypes
+libc = ctypes.CDLL(None)
+pid = os.fork()
+if pid == 0:
+    libc.prctl(1, signal.SIGKILL)   # PR_SET_PDEATHSIG
+    open('/tmp/pdeath.pid','w').write(str(os.getpid()))
+    time.sleep(600); os._exit(0)
+time.sleep(600)
+"
+child alive after manager SIGKILL: no
+===== E. stale-scope startup sweep (manager-crash simulation) =====
+pre-sweep procs in dai-sess2: [39]
+-- sweep pass (what the manager runs at startup):
+  sweeping /sys/fs/cgroup/dai-sess2
+    removed
+/out/p2-sweep-probe.sh: line 85:    39 Killed                     sleep 600
+no stale scopes remain
+process alive check: no
+=== done ===
+exit=0

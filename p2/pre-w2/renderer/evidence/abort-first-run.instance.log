@@ -1,0 +1,99 @@
+DEBUG ]: Old rlimit: soft -> 524288, hard -> 524288
+DEBUG ]: New rlimit: soft -> 524288, hard -> 524288
+WARN ]: WARNING: Hyprland is being launched without start-hyprland. This is highly advised against.
+DEBUG ]: Creating the EventLoopManager!
+DEBUG ]: Creating the KeybindManager!
+DEBUG ]: Creating the AnimationManager!
+DEBUG ]: Creating the DynamicPermissionManager!
+DEBUG ]: Creating the MonitorState!
+DEBUG ]: Creating the WorkspaceState!
+DEBUG ]: Creating the ConfigManager!
+DEBUG ]: [cfg] Config is either explicit or special.
+DEBUG ]: [cfg] Config is NOT lua, loading regular mgr
+DEBUG ]: Using config: /root/hypr.conf
+DEBUG ]: !!!!HEY YOU, YES YOU!!!!: further logs to stdout / logfile are disabled by default. BEFORE SENDING THIS LOG, ENABLE THEM. Use debug:disable_logs = false to do so: https://wiki.hypr.land/Configuring/Basics/Variables/#debug
+DEBUG ]: Creating the Error Overlay!
+DEBUG ]: Creating the LayoutManager!
+DEBUG ]: Creating the TokenManager!
+DEBUG ]: Creating the EventManager!
+DEBUG ]: Using config: /root/hypr.conf
+DEBUG ]: Disabling stdout logs (debug.enable_stdout_logs = 0). Further logs will be written to /tmp/xdg/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792085872_1476504630/hyprland.log
+DEBUG ]: Creating the PointerManager!
+DEBUG ]: Creating the AsyncResourceGatherer!
+DEBUG from aquamarine ]: Creating an Aquamarine backend!
+DEBUG from aquamarine ]: [libseat] [libseat/backend/seatd.c:64] Could not connect to socket /run/seatd.sock: No such file or directory
+DEBUG from aquamarine ]: [libseat] [libseat/libseat.c:76] Backend 'seatd' failed to open seat, skipping
+ERR from aquamarine ]: [libseat] [libseat/backend/logind.c:638] Could not get primary session for user: No data available
+DEBUG from aquamarine ]: [libseat] [libseat/libseat.c:76] Backend 'logind' failed to open seat, skipping
+DEBUG from aquamarine ]: [libseat] [libseat/libseat.c:73] Seat opened with backend 'builtin'
+WARN from aquamarine ]: libinput: plugin support is not available in this libinput build
+DEBUG from aquamarine ]: [libinput] event3  - skip unconfigured input device '/dev/input/event3'
+DEBUG from aquamarine ]: [libinput] event4  - skip unconfigured input device '/dev/input/event4'
+DEBUG from aquamarine ]: [libinput] event11 - skip unconfigured input device '/dev/input/event11'
+DEBUG from aquamarine ]: [libinput] event12 - skip unconfigured input device '/dev/input/event12'
+DEBUG from aquamarine ]: [libinput] event13 - skip unconfigured input device '/dev/input/event13'
+DEBUG from aquamarine ]: [libinput] event14 - skip unconfigured input device '/dev/input/event14'
+DEBUG from aquamarine ]: [libinput] event7  - skip unconfigured input device '/dev/input/event7'
+DEBUG from aquamarine ]: [libinput] event8  - skip unconfigured input device '/dev/input/event8'
+DEBUG from aquamarine ]: [libinput] event9  - skip unconfigured input device '/dev/input/event9'
+DEBUG from aquamarine ]: [libinput] event10 - skip unconfigured input device '/dev/input/event10'
+DEBUG from aquamarine ]: [libinput] event1  - skip unconfigured input device '/dev/input/event1'
+DEBUG from aquamarine ]: [libinput] event0  - skip unconfigured input device '/dev/input/event0'
+DEBUG from aquamarine ]: [libinput] event6  - skip unconfigured input device '/dev/input/event6'
+DEBUG from aquamarine ]: [libinput] event2  - skip unconfigured input device '/dev/input/event2'
+DEBUG from aquamarine ]: [libinput] event5  - skip unconfigured input device '/dev/input/event5'
+DEBUG from aquamarine ]: [libinput] event16 - skip unconfigured input device '/dev/input/event16'
+DEBUG from aquamarine ]: [libinput] event15 - skip unconfigured input device '/dev/input/event15'
+DEBUG from aquamarine ]: drm: Enumerated device /sys/devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1
+ERR from aquamarine ]: libseat: Couldn't open device at /dev/dri/card1
+ERR from aquamarine ]: drm: Skipping device /sys/devices/pci0000:64/0000:64:00.0/0000:65:00.0/drm/card1, not a KMS device
+ERR from aquamarine ]: drm: Found no gpus to use, cannot continue
+ERR from aquamarine ]: DRM Backend failed
+DEBUG from aquamarine ]: Starting the Aquamarine backend!
+DEBUG from aquamarine ]: Starting the Wayland backend!
+DEBUG from aquamarine ]: Connected to a wayland compositor: unknown (XDG_CURRENT_DEKSTOP unset?)
+DEBUG from aquamarine ]: Got registry at 0x56233823d830
+TRACE from aquamarine ]:  | received global: wl_compositor (version 6) with id 1
+TRACE from aquamarine ]:   > binding to global: wl_compositor (version 6) with id 1
+TRACE from aquamarine ]:  | received global: wl_shm (version 2) with id 2
+TRACE from aquamarine ]:   > binding to global: wl_shm (version 1) with id 2
+TRACE from aquamarine ]:  | received global: wl_output (version 4) with id 3
+TRACE from aquamarine ]:  | received global: zxdg_output_manager_v1 (version 3) with id 4
+TRACE from aquamarine ]:  | received global: wl_data_device_manager (version 3) with id 5
+TRACE from aquamarine ]:  | received global: xdg_toplevel_drag_manager_v1 (version 1) with id 6
+TRACE from aquamarine ]:  | received global: zwp_primary_selection_device_manager_v1 (version 1) with id 7
+TRACE from aquamarine ]:  | received global: wl_subcompositor (version 1) with id 8
+TRACE from aquamarine ]:  | received global: xdg_wm_base (version 7) with id 9
+TRACE from aquamarine ]:   > binding to global: xdg_wm_base (version 6) with id 9
+TRACE from aquamarine ]:  | received global: gtk_shell1 (version 7) with id 10
+TRACE from aquamarine ]:  | received global: wp_viewporter (version 1) with id 11
+TRACE from aquamarine ]:  | received global: wp_fractional_scale_manager_v1 (version 1) with id 12
+TRACE from aquamarine ]:  | received global: zwp_pointer_gestures_v1 (version 3) with id 13
+TRACE from aquamarine ]:  | received global: zwp_tablet_manager_v2 (version 2) with id 14
+TRACE from aquamarine ]:  | received global: wp_pointer_warp_v1 (version 1) with id 15
+TRACE from aquamarine ]:  | received global: wl_seat (version 10) with id 16
+TRACE from aquamarine ]:   > binding to global: wl_seat (version 9) with id 16
+TRACE from aquamarine ]:  | received global: zwp_relative_pointer_manager_v1 (version 1) with id 17
+TRACE from aquamarine ]:  | received global: zwp_pointer_constraints_v1 (version 1) with id 18
+TRACE from aquamarine ]:  | received global: zxdg_exporter_v2 (version 1) with id 19
+TRACE from aquamarine ]:  | received global: zxdg_importer_v2 (version 1) with id 20
+TRACE from aquamarine ]:  | received global: zxdg_exporter_v1 (version 1) with id 21
+TRACE from aquamarine ]:  | received global: zxdg_importer_v1 (version 1) with id 22
+TRACE from aquamarine ]:  | received global: zwp_linux_dmabuf_v1 (version 3) with id 23
+TRACE from aquamarine ]:   > binding to global: zwp_linux_dmabuf_v1 (version 4) with id 23
+TRACE from aquamarine ]:  | received global: wp_single_pixel_buffer_manager_v1 (version 1) with id 24
+TRACE from aquamarine ]:  | received global: zwp_keyboard_shortcuts_inhibit_manager_v1 (version 1) with id 25
+TRACE from aquamarine ]:  | received global: zwp_text_input_manager_v3 (version 2) with id 26
+TRACE from aquamarine ]:  | received global: wp_presentation (version 2) with id 27
+TRACE from aquamarine ]:  | received global: xdg_activation_v1 (version 1) with id 28
+TRACE from aquamarine ]:  | received global: zwp_idle_inhibit_manager_v1 (version 1) with id 29
+TRACE from aquamarine ]:  | received global: xdg_wm_dialog_v1 (version 1) with id 30
+TRACE from aquamarine ]:  | received global: wp_color_manager_v1 (version 2) with id 31
+TRACE from aquamarine ]:  | received global: xdg_system_bell_v1 (version 1) with id 32
+TRACE from aquamarine ]:  | received global: xdg_toplevel_tag_manager_v1 (version 1) with id 33
+TRACE from aquamarine ]:  | received global: wp_drm_lease_device_v1 (version 1) with id 34
+TRACE from aquamarine ]:  | received global: wp_commit_timing_manager_v1 (version 1) with id 35
+TRACE from aquamarine ]:  | received global: wp_fifo_manager_v1 (version 1) with id 36
+TRACE from aquamarine ]:  | received global: wp_cursor_shape_manager_v1 (version 2) with id 37
+TRACE from aquamarine ]:  | received global: wp_color_representation_manager_v1 (version 1) with id 38
+TRACE from aquamarine ]:  | received global: wl_fixes (version 1) with id 39

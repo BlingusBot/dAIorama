@@ -1,0 +1,41 @@
+{
+  "collected_at": "2026-10-15T17:45:54Z",
+  "containment": {
+    "class": "off-mode class (no writable cgroupfs)",
+    "controllers": "cpu io memory pids",
+    "mkdir_error": "[Errno 30] Read-only file system: '/sys/fs/cgroup/dai-doctor-probe'",
+    "subtree_control": "",
+    "writable_cgroupfs": false
+  },
+  "gpu": {
+    "egl_init": true,
+    "egl_version": "1.5",
+    "gl_renderer": "NV117",
+    "gl_vendor": "Mesa",
+    "is_llvmpipe": false,
+    "render_node": true
+  },
+  "runtime_dir": "/tmp/xdg",
+  "tools": {
+    "paths": {
+      "Hyprland": "/usr/bin/Hyprland",
+      "chromium": "/usr/bin/chromium",
+      "dbus-run-session": "/usr/bin/dbus-run-session",
+      "foot": "/usr/bin/foot",
+      "grim": "/usr/bin/grim",
+      "mutter": "/usr/bin/mutter",
+      "wayvnc": "/usr/bin/wayvnc",
+      "websockify": "/usr/bin/websockify",
+      "wlrctl": "/usr/bin/wlrctl",
+      "wtype": "/usr/bin/wtype"
+    },
+    "versions": {
+      "chromium": "Chromium 155.0.8059.39 built on Debian GNU/Linux forky/sid",
+      "hyprland": "Hyprland 0.56.2 built from branch v0.56.2 at commit efb50993780079460b0cbed1363e2166a2de1d9f clean ([gha] Nix: update inputs).\nDate: Wed Aug 5 14:13:21 2026\nTag: v0.56.2, commits: 7661\n\nLibraries:\nHyp",
+      "mutter": "mutter 50.5",
+      "wayvnc": "wayvnc: 0.10.1\nneatvnc: 1.0.1\naml: 1.0.0"
+    }
+  },
+  "uid": 0,
+  "uname": "7.1.4-200.fc44.x86_64"
+}

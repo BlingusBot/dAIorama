@@ -1,0 +1,61 @@
+===== A. parent: mutter --headless (render node, no KMS) =====
+mutter alive=yes
+===== B. child: Hyprland nested =====
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=17 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c370,c930")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+hyprland alive=yes
+sig=efb50993780079460b0cbed1363e2166a2de1d9f_1792085780_1258440059
+ok
+--- compositor renderer ---
+DEBUG ]: Creating the Hypr OpenGL Renderer!
+DEBUG ]: Using: OpenGL ES 3.2 Mesa 26.2.4-1
+DEBUG ]: Renderer: NV117
+===== C. foot window + initial input =====
+hyprland socket: wayland-1
+===== D. resize/scale matrix =====
+===== STEP 2560x1440-s1: mode=2560x1440@60 scale=1 =====
+ok
+grim OK
+monitor-json: w=2560 h=1440 scale=1 physW=0 physH=0 refresh=60.0
+PNG dims: 2560x1440
+===== STEP 1920x1080-s2: mode=1920x1080@60 scale=2 =====
+ok
+grim OK
+monitor-json: w=1920 h=1080 scale=2 physW=0 physH=0 refresh=60.0
+PNG dims: 1920x1080
+===== STEP 3840x2160-s2: mode=3840x2160@60 scale=2 =====
+ok
+grim OK
+monitor-json: w=3840 h=2160 scale=2 physW=0 physH=0 refresh=60.0
+PNG dims: 3840x2160
+===== STEP 1280x800-s1: mode=1280x800@60 scale=1 =====
+ok
+grim OK
+monitor-json: w=1280 h=800 scale=1 physW=0 physH=0 refresh=60.0
+PNG dims: 1280x800
+===== STEP 1920x1080-s15: mode=1920x1080@60 scale=1.5 =====
+ok
+grim OK
+monitor-json: w=1920 h=1080 scale=1.5 physW=0 physH=0 refresh=60.0
+PNG dims: 1920x1080
+===== E. input survival after live resize =====
+	class: dai-resize-test
+	title: foot
+final grim OK
+480, 270
+===== F. evidence copies =====
+-rw-r--r--. 1 root root   12305 Oct 15 17:36 /out/p2-resize-1280x800-s1.png
+-rw-r--r--. 1 root root   22984 Oct 15 17:36 /out/p2-resize-1920x1080-s15.png
+-rw-r--r--. 1 root root   29101 Oct 15 17:36 /out/p2-resize-1920x1080-s2.png
+-rw-r--r--. 1 root root   22227 Oct 15 17:36 /out/p2-resize-2560x1440-s1.png
+-rw-r--r--. 1 root root   49493 Oct 15 17:36 /out/p2-resize-3840x2160-s2.png
+-rw-r--r--. 1 root root   23392 Oct 15 17:36 /out/p2-resize-final.png
+-rw-r--r--. 1 root root     154 Oct 15 17:36 /out/p2-resize-foot.log
+-rw-r--r--. 1 root root    7329 Oct 15 17:36 /out/p2-resize-hypr.log
+-rw-r--r--. 1 root root 1619308 Oct 15 17:36 /out/p2-resize-hyprland-instance.log
+-rw-r--r--. 1 root root    1090 Oct 15 17:36 /out/p2-resize-monitors-final.json
+-rw-r--r--. 1 root root     767 Oct 15 17:36 /out/p2-resize-mutter.log
+-rw-r--r--. 1 root root    3573 Oct 15 17:35 /out/p2-resize-scale.sh
+-rw-r--r--. 1 root root    1662 Oct 15 17:36 /out/p2-resize-scale.txt
+=== done ===
+exit=0

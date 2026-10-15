@@ -1,0 +1,15 @@
+libmutter-Message: 17:43:08.233: Running Mutter (using mutter 50.5) as a Wayland display server
+libmutter-Message: 17:43:08.326: Added device '/dev/dri/renderD128' (nouveau) using no mode setting.
+libmutter-Message: 17:43:08.327: Failed to initialize accelerated iGPU/dGPU framebuffer sharing: Not hardware accelerated
+libmutter-Message: 17:43:08.327: Created gbm renderer for '/dev/dri/renderD128'
+libmutter-Message: 17:43:08.327: Boot VGA GPU /dev/dri/renderD128 selected as primary
+libmutter-Message: 17:43:08.397: Added virtual monitor Meta-0
+libmutter-Message: 17:43:08.413: Using Wayland display name 'wayland-m'
+
+(mutter:502): mutter-WARNING **: 17:43:08.417: Failed to acquire org.freedesktop.locale1 proxy: Could not connect: No such file or directory
+
+(mutter:502): libmutter-WARNING **: 17:43:08.418: Failed to connect to colord daemon: Could not connect: No such file or directory
+
+(mutter:502): libmutter-WARNING **: 17:43:16.279: WL: error in client communication (pid 538)
+
+libmutter-Message: 17:43:19.263: Removed virtual monitor Meta-0

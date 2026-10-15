@@ -1,0 +1,67 @@
+===== A. llvmpipe GL sanity (surfaceless EGL) =====
+-- variant: NONE
+eglInitialize: True | version 1 5 | err: 0x3000
+  EGL_VENDOR: b'Mesa Project'
+  GL_VENDOR: Mesa
+  GL_RENDERER: NV117
+   rc=0
+-- variant: LIBGL_ALWAYS_SOFTWARE=1
+eglInitialize: True | version 1 5 | err: 0x3000
+  EGL_VENDOR: b'Mesa Project'
+  GL_VENDOR: Mesa
+  GL_RENDERER: llvmpipe (LLVM 22.1.8, 256 bits)
+   rc=0
+-- variant: MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
+eglInitialize: True | version 1 5 | err: 0x3000
+  EGL_VENDOR: b'Mesa Project'
+  GL_VENDOR: Mesa
+  GL_RENDERER: llvmpipe (LLVM 22.1.8, 256 bits)
+   rc=0
+-- variant: GALLIUM_DRIVER=llvmpipe
+eglInitialize: True | version 1 5 | err: 0x3000
+  EGL_VENDOR: b'Mesa Project'
+  GL_VENDOR: Mesa
+  GL_RENDERER: NV117
+   rc=0
+===== B. mutter parent =====
+mutter alive=yes
+env-mark: none | inside: 0
+===== ATTEMPT h-default (no extra env) =====
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=88 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c563,c896")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+RUNNING (renderer line found: no)
+ok
+failed to create display
+grim fail
+
+env-mark: LIBGL_ALWAYS_SOFTWARE=1 | inside: 1
+===== ATTEMPT h-soft (LIBGL_ALWAYS_SOFTWARE=1) =====
+RUNNING (renderer line found: no)
+ok
+failed to create display
+grim fail
+
+env-mark: LIBGL_ALWAYS_SOFTWARE=1 MESA_LOADER_DRIVER_OVERRIDE=llvmpipe | inside: 1
+===== ATTEMPT h-soft-ovr (LIBGL_ALWAYS_SOFTWARE=1 MESA_LOADER_DRIVER_OVERRIDE=llvmpipe) =====
+RUNNING (renderer line found: no)
+ok
+failed to create display
+grim fail
+
+env-mark: MESA_LOADER_DRIVER_OVERRIDE=llvmpipe | inside: 1
+===== ATTEMPT h-ovr (MESA_LOADER_DRIVER_OVERRIDE=llvmpipe) =====
+RUNNING (renderer line found: no)
+ok
+failed to create display
+grim fail
+
+env-mark: GALLIUM_DRIVER=llvmpipe | inside: 1
+===== ATTEMPT h-gallium (GALLIUM_DRIVER=llvmpipe) =====
+RUNNING (renderer line found: no)
+ok
+failed to create display
+grim fail
+
+===== C. cleanup =====
+done
+exit=0

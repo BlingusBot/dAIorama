@@ -1,0 +1,30 @@
+DEBUG ]: Using: OpenGL ES 3.2 Mesa 26.2.4-1
+DEBUG ]: Renderer: NV117
+DEBUG ]: Monitor HEADLESS-R: requested preferred, using preferred mode 1920x1080@60.00Hz
+DEBUG ]: Monitor HEADLESS-R -> destroyed all render data
+DEBUG ]: Monitor HEADLESS-R data dump: res 1920x1080@60.00Hz, scale 2.00, transform 0, pos -1x-1, 10b 0
+DEBUG ]: Monitor HEADLESS-R was not on any workspace
+DEBUG ]: Framebuffer "Monitor HEADLESS-R blur FB" created, status 36053
+DEBUG ]: Framebuffer "Monitor HEADLESS-R workbuffer" created, status 36053
+DEBUG ]: Framebuffer "Monitor HEADLESS-R workbuffer" created, status 36053
+DEBUG ]: Framebuffer "Monitor HEADLESS-R workbuffer" created, status 36053
+DEBUG ]: Monitor HEADLESS-R: requested 2560x1440@60.00Hz, using available mode 2560x1440@60.00Hz
+DEBUG ]: Monitor HEADLESS-R -> destroyed all render data
+DEBUG ]: Monitor HEADLESS-R data dump: res 2560x1440@60.00Hz, scale 1.00, transform 0, pos 0x0, 10b 0
+DEBUG ]: Framebuffer "Monitor HEADLESS-R blur FB" created, status 36053
+DEBUG ]: Framebuffer "Monitor HEADLESS-R workbuffer" created, status 36053
+DEBUG ]: Framebuffer "Monitor HEADLESS-R mirror FB" created, status 36053
+DEBUG ]: Monitor HEADLESS-R: requested 1920x1080@60.00Hz, using preferred mode 1920x1080@60.00Hz
+DEBUG ]: Monitor HEADLESS-R -> destroyed all render data
+DEBUG ]: Monitor HEADLESS-R data dump: res 1920x1080@60.00Hz, scale 2.00, transform 0, pos 0x0, 10b 0
+DEBUG ]: Framebuffer "Monitor HEADLESS-R blur FB" created, status 36053
+DEBUG ]: Framebuffer "Monitor HEADLESS-R workbuffer" created, status 36053
+DEBUG ]: Framebuffer "Monitor HEADLESS-R mirror FB" created, status 36053
+DEBUG ]: Monitor HEADLESS-R: requested 3840x2160@60.00Hz, using available mode 3840x2160@60.00Hz
+DEBUG ]: Monitor HEADLESS-R -> destroyed all render data
+DEBUG ]: Monitor HEADLESS-R data dump: res 3840x2160@60.00Hz, scale 2.00, transform 0, pos 0x0, 10b 0
+DEBUG ]: Framebuffer "Monitor HEADLESS-R blur FB" created, status 36053
+DEBUG ]: Framebuffer "Monitor HEADLESS-R workbuffer" created, status 36053
+DEBUG ]: Framebuffer "Monitor HEADLESS-R mirror FB" created, status 36053
+DEBUG ]: Monitor HEADLESS-R: requested 1280x800@60.00Hz, using available mode 1280x800@60.00Hz
+DEBUG ]: Monitor HEADLESS-R -> destroyed all render data
