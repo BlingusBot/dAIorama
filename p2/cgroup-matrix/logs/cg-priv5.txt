@@ -1,0 +1,35 @@
+== procs in nsroot before ==
+1
+2
+
+== move all to keeper ==
+procs left:
+
+== enable at nsroot now ==
+rc=0
+-- subtree_control:
+cpu memory pids
+
+== mkdir s3 + controllers ==
+cpu memory pids
+cgroup.max.depth
+cgroup.max.descendants
+cpu.max
+cpu.max.burst
+cpu.uclamp.max
+cpu.weight
+cpu.weight.nice
+memory.max
+memory.swap.max
+memory.zswap.max
+
+== limits ==
+mem rc=0
+pids rc=0
+max
+100
+
+== move test proc ==
+move rc=0
+18
+done

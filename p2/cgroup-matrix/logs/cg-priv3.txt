@@ -1,0 +1,50 @@
+== nsroot ==
+0::/
+-- controllers:
+cpu io memory pids
+-- subtree_control now:
+
+== create + inspect ==
+cgroup.controllers
+cgroup.events
+cgroup.freeze
+cgroup.kill
+cgroup.max.depth
+cgroup.max.descendants
+cgroup.pressure
+cgroup.procs
+cgroup.stat
+cgroup.stat.local
+cgroup.subtree_control
+cgroup.threads
+cgroup.type
+cpu.pressure
+cpu.stat
+cpu.stat.local
+io.pressure
+irq.pressure
+memory.pressure
+
+== enable single pids ==
+bash: line 1: echo: write error: No such file or directory
+rc=1
+-- after:
+
+== enable cpu ==
+bash: line 1: echo: write error: No such file or directory
+rc=1
+
+== memory.max direct ==
+bash: line 1: /sys/fs/cgroup/s1/memory.max: Permission denied
+rc=1
+
+== python errno probe ==
+Exception ignored while finalizing file <_io.TextIOWrapper name='/sys/fs/cgroup/s1/cgroup.subtree_control' mode='w' encoding='utf-8'>:
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+FileNotFoundError: [Errno 2] No such file or directory
+cgroup.subtree_control -> OK
+memory.max -> PermissionError 13 Permission denied
+pids.max -> PermissionError 13 Permission denied
+
+done

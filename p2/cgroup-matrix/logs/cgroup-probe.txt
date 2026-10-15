@@ -1,0 +1,45 @@
+== cgroup mounts ==
+cgroup2 on /sys/fs/cgroup type cgroup2 (ro,nosuid,nodev,noexec,relatime,nosymfollow,seclabel,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting)
+
+== /proc/self/cgroup ==
+0::/
+
+== cgroupfs root listing ==
+total 0
+drwxr-xr-x.  2 root   root    0 Oct 15 17:09 .
+drwxr-xr-x. 12 nobody nogroup 0 Oct 15 17:09 ..
+-r--r--r--.  1 root   root    0 Oct 15 17:09 cgroup.controllers
+-r--r--r--.  1 root   root    0 Oct 15 17:09 cgroup.events
+-rw-r--r--.  1 root   root    0 Oct 15 17:09 cgroup.freeze
+--w-------.  1 root   root    0 Oct 15 17:09 cgroup.kill
+-rw-r--r--.  1 root   root    0 Oct 15 17:09 cgroup.max.depth
+-rw-r--r--.  1 root   root    0 Oct 15 17:09 cgroup.max.descendants
+-rw-r--r--.  1 root   root    0 Oct 15 17:09 cgroup.pressure
+-rw-r--r--.  1 root   root    0 Oct 15 17:09 cgroup.procs
+-r--r--r--.  1 root   root    0 Oct 15 17:09 cgroup.stat
+-r--r--r--.  1 root   root    0 Oct 15 17:09 cgroup.stat.local
+-rw-r--r--.  1 root   root    0 Oct 15 17:09 cgroup.subtree_control
+-rw-r--r--.  1 root   root    0 Oct 15 17:09 cgroup.threads
+-rw-r--r--.  1 root   root    0 Oct 15 17:09 cgroup.type
+-rw-r--r--.  1 root   root    0 Oct 15 17:09 cpu.idle
+-rw-r--r--.  1 root   root    0 Oct 15 17:09 cpu.max
+
+== controllers ==
+cpu io memory pids
+-- subtree_control:
+
+== mkdir test ==
+mkdir: cannot create directory '/sys/fs/cgroup/dai-probe': Read-only file system
+MKDIR_FAIL
+bash: line 1: /sys/fs/cgroup/dai-probe/cgroup.subtree_control: No such file or directory
+SUBCTL_FAIL
+rmdir: failed to remove '/sys/fs/cgroup/dai-probe': Read-only file system
+RMDIR_FAIL
+
+== child-process move test (session-scope shape) ==
+bash: line 1: /sys/fs/cgroup/dai-probe2/cgroup.procs: No such file or directory
+MOVEPROC_FAIL
+procs now:
+
+== mountinfo ==
+1798 1795 0:30 / /sys/fs/cgroup ro,nosuid,nodev,noexec,relatime,nosymfollow - cgroup2 cgroup2 rw,seclabel,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting

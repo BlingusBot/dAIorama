@@ -1,0 +1,23 @@
+{
+  "name": "dai-cg-priv3",
+  "image": "localhost/blingus/dai-l1:dev",
+  "restart_policy": "no",
+  "privileged": true,
+  "mounts": [
+    {
+      "type": "bind",
+      "source": "/home/blingus/services/dAIorama/p1-out",
+      "destination": "/out",
+      "options": [
+        "rbind",
+        "rw",
+        "z"
+      ]
+    }
+  ],
+  "command": [
+    "bash",
+    "-c",
+    "exec > /out/cg-priv3.txt 2>&1; echo '== nsroot =='; cat /proc/self/cgroup; echo '-- controllers:'; cat /sys/fs/cgroup/cgroup.controllers; echo '-- subtree_control now:'; cat /sys/fs/cgroup/cgroup.subtree_control; echo; echo '== create + inspect =='; mkdir /sys/fs/cgroup/s1; cat /sys/fs/cgroup/s1/cgroup.controllers; ls /sys/fs/cgroup/s1/ | head -20; echo; echo '== enable single pids =='; (echo '+pids' > /sys/fs/cgroup/s1/cgroup.subtree_control) 2>&1; echo \"rc=$?\"; echo '-- after:'; cat /sys/fs/cgroup/s1/cgroup.subtree_control; echo; echo '== enable cpu =='; (echo '+cpu' > /sys/fs/cgroup/s1/cgroup.subtree_control) 2>&1; echo \"rc=$?\"; cat /sys/fs/cgroup/s1/cgroup.subtree_control; echo; echo '== memory.max direct =='; (echo 100000000 > /sys/fs/cgroup/s1/memory.max) 2>&1; echo \"rc=$?\"; echo; echo '== python errno probe =='; python3 - <<'EOP'\nfor fn, data in [('cgroup.subtree_control','+cpu +memory'), ('memory.max','100000000'), ('pids.max','10')]:\n    try:\n        open('/sys/fs/cgroup/s1/'+fn,'w').write(data); print(fn, '-> OK')\n    except OSError as e:\n        print(fn, '->', type(e).__name__, e.errno, e.strerror)\nEOP\necho; rmdir /sys/fs/cgroup/s1 2>&1; echo done"
+  ]
+}
