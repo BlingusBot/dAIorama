@@ -14,3 +14,4 @@
 #![allow(dead_code)] // wires in as the slices land; unit tests exercise everything today
 
 pub mod containment;
+pub mod spawner;
