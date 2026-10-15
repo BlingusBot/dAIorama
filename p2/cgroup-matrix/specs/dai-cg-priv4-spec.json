@@ -1,0 +1,23 @@
+{
+  "name": "dai-cg-priv4",
+  "image": "localhost/blingus/dai-l1:dev",
+  "restart_policy": "no",
+  "privileged": true,
+  "mounts": [
+    {
+      "type": "bind",
+      "source": "/home/blingus/services/dAIorama/p1-out",
+      "destination": "/out",
+      "options": [
+        "rbind",
+        "rw",
+        "z"
+      ]
+    }
+  ],
+  "command": [
+    "bash",
+    "-c",
+    "exec > /out/cg-priv4.txt 2>&1; echo '== nsroot subtree_control BEFORE =='; cat /sys/fs/cgroup/cgroup.subtree_control; echo '== enable at nsroot =='; (echo '+cpu +memory +pids' > /sys/fs/cgroup/cgroup.subtree_control) 2>&1; echo rc=$?; echo '== AFTER =='; cat /sys/fs/cgroup/cgroup.subtree_control; echo; echo '== mkdir s2 + controllers =='; mkdir /sys/fs/cgroup/s2; cat /sys/fs/cgroup/s2/cgroup.controllers; echo; echo '== write limits =='; (echo max > /sys/fs/cgroup/s2/memory.max) 2>&1; echo \"mem rc=$?\"; (echo 100 > /sys/fs/cgroup/s2/pids.max) 2>&1; echo \"pids rc=$?\"; echo '-- values:'; cat /sys/fs/cgroup/s2/memory.max /sys/fs/cgroup/s2/pids.max 2>/dev/null; echo; echo '== move proc =='; sleep 120 & SP=$!; sleep 1; (echo $SP > /sys/fs/cgroup/s2/cgroup.procs) 2>&1; echo \"move rc=$?\"; cat /sys/fs/cgroup/s2/cgroup.procs 2>/dev/null; kill $SP 2>/dev/null; sleep 0.5; echo; echo '== nested child for leaf limits =='; mkdir /sys/fs/cgroup/s2/n1 2>/dev/null && echo NESTED_OK; (echo '+cpu +memory' > /sys/fs/cgroup/s2/cgroup.subtree_control) 2>&1; echo \"s2ctl rc=$?\"; cat /sys/fs/cgroup/s2/cgroup.subtree_control; rmdir /sys/fs/cgroup/s2/n1 2>/dev/null; echo; echo '== cleanup =='; rmdir /sys/fs/cgroup/s2 2>&1 && echo RMDIR_OK || echo RMDIR_FAIL; echo done"
+  ]
+}

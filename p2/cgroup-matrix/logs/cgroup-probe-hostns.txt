@@ -1,0 +1,13 @@
+== mount ==
+cgroup2 on /sys/fs/cgroup type cgroup2 (ro,nosuid,nodev,noexec,relatime,nosymfollow,seclabel,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting)
+
+== mountinfo ==
+1861 1858 0:30 / /sys/fs/cgroup ro,nosuid,nodev,noexec,relatime,nosymfollow - cgroup2 cgroup2 rw,seclabel,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting
+
+== /proc/self/cgroup ==
+0::/user.slice/user-1001.slice/user@1001.service/user.slice/libpod-6a0b1db033889705f9893ed243512aece35d235005433e4abe5b3fd30c0e1c66.scope/container
+
+== mkdir test ==
+mkdir: cannot create directory '/sys/fs/cgroup/dai-hns': Read-only file system
+MKDIR_FAIL
+done

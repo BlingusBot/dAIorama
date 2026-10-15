@@ -1,0 +1,23 @@
+{
+  "restart_policy": "no",
+  "mounts": [
+    {
+      "type": "bind",
+      "source": "/home/blingus/services/dAIorama/p1-out",
+      "destination": "/out",
+      "options": [
+        "rbind",
+        "rw",
+        "z"
+      ]
+    }
+  ],
+  "privileged": true,
+  "name": "dai-cg-priv",
+  "image": "localhost/blingus/dai-l1:dev",
+  "command": [
+    "bash",
+    "-c",
+    "exec > /out/cg-dai-cg-priv.txt 2>&1; echo '== mount =='; mount | grep cgroup; echo; echo '== mountinfo =='; grep cgroup /proc/self/mountinfo | head -2; echo; echo '== caps =='; grep Cap /proc/self/status; echo; echo '== mkdir test =='; (mkdir /sys/fs/cgroup/dai-p && echo MKDIR_OK) || echo MKDIR_FAIL; (echo '+cpu +memory +pids' > /sys/fs/cgroup/dai-p/cgroup.subtree_control && echo SUBCTL_OK) || echo SUBCTL_FAIL; echo done"
+  ]
+}

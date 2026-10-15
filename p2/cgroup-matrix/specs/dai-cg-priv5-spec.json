@@ -1,0 +1,23 @@
+{
+  "name": "dai-cg-priv5",
+  "image": "localhost/blingus/dai-l1:dev",
+  "restart_policy": "no",
+  "privileged": true,
+  "mounts": [
+    {
+      "type": "bind",
+      "source": "/home/blingus/services/dAIorama/p1-out",
+      "destination": "/out",
+      "options": [
+        "rbind",
+        "rw",
+        "z"
+      ]
+    }
+  ],
+  "command": [
+    "bash",
+    "-c",
+    "exec > /out/cg-priv5.txt 2>&1; echo '== procs in nsroot before =='; cat /sys/fs/cgroup/cgroup.procs; echo; echo '== move all to keeper =='; mkdir /sys/fs/cgroup/keeper; for p in $(cat /sys/fs/cgroup/cgroup.procs); do echo $p > /sys/fs/cgroup/keeper/cgroup.procs 2>/dev/null; done; echo 'procs left:'; cat /sys/fs/cgroup/cgroup.procs | head; echo; echo '== enable at nsroot now =='; (echo '+cpu +memory +pids' > /sys/fs/cgroup/cgroup.subtree_control) 2>&1; echo rc=$?; echo '-- subtree_control:'; cat /sys/fs/cgroup/cgroup.subtree_control; echo; echo '== mkdir s3 + controllers =='; mkdir /sys/fs/cgroup/s3; cat /sys/fs/cgroup/s3/cgroup.controllers | head -3; ls /sys/fs/cgroup/s3/ | grep -E 'max|weight' | head; echo; echo '== limits =='; (echo max > /sys/fs/cgroup/s3/memory.max) 2>&1; echo \"mem rc=$?\"; (echo 100 > /sys/fs/cgroup/s3/pids.max) 2>&1; echo \"pids rc=$?\"; cat /sys/fs/cgroup/s3/memory.max /sys/fs/cgroup/s3/pids.max 2>/dev/null; echo; echo '== move test proc =='; sleep 300 & SP=$!; sleep 1; (echo $SP > /sys/fs/cgroup/s3/cgroup.procs) 2>&1; echo \"move rc=$?\"; cat /sys/fs/cgroup/s3/cgroup.procs 2>/dev/null; kill $SP 2>/dev/null; echo done"
+  ]
+}

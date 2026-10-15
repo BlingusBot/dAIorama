@@ -1,0 +1,22 @@
+== caps ==
+CapInh:	0000000000000000
+CapPrm:	00000000800405fb
+CapEff:	00000000800405fb
+CapBnd:	00000000800405fb
+CapAmb:	0000000000000000
+
+== try fresh cgroup2 mount inside container ==
+mount: /tmp/cg: permission denied.
+       dmesg(1) may have more information after failed mount system call.
+MOUNT_FAIL
+-- listing:
+-- mkdir:
+MKDIR_OK
+SUBCTL_OK
+-- move test:
+MOVE_OK
+13
+
+== controllers on fresh mount ==
+
+done

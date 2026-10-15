@@ -1,0 +1,27 @@
+== nsroot subtree_control BEFORE ==
+== enable at nsroot ==
+bash: line 1: echo: write error: Device or resource busy
+rc=1
+== AFTER ==
+
+== mkdir s2 + controllers ==
+
+== write limits ==
+bash: line 1: /sys/fs/cgroup/s2/memory.max: Permission denied
+mem rc=1
+bash: line 1: /sys/fs/cgroup/s2/pids.max: Permission denied
+pids rc=1
+-- values:
+
+== move proc ==
+move rc=0
+10
+
+== nested child for leaf limits ==
+NESTED_OK
+bash: line 1: echo: write error: No such file or directory
+s2ctl rc=1
+
+== cleanup ==
+RMDIR_OK
+done

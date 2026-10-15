@@ -1,0 +1,28 @@
+== /proc/self/cgroup ==
+0::/
+
+== mkdir scope ==
+MKDIR_OK
+total 0
+drwxr-xr-x. 2 root root 0 Oct 15 17:10 .
+drwxr-xr-x. 3 root root 0 Oct 15 17:10 ..
+-r--r--r--. 1 root root 0 Oct 15 17:10 cgroup.controllers
+-r--r--r--. 1 root root 0 Oct 15 17:10 cgroup.events
+-rw-r--r--. 1 root root 0 Oct 15 17:10 cgroup.freeze
+
+== subtree_control write ==
+bash: line 1: printf: write error: No such file or directory
+rc=1
+
+== child move ==
+move rc=0
+procs:
+7
+
+== limits write ==
+bash: line 1: /sys/fs/cgroup/dai-s1/memory.max: Permission denied
+mem rc=1
+
+== cleanup ==
+RMDIR_OK
+done

@@ -1,0 +1,9 @@
+{
+  "name": "dai-cgroup-probe2",
+  "image": "localhost/blingus/dai-l1:dev",
+  "restart_policy": "no",
+  "mounts": [
+    {"type": "bind", "source": "/home/blingus/services/dAIorama/p1-out", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": ["bash", "-c", "exec > /out/cgroup-probe2.txt 2>&1; echo '== caps =='; grep Cap /proc/self/status; echo; echo '== try fresh cgroup2 mount inside container =='; mkdir -p /tmp/cg; (mount -t cgroup2 cgroup2 /tmp/cg 2>&1 && echo MOUNT_OK) || echo MOUNT_FAIL; mount | grep /tmp/cg; echo '-- listing:'; ls /tmp/cg 2>/dev/null | head -8; echo '-- mkdir:'; (mkdir /tmp/cg/dai-p && echo MKDIR_OK) || echo MKDIR_FAIL; (echo '+cpu +memory +pids' > /tmp/cg/dai-p/cgroup.subtree_control && echo SUBCTL_OK) || echo SUBCTL_FAIL; echo '-- move test:'; sleep 60 & SP=$!; sleep 1; (echo $SP > /tmp/cg/dai-p/cgroup.procs && echo MOVE_OK) || echo MOVE_FAIL; cat /tmp/cg/dai-p/cgroup.procs 2>/dev/null; kill $SP 2>/dev/null; rmdir /tmp/cg/dai-p 2>/dev/null; umount /tmp/cg 2>/dev/null; echo; echo '== controllers on fresh mount =='; cat /tmp/cg/cgroup.controllers 2>/dev/null; echo; echo done"]
+}

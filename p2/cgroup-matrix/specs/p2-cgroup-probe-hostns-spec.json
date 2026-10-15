@@ -1,0 +1,10 @@
+{
+  "name": "dai-cgroup-probe-hostns",
+  "image": "localhost/blingus/dai-l1:dev",
+  "restart_policy": "no",
+  "cgroupns": {"nsmode": "host"},
+  "mounts": [
+    {"type": "bind", "source": "/home/blingus/services/dAIorama/p1-out", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": ["bash", "-c", "exec > /out/cgroup-probe-hostns.txt 2>&1; echo '== mount =='; mount | grep cgroup; echo; echo '== mountinfo =='; grep cgroup /proc/self/mountinfo | head -2; echo; echo '== /proc/self/cgroup =='; cat /proc/self/cgroup; echo; echo '== mkdir test =='; (mkdir /sys/fs/cgroup/dai-hns && echo MKDIR_OK) || echo MKDIR_FAIL; rmdir /sys/fs/cgroup/dai-hns 2>/dev/null; echo done"]
+}

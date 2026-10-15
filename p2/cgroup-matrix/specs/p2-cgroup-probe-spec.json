@@ -1,0 +1,9 @@
+{
+  "name": "dai-cgroup-probe",
+  "image": "localhost/blingus/dai-l1:dev",
+  "restart_policy": "no",
+  "mounts": [
+    {"type": "bind", "source": "/home/blingus/services/dAIorama/p1-out", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": ["bash", "-c", "exec > /out/cgroup-probe.txt 2>&1; echo '== cgroup mounts =='; mount | grep cgroup; echo; echo '== /proc/self/cgroup =='; cat /proc/self/cgroup; echo; echo '== cgroupfs root listing =='; ls -la /sys/fs/cgroup/ | head -18; echo; echo '== controllers =='; cat /sys/fs/cgroup/cgroup.controllers 2>/dev/null; echo '-- subtree_control:'; cat /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null; echo; echo '== mkdir test =='; (mkdir /sys/fs/cgroup/dai-probe && echo 'MKDIR_OK') || echo 'MKDIR_FAIL'; (echo '+cpu +memory +pids' > /sys/fs/cgroup/dai-probe/cgroup.subtree_control && echo 'SUBCTL_OK') || echo 'SUBCTL_FAIL'; (rmdir /sys/fs/cgroup/dai-probe && echo 'RMDIR_OK') || echo 'RMDIR_FAIL'; echo; echo '== child-process move test (session-scope shape) =='; mkdir /sys/fs/cgroup/dai-probe2 2>/dev/null; sleep 300 & SPID=$!; sleep 1; (echo $SPID > /sys/fs/cgroup/dai-probe2/cgroup.procs && echo 'MOVEPROC_OK') || echo 'MOVEPROC_FAIL'; echo 'procs now:'; cat /sys/fs/cgroup/dai-probe2/cgroup.procs 2>/dev/null; kill $SPID 2>/dev/null; sleep 0.5; rmdir /sys/fs/cgroup/dai-probe2 2>/dev/null; echo; echo '== mountinfo =='; grep cgroup /proc/self/mountinfo | head -3"]
+}

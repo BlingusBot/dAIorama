@@ -1,0 +1,19 @@
+== mount ==
+cgroup2 on /sys/fs/cgroup type cgroup2 (rw,nosuid,nodev,noexec,relatime,seclabel,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting)
+
+== mountinfo ==
+1940 1936 0:30 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup2 rw,seclabel,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting
+
+== caps ==
+CapInh:	0000000000000000
+CapPrm:	000001ffffffffff
+CapEff:	000001ffffffffff
+CapBnd:	000001ffffffffff
+CapAmb:	0000000000000000
+
+== mkdir test ==
+mkdir: cannot create directory '/sys/fs/cgroup/dai-p': Permission denied
+MKDIR_FAIL
+bash: line 1: /sys/fs/cgroup/dai-p/cgroup.subtree_control: No such file or directory
+SUBCTL_FAIL
+done

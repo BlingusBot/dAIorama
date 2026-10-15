@@ -1,0 +1,23 @@
+{
+  "name": "dai-cg-priv2",
+  "image": "localhost/blingus/dai-l1:dev",
+  "restart_policy": "no",
+  "privileged": true,
+  "mounts": [
+    {
+      "type": "bind",
+      "source": "/home/blingus/services/dAIorama/p1-out",
+      "destination": "/out",
+      "options": [
+        "rbind",
+        "rw",
+        "z"
+      ]
+    }
+  ],
+  "command": [
+    "bash",
+    "-c",
+    "exec > /out/cg-priv2.txt 2>&1; echo '== /proc/self/cgroup =='; cat /proc/self/cgroup; echo; echo '== mkdir scope =='; mkdir /sys/fs/cgroup/dai-s1 && echo MKDIR_OK; ls -la /sys/fs/cgroup/dai-s1/ | head -6; echo; echo '== subtree_control write =='; printf '+cpu +memory +pids\\n' > /sys/fs/cgroup/dai-s1/cgroup.subtree_control; echo \"rc=$?\"; cat /sys/fs/cgroup/dai-s1/cgroup.subtree_control; echo; echo '== child move =='; sleep 120 & SP=$!; sleep 1; echo $SP > /sys/fs/cgroup/dai-s1/cgroup.procs; echo \"move rc=$?\"; echo 'procs:'; cat /sys/fs/cgroup/dai-s1/cgroup.procs; echo; echo '== limits write =='; echo max > /sys/fs/cgroup/dai-s1/memory.max 2>&1; echo \"mem rc=$?\"; kill $SP 2>/dev/null; echo; echo '== cleanup =='; rmdir /sys/fs/cgroup/dai-s1 2>&1 && echo RMDIR_OK || echo RMDIR_FAIL; echo done"
+  ]
+}
