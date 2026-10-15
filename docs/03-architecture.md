@@ -69,8 +69,8 @@ Hyprland is the compositor (decision + rejected alternative: 11). It was chosen
 over niri for today's needs — documented, stable headless operation; complete
 virtual-input protocol support (`zwp_virtual_keyboard_manager_v1`,
 `zwlr_virtual_pointer_manager_v1`); existing prior art for this exact use case.
-niri remains the documented fallback if Hyprland's headless path proves
-unworkable; a nested-compositor workaround is the other fallback.
+niri remains the documented alternative; in containers the nested-compositor
+workaround is the demonstrated shape (P1 L1, `p1/`).
 
 Rootless input injection is why this is a Wayland design: wlroots-family
 virtual-input protocols grant pointer/keyboard control to any client holding a
@@ -87,12 +87,17 @@ Resolution and scale are creation parameters too (defaults in 04), because
 screen geometry is its own fingerprint; changing them mid-session is out of
 scope (01).
 
-- **`headless`** (default): no physical display. Container prerequisite:
-  render-only DRM init — `AQ_NO_KMS_REQUIREMENT=1` (makes render nodes
-  selectable; `AQ_DRM_DEVICES` pins the node where several exist). The
-  dedicated virtual output (`hyprctl output create headless`) is the
-  output-creation mechanism layered on top for resolution and scale. The
-  spike verifies the combination plus the wayvnc capture/resize path (09).
+- **`headless`** (default): no physical display. In containers, native
+  standalone start is not available with aquamarine 0.15.1 — the backend
+  requires a primary allocator (a `drmFD>=0` impl); the DRM path enumerates
+  `card*` only and opens via libseat, which needs an active seat; `renderD*`
+  is never enumerated; `AQ_NO_KMS_REQUIREMENT=1` relaxes only the KMS gate
+  (`AQ_DRM_DEVICES` pins the node where several exist). Demonstrated shape
+  (P1 L1, `p1/`): an invisible minimal parent (mutter `--headless`; parents
+  must advertise `xdg_wm_base >= 6` — weston/sway are rejected at bind)
+  running Hyprland nested, with dedicated virtual outputs created on demand
+  (`hyprctl output create headless <name>`) for resolution and scale. The
+  wayvnc capture path is verified; the resize/scale path stays open (09).
 - **`nested`**: runs as an ordinary client window inside an already-running
   outer Wayland compositor (detected via `WAYLAND_DISPLAY`). Lets a human watch
   the bot's desktop as a window, no VNC involved.

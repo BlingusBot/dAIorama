@@ -131,8 +131,13 @@ fallback incident found during audit is the case study, not paranoia.
 **Spike chain (P0, load-bearing, before anything is built on it):** rootless
 Podman → render-node access → headless Hyprland → virtual pointer/keyboard →
 screen capture → wayvnc → noVNC → a real, non-llvmpipe WebGL renderer string
-in an actual browser. If the chain doesn't hold, the fallback (niri, or nested
-compositor) must be real and tested — not aspirational.
+in an actual browser. Status (2026-10-15, reference box; `p1/`): the chain
+holds via the nested-compositor shape — rootless + `cap_drop ALL` + render
+node only; an invisible parent → Hyprland nested → on-demand `HEADLESS-*`
+outputs; keyboard (`wtype`) and pointer (`wlrctl`) injection, capture,
+wayvnc → noVNC, and a real-GPU WebGL string (`ANGLE (Mesa, NV117)`) all
+verified; runs 2–4 clean (`exit=0`). The nested fallback proved real, not
+aspirational (niri remains untested); the resize/scale path stays open.
 
 The spike also proves, per 06/07: the `renderer.allow_software` override
 end-to-end and the launcher capture mechanism (browser GL string without any

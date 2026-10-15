@@ -328,11 +328,17 @@ Buffered writer on a short interval; no fsync per call; rotation + retention bou
 *Rationale:* the SSD-wear driver is the write *pattern*, not the format; losing seconds of buffered entries in a hard crash is acceptable because history is an operational aid, not the source of truth for session state — the registry holds that.
 *Rejected:* per-call fsync; unbounded retention; structured/database logging (solves a problem the design doesn't have).
 
+### Foundation — Headless container shape · settled · home: 03, 09
+
+Invisible minimal parent (mutter `--headless`; `xdg_wm_base >= 6` required by aquamarine's Wayland backend — weston/sway are v5 and are rejected at bind) + nested Hyprland + on-demand `HEADLESS-*` outputs. Native standalone start is blocked with aquamarine 0.15.1 in a seatless container (allocator/seat constraints; `renderD*` is never enumerated). Evidence: `p1/` (L1, 2026-10-15). Resize/scale path stays open.
+
+*Rejected:* bind-clamp shimming of older parents (parked; interposition point documented in `p1/l1/xdg-clamp.c`).
+
 ## Open items roll-up (tracked, not omitted)
 
 1. **B9 rate-limit mechanism** — settled at P0 (07); numbers verify in the build.
-2. **P0 spike chain** — rootless GPU + headless Hyprland + input + capture + wayvnc + noVNC + real renderer, harness left behind (09).
-3. **Headless path under the hood** — dedicated virtual-output vs render-only DRM under the same `headless` name, resolved against the real environment (03, 09).
+2. **P1 spike chain** — L1 **green** (reference box, `p1/`): nested-headless shape, input/capture/remote/WebGL verified; L2 + L3 open; resize/scale path open (09).
+3. **Headless path — core resolved (P1 L1):** container shape = invisible parent + nested Hyprland + on-demand `HEADLESS-*` outputs; native standalone blocked with aquamarine 0.15.1 (allocator/seat; `renderD*` never enumerated). Evidence `p1/` (2026-10-15); resize/scale path remains open (03, 09).
 4. **Per-family GPU recipes** — validated compose snippets, target-machine permissions as source of truth (09).
 5. **cgroups delegation preconditions** — verified on real targets, in the spike (06, 09).
 
