@@ -20,6 +20,12 @@ bounded time and connects instead; if the winner died pre-bind, the loser
 `--remote` never starts anything locally: a dead remote is
 `manager unreachable at {addr}` (04), full stop.
 
+**Supervision (bare host):** run the manager as a **systemd user service**
+(`KillMode=control-group` default — unit stop sweeps the whole tree).
+`systemd-run --user … -p Delegate=yes` is the cgroup-delegation path and a
+*scope*: it does not sweep on manager death — say so when using it.
+`daemon start` (no supervisor) is dev convenience (terminal-scoped, below).
+
 ## Stopping
 
 - `daiorama daemon end` — refuses while sessions are live and lists them.
@@ -68,7 +74,11 @@ image is the better path for that user.
 
 - `daiorama doctor` — the diagnostic command (also in-container: verifies the
   active renderer, fails loud, doesn't guess).
-- Manager diagnostics: stderr → journald / `docker logs`. No bespoke log files.
+- Manager diagnostics: stderr → journald (systemd user service) / the
+  container's main-process logs. No bespoke log files. Sanctioned detachment:
+  the service unit or a container `serve`; `daemon start` detaches with
+  terminal-scoped stderr — if the terminal closes, its diagnostics are gone
+  (dev convenience, stated).
 - History: the domain record, in the data dir (06, 08). Not tamper-evident;
   never presented as forensic (07 posture).
 
@@ -76,8 +86,9 @@ image is the better path for that user.
 
 - `daiorama token show` — value + path (local file read).
 - `daiorama token rotate` — regenerates; new token applies at next manager
-  start; output states that restarting drops sessions. Rotating on a quiet
-  instance: rotate → restart → update client env vars.
+  start; output states that the file holds the new value while the running
+  manager still accepts the old, and that restarting drops sessions. Rotating
+  on a quiet instance: rotate → restart → update client env vars.
 - **Backups:** `/config` (config + scopes) and `/data` (token, history,
   modules) cover an instance. The token file is a secret — backing it up is
   backing up a credential; say so in ops docs, don't stash it in shared
@@ -103,5 +114,10 @@ image is the better path for that user.
 ## Watching the system
 
 - External watchers (uptime checks, the dashboard's own status pane) poll the
-  readiness call (05); humans use `daiorama status` (04). One readiness
-  contract, not per-integrator probing.
+  `readiness` call (05 — the RPC form of `status --json`); humans use
+  `daiorama status` (04). One readiness contract, not per-integrator probing.
+
+**Interop trust note:** mounting the runtime directory into another container
+grants that container **instance trust** with cooperative scope claims — a
+deliberate decision, not a side effect; shared instances point clients at TCP
+(07).

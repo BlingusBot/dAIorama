@@ -163,11 +163,13 @@ never default.
 *Rejected:* unscoped history (leaks across differently-trusted callers);
 implicit dashboard access.
 
-### B9 — Rate limiting · **open** (must-decide-before-ship, shared shapes) · home: 07
-Requirement on record: per-session control-call rate cap exists for
-shared/central shapes; excess → `rate_limited`. Mechanism deliberately open —
-but tracked here, not omitted. *Rejected:* treating it as generic boilerplate;
-silent omission.
+### B9 — Rate limiting · **settled at the P0 reconcile** (mechanism adopted; numbers verify in build) · home: 07
+Requirement on record: per-session control-call rate cap for shared/central
+shapes; excess → `rate_limited`. **P0 reconcile adopted the mechanism**
+(per-session token bucket over control-class calls; per-scope `limits.rate`,
+`pace` default — 07); the draft numbers verify in the build. *Rejected:*
+treating it as generic boilerplate; silent omission; leaving the mechanism
+open past P0.
 
 ### B10 — Dashboard direction · adopted · home: 03, 10 · **review**
 v1 is dashboard-initiated pull only; manager-dials-dashboard becomes an
@@ -301,8 +303,32 @@ quoted in 04.
 
 ## Open items roll-up (tracked, not omitted)
 
-1. **B9 rate-limit mechanism** — must-decide-before-ship for shared/central shapes (home 07).
+1. **B9 rate-limit mechanism** — settled at P0 (07); numbers verify in the build.
 2. **P0 spike chain** — rootless GPU + headless Hyprland + input + capture + wayvnc + noVNC + real renderer, harness left behind (09).
 3. **Headless path under the hood** — dedicated virtual-output vs render-only DRM under the same `headless` name, resolved against the real environment (03, 09).
 4. **Per-family GPU recipes** — validated compose snippets, target-machine permissions as source of truth (09).
 5. **cgroups delegation preconditions** — verified on real targets, in the spike (06, 09).
+
+---
+
+## P0 audit + reconcile (2026-10-15)
+
+A second, independent multi-lens audit of this set (39 findings, 5 blockers —
+`audits/p0/blingus-findings.md` @ `8571e3b`) was reconciled item-by-item:
+dispositions in `audits/p0/reconcile-esther.md`, counter in
+`audits/p0/counter-blingus.md`, joint edits applied across 00–11.
+
+- **B9** moved open → adopted (above). **C6/C7/D6** tightened: startup
+  `limits_unavailable` refusal + cold `limits.mode = off` with its true
+  cleanup cost stated; the CI lane gets `renderer.allow_software` + a named
+  re-verification mechanism (06). **B4** gains the startup sweep (03) and the
+  fork-thread note. **B2**'s port model expands to `{front_port, vnc_port}`.
+- **Sign-off shortlist additions:** F29 — no view relay in v1 (exposure model;
+  flip cost = a WS relay build) · F13 — input vocabulary pinned at freeze
+  (nine names; flip cost = the deferral text) · F22 — `sessions.visibility`
+  moved to scope files; `--all` dropped · F30 — instance-scoped observation
+  accepted and stated · F35 — rate-limit mechanism adopted (above).
+- **Rejected in reconcile:** a view WS relay in v1 (deferred dashboard-phase
+  mechanism, 01); kill-capable cgroups under `limits.mode = off` (keeps the
+  downgrade simple; the cost is stated instead); one-time view codes
+  (multi-consumer reality, 07).

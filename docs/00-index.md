@@ -4,9 +4,11 @@ The spec is the anchor: nothing gets coded before it freezes. Files 01–10 are
 normative on behavior (names, flags, defaults, contracts). Decision rationale
 and rejected alternatives live in 11; raw inputs live in 90.
 
-Status: draft v1 — awaiting sign-off. This set integrates the 2026-10-05 audit
-(8 blockers / 24 majors / minors); every audit item has a numbered home and an
-entry in 11-decisions.
+Status: draft v1 — **P0 audit + reconcile complete (2026-10-15); freeze
+pending**. This set integrates the 2026-10-05 audit (8 blockers / 24 majors /
+minors — every item homed in 11) and the 2026-10-15 independent pass (39
+findings; dispositions in `audits/p0/`; edits applied). The freeze commit is
+the first frozen anchor and the context for everything after.
 
 ## Files
 
