@@ -40,6 +40,10 @@ pub struct SpawnerConfig {
     pub hyprland_bin: String,
     pub hyprctl_bin: String,
     pub runtime_root: PathBuf,
+    /// Where the compositors' `XDG_RUNTIME_DIR` lives. Kept tiny and separate from the
+    /// session dir: unix socket paths are capped at 108 bytes (`sun_path`) and Hyprland's
+    /// instance-directory name alone runs ~61 chars, so the runtime dir must stay short.
+    pub short_root: PathBuf,
     pub parent_ready_timeout: Duration,
     pub child_ready_timeout: Duration,
 }
@@ -51,6 +55,7 @@ impl SpawnerConfig {
             hyprland_bin: "Hyprland".to_string(),
             hyprctl_bin: "hyprctl".to_string(),
             runtime_root: runtime_root.into(),
+            short_root: std::env::temp_dir(),
             parent_ready_timeout: Duration::from_secs(15),
             child_ready_timeout: Duration::from_secs(30),
         }
@@ -60,6 +65,7 @@ impl SpawnerConfig {
 #[derive(Debug)]
 struct ManagedSession {
     dir: PathBuf,
+    rt_dir: PathBuf,
     parent: Child,
     child: Child,
     signature: String,
@@ -131,6 +137,130 @@ impl LinuxSpawner {
         let _ = child.wait();
     }
 
+    /// The tail of a session log, for failure paths (the dir is gone right after).
+    fn log_tail(dir: &Path, name: &str) -> String {
+        match fs::read_to_string(dir.join(name)) {
+            Ok(text) => {
+                let lines: Vec<&str> = text.lines().collect();
+                let start = lines.len().saturating_sub(12);
+                format!("; {name} tail: {}", lines[start..].join(" | "))
+            }
+            Err(_) => format!("; {name} missing"),
+        }
+    }
+
+    /// The full failure dump for a timed-out child: logs, directory walk, instance log, the
+    /// child's kernel state. Failure-path only; the dir is removed right after.
+    fn failure_dump(dir: &Path, rt_dir: &Path, child_pid: u32) -> String {
+        let mut out = String::new();
+        out.push_str(&Self::log_tail(dir, "hyprland.log"));
+        out.push_str(&Self::log_tail(dir, "mutter.log"));
+        let list = |path: &Path| -> String {
+            match fs::read_dir(path) {
+                Ok(entries) => entries
+                    .flatten()
+                    .map(|e| e.file_name().to_string_lossy().to_string())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+                Err(_) => "(missing)".to_string(),
+            }
+        };
+        out.push_str(&format!("; dir: {}", list(dir)));
+        out.push_str(&format!("; rt dir: {}", list(rt_dir)));
+        out.push_str(&format!("; hypr dir: {}", list(&rt_dir.join("hypr"))));
+        if let Ok(entries) = fs::read_dir(rt_dir.join("hypr")) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                out.push_str(&format!(
+                    "; subdir {}: {}",
+                    entry.file_name().to_string_lossy(),
+                    list(&path)
+                ));
+                let log = path.join("hyprland.log");
+                if let Ok(text) = fs::read_to_string(&log) {
+                    let lines: Vec<&str> = text.lines().collect();
+                    let start = lines.len().saturating_sub(18);
+                    out.push_str(&format!(
+                        "; instance log tail: {}",
+                        lines[start..].join(" | ")
+                    ));
+                }
+            }
+        }
+        if let Ok(output) = Command::new("find")
+            .arg(rt_dir)
+            .args(["-name", "*.sock", "-o", "-name", ".socket*"])
+            .output()
+        {
+            out.push_str(&format!(
+                "; find socks: {}",
+                String::from_utf8_lossy(&output.stdout).replace('\n', " ")
+            ));
+        }
+        // Where else could a runtime socket be hiding?
+        if let Ok(output) = Command::new("find")
+            .args(["/tmp", "/run", "-name", ".socket.sock"])
+            .output()
+        {
+            let found = String::from_utf8_lossy(&output.stdout).replace('\n', " ");
+            let found: Vec<&str> = found.split_whitespace().take(5).collect();
+            out.push_str(&format!("; find sockets elsewhere: {}", found.join(" ")));
+        }
+        // Live probe: if hyprctl answers, the IPC socket exists where hyprctl looks.
+        let sig = fs::read_dir(rt_dir.join("hypr"))
+            .ok()
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .max_by_key(String::len);
+        if let Some(sig) = sig
+            && let Ok(output) = Command::new("hyprctl")
+                .arg("monitors")
+                .env("XDG_RUNTIME_DIR", rt_dir)
+                .env("HYPRLAND_INSTANCE_SIGNATURE", &sig)
+                .stdin(Stdio::null())
+                .output()
+        {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            out.push_str(&format!(
+                "; hyprctl probe ({sig}): rc={:?} out={} err={}",
+                output.status.code(),
+                stdout.trim().replace('\n', " "),
+                stderr.trim().replace('\n', " ")
+            ));
+        }
+        let state = fs::read_to_string(format!("/proc/{child_pid}/status"))
+            .ok()
+            .and_then(|status| {
+                status
+                    .lines()
+                    .find(|line| line.starts_with("State:"))
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| "(no /proc status)".to_string());
+        let wchan = fs::read_to_string(format!("/proc/{child_pid}/wchan")).unwrap_or_default();
+        out.push_str(&format!(
+            "; child pid {child_pid}: {state} wchan={wchan}; thread: {:?}",
+            std::thread::current().name()
+        ));
+        if let Ok(output) = Command::new("ps").args(["-ef"]).output() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            let rows: Vec<&str> = text
+                .lines()
+                .filter(|line| {
+                    line.contains("mutter")
+                        || line.contains("Hyprland")
+                        || line.contains("xkbcomp")
+                        || line.contains("Xwayland")
+                })
+                .collect();
+            out.push_str(&format!("; ps: {}", rows.join(" | ")));
+        }
+        out
+    }
+
     /// `(parent, child)` pids for a live session — used by tests and the health slice.
     pub fn child_pids(&self, id: &str) -> Option<(u32, u32)> {
         let sessions = self.sessions.lock().expect("spawner table");
@@ -156,7 +286,7 @@ impl LinuxSpawner {
     fn compositor_answers(&self, session: &ManagedSession) -> bool {
         Command::new(&self.config.hyprctl_bin)
             .arg("version")
-            .env("XDG_RUNTIME_DIR", &session.dir)
+            .env("XDG_RUNTIME_DIR", &session.rt_dir)
             .env("HYPRLAND_INSTANCE_SIGNATURE", &session.signature)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -178,9 +308,27 @@ impl SessionSpawner for LinuxSpawner {
 
         let id = uuid::Uuid::new_v4().to_string();
         let dir = self.config.runtime_root.join(&id);
+        // The compositors' XDG_RUNTIME_DIR: short by design (see `SpawnerConfig::short_root`).
+        // Hyprland's IPC socket lands at rt_dir + "/hypr/<~61-char instance dir>/.socket.sock";
+        // the whole path must stay under the 108-byte unix `sun_path` cap or bind() fails and
+        // the compositor never presents IPC — the exact failure this budget exists for.
+        let rt_dir = self.config.short_root.join(format!("dr-{}", &id[..8]));
+        const SUN_PATH_BUDGET: usize = 106;
+        const HYPR_IPC_SUFFIX: usize = 6 + 64 + 13; // "/hypr/" + instance dir + "/.socket.sock"
+        if rt_dir.display().to_string().len() + HYPR_IPC_SUFFIX > SUN_PATH_BUDGET {
+            return Err(ErrorEnvelope::internal(format!(
+                "compositor runtime dir {} exceeds the unix socket path budget",
+                rt_dir.display()
+            )));
+        }
+        // Fresh slate: never inherit sockets from a stale crashed session reusing this name.
+        let _ = fs::remove_dir_all(&rt_dir);
         fs::create_dir_all(&dir)
             .map_err(|error| ErrorEnvelope::internal(format!("session runtime dir: {error}")))?;
+        fs::create_dir_all(&rt_dir)
+            .map_err(|error| ErrorEnvelope::internal(format!("compositor runtime dir: {error}")))?;
         let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
+        let _ = fs::set_permissions(&rt_dir, fs::Permissions::from_mode(0o700));
 
         fs::write(
             dir.join("hypr.conf"),
@@ -202,7 +350,7 @@ impl SessionSpawner for LinuxSpawner {
                 mode.as_str(),
                 parent_display.as_str(),
             ])
-            .env("XDG_RUNTIME_DIR", &dir)
+            .env("XDG_RUNTIME_DIR", &rt_dir)
             .env("HOME", &dir)
             .stdin(Stdio::null())
             .stdout(out)
@@ -210,18 +358,21 @@ impl SessionSpawner for LinuxSpawner {
             .spawn()
             .map_err(|error| {
                 let _ = fs::remove_dir_all(&dir);
+                let _ = fs::remove_dir_all(&rt_dir);
                 ErrorEnvelope::internal(format!("spawning mutter: {error}"))
             })?;
 
         if !Self::wait_for(
-            || dir.join(PARENT_SOCKET).exists(),
+            || rt_dir.join(PARENT_SOCKET).exists(),
             self.config.parent_ready_timeout,
         ) {
+            let detail = Self::log_tail(&dir, "mutter.log");
             Self::kill_quietly(&mut parent);
             let _ = fs::remove_dir_all(&dir);
-            return Err(ErrorEnvelope::internal(
-                "mutter parent did not present its wayland socket in time",
-            ));
+            let _ = fs::remove_dir_all(&rt_dir);
+            return Err(ErrorEnvelope::internal(format!(
+                "mutter parent did not present its wayland socket in time{detail}"
+            )));
         }
 
         // Child: Hyprland nested on the parent.
@@ -231,7 +382,7 @@ impl SessionSpawner for LinuxSpawner {
             .arg("--i-am-really-stupid")
             .env("WAYLAND_DISPLAY", PARENT_SOCKET)
             .env("HYPRLAND_CONFIG", dir.join("hypr.conf"))
-            .env("XDG_RUNTIME_DIR", &dir)
+            .env("XDG_RUNTIME_DIR", &rt_dir)
             .env("HOME", &dir)
             .stdin(Stdio::null())
             .stdout(out)
@@ -242,6 +393,7 @@ impl SessionSpawner for LinuxSpawner {
             Err(error) => {
                 Self::kill_quietly(&mut parent);
                 let _ = fs::remove_dir_all(&dir);
+                let _ = fs::remove_dir_all(&rt_dir);
                 return Err(ErrorEnvelope::internal(format!(
                     "spawning Hyprland: {error}"
                 )));
@@ -251,7 +403,7 @@ impl SessionSpawner for LinuxSpawner {
         let mut signature = String::new();
         let child_ready = Self::wait_for(
             || {
-                let Ok(entries) = fs::read_dir(dir.join("hypr")) else {
+                let Ok(entries) = fs::read_dir(rt_dir.join("hypr")) else {
                     return false;
                 };
                 for entry in entries.flatten() {
@@ -266,12 +418,14 @@ impl SessionSpawner for LinuxSpawner {
             self.config.child_ready_timeout,
         );
         if !child_ready {
+            let detail = Self::failure_dump(&dir, &rt_dir, child.id());
             Self::kill_quietly(&mut child);
             Self::kill_quietly(&mut parent);
             let _ = fs::remove_dir_all(&dir);
-            return Err(ErrorEnvelope::internal(
-                "Hyprland child did not present its IPC socket in time",
-            ));
+            let _ = fs::remove_dir_all(&rt_dir);
+            return Err(ErrorEnvelope::internal(format!(
+                "Hyprland child did not present its IPC socket in time{detail}"
+            )));
         }
 
         // The output at the requested mode and scale (P2 creation params).
@@ -280,7 +434,7 @@ impl SessionSpawner for LinuxSpawner {
         let run_hyprctl = |args: &[&str]| -> Result<(), String> {
             match Command::new(&self.config.hyprctl_bin)
                 .args(args)
-                .env("XDG_RUNTIME_DIR", &dir)
+                .env("XDG_RUNTIME_DIR", &rt_dir)
                 .env("HYPRLAND_INSTANCE_SIGNATURE", &signature)
                 .stdin(Stdio::null())
                 .output()
@@ -298,6 +452,7 @@ impl SessionSpawner for LinuxSpawner {
             Self::kill_quietly(&mut child);
             Self::kill_quietly(&mut parent);
             let _ = fs::remove_dir_all(&dir);
+            let _ = fs::remove_dir_all(&rt_dir);
             return Err(ErrorEnvelope::internal(format!(
                 "hyprctl output setup failed: {detail}"
             )));
@@ -307,6 +462,7 @@ impl SessionSpawner for LinuxSpawner {
             id.clone(),
             ManagedSession {
                 dir,
+                rt_dir,
                 parent,
                 child,
                 signature,
@@ -328,6 +484,7 @@ impl SessionSpawner for LinuxSpawner {
         Self::kill_quietly(&mut session.child);
         Self::kill_quietly(&mut session.parent);
         let _ = fs::remove_dir_all(&session.dir);
+        let _ = fs::remove_dir_all(&session.rt_dir);
         Ok(())
     }
 }
@@ -339,6 +496,7 @@ impl Drop for LinuxSpawner {
             Self::kill_quietly(&mut session.child);
             Self::kill_quietly(&mut session.parent);
             let _ = fs::remove_dir_all(&session.dir);
+            let _ = fs::remove_dir_all(&session.rt_dir);
         }
     }
 }
@@ -410,14 +568,16 @@ mod tests {
         assert!(proc_alive(parent_pid), "parent alive after spawn");
         assert!(proc_alive(child_pid), "child alive after spawn");
         let dir = runtime.join(&id);
-        assert!(dir.join("wayland-m").exists(), "parent socket present");
-        assert!(dir.join("hypr/test-signature/.socket.sock").exists());
+        let rt_dir = std::env::temp_dir().join(format!("dr-{}", &id[..8]));
+        assert!(rt_dir.join("wayland-m").exists(), "parent socket present");
+        assert!(rt_dir.join("hypr/test-signature/.socket.sock").exists());
         assert!(dir.join("mutter.log").exists() && dir.join("hyprland.log").exists());
 
         spawner.kill_tree(&id).expect("kill_tree succeeds");
         assert!(!proc_alive(parent_pid), "parent gone after teardown");
         assert!(!proc_alive(child_pid), "child gone after teardown");
         assert!(!dir.exists(), "runtime dir removed");
+        assert!(!rt_dir.exists(), "compositor runtime dir removed");
         assert!(!stub_processes_running(&mutter_path), "no stub left behind");
     }
 
