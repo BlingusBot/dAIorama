@@ -1,0 +1,14 @@
+{
+  "name": "dai-scope-real-chain",
+  "image": "localhost/blingus/dai-l1:dev",
+  "restart_policy": "no",
+  "privileged": true,
+  "devices": [
+    {"path": "/dev/dri/renderD128", "type": "c", "major": 226, "minor": 128, "fileMode": 438, "permissions": "rwm"}
+  ],
+  "mounts": [
+    {"type": "bind", "source": "<replace: this branch's worktree>", "destination": "/src", "options": ["rbind", "rw", "z"]},
+    {"type": "bind", "source": "<replace: artifacts dir holding daiorama-tests + run output>", "destination": "/out", "options": ["rbind", "rw", "z"]}
+  ],
+  "command": ["bash", "-c", "exec > /out/scope-real-chain.txt 2>&1; cd /out; dbus-run-session -- ./daiorama-tests real_containment_chain --ignored --nocapture --test-threads=1; echo exit=$?; echo '== nsroot subtree_control after =='; cat /sys/fs/cgroup/cgroup.subtree_control; echo '== daiorama-sessions contents =='; ls -la /sys/fs/cgroup/daiorama-sessions 2>&1; echo '== keeper procs =='; wc -l /sys/fs/cgroup/keeper/cgroup.procs 2>&1; echo RUN-DONE"]
+}
