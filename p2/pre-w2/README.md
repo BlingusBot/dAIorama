@@ -21,6 +21,10 @@ captures at **buffer pixels**.
   input (`wtype`) and window reflow survive every transition (visual check in the PNGs).
 - Spawner implication: creation params should be `(logical_resolution, scale)` →
   mode = logical × scale. A 1920×1080-logical desktop at scale 2 = mode 3840×2160 (row 3).
+- **Carried into build:** the spawner's create path now uses exactly this — `(logical, scale)`
+  → mode = logical × scale (merged with the runtime slices); the live-resize op wiring rides
+  the session-life-cycle slice. This section stands as the carried proof for the resize/scale
+  exit item.
 
 ## sweep — containment primitives for W2/W4 (all green)
 
