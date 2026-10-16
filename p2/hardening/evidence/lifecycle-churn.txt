@@ -1,0 +1,181 @@
+
+==================================================================
+## [0] pre-state (fresh container)
+==================================================================
+uid=0(root) gid=0(root) groups=0(root)
+binary: -rwxr-xr-x. 1 root root 41224304 Oct 16 18:01 /out/hardening/daiorama
+daiorama 0.1.0
+protocol 0.1.0 (min 0.1.0)
+version_rc=0
+nsroot subtree_control: 
+subtree listing: ls: cannot access '/sys/fs/cgroup/daiorama-sessions': No such file or directory
+-- compositors:
+(no mutter/Hyprland processes)
+-- scopes:
+(no session subtree at /sys/fs/cgroup/daiorama-sessions)
+
+==================================================================
+## [1] daemon start (cold)
+==================================================================
+started manager (mode=background, pid=48) socket=/tmp/hr/daiorama/default/manager.sock
+start_rc=0
+manager_pid=48
+-- status:
+state: running
+mode: background
+pid: 48
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 0 running, 0 dead
+drain: inactive
+instance_id: ec71e29b-edde-4830-9b96-00f15344f50c
+status_rc=0
+-- nsroot subtree_control now: cpu memory pids
+-- keeper procs: 7
+-- scopes:
+(subtree present, no scope dirs)
+
+==================================================================
+## [2] three real sessions
+==================================================================
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=118 comm="Hyprland --i-am-really-stupid" label="unconfined_u:unconfined_r:spc_t:s0")
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+new1_rc=0 id=1880fea9-3f99-437e-95ca-b4177efe4c63
+new2_rc=0 id=a4c2912c-d6de-40ce-b361-6ef504a10eac
+new3_rc=0 id=f73f8dde-36ff-4643-9750-61db490d34a8
+-- list:
+ID  STATE  BACKEND  SCOPE  ORIGIN  IDLE-SINCE
+1880fea9-3f99-437e-95ca-b4177efe4c63  running  headless  operator  shell  2026-10-16T18:01:45Z
+a4c2912c-d6de-40ce-b361-6ef504a10eac  running  headless  operator  shell  2026-10-16T18:01:46Z
+f73f8dde-36ff-4643-9750-61db490d34a8  running  headless  operator  shell  2026-10-16T18:01:46Z
+list_rc=0
+-- status 1880fea9-3f99-437e-95ca-b4177efe4c63:
+id: 1880fea9-3f99-437e-95ca-b4177efe4c63
+label: 
+state: running
+backend: headless
+resolution: 1920x1080
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-16T18:01:45Z
+view: none
+renderer: verified
+instance_id: ec71e29b-edde-4830-9b96-00f15344f50c
+rc=0
+-- status a4c2912c-d6de-40ce-b361-6ef504a10eac:
+id: a4c2912c-d6de-40ce-b361-6ef504a10eac
+label: 
+state: running
+backend: headless
+resolution: 1920x1080
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-16T18:01:46Z
+view: none
+renderer: verified
+instance_id: ec71e29b-edde-4830-9b96-00f15344f50c
+rc=0
+-- status f73f8dde-36ff-4643-9750-61db490d34a8:
+id: f73f8dde-36ff-4643-9750-61db490d34a8
+label: 
+state: running
+backend: headless
+resolution: 1920x1080
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-16T18:01:46Z
+view: none
+renderer: verified
+instance_id: ec71e29b-edde-4830-9b96-00f15344f50c
+rc=0
+-- raw Renderer lines from session instance logs:
+/tmp/dr-1880fea9/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792173705_2082450622/hyprland.log :: DEBUG ]: Renderer: NV117
+/tmp/dr-a4c2912c/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792173705_2060636491/hyprland.log :: DEBUG ]: Renderer: NV117
+/tmp/dr-f73f8dde/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792173706_1640647265/hyprland.log :: DEBUG ]: Renderer: NV117
+-- scopes:
+scope 1880fea9: procs=[109 118 120 138 ]
+scope a4c2912c: procs=[159 171 173 186 187 ]
+scope f73f8dde: procs=[213 226 228 240 ]
+-- compositors:
+proc 109: mutter :: mutter --wayland --no-x11 --headless --virtual-monitor 1920x1080 --wayland-display=wayland-m 
+proc 118: Hyprland :: Hyprland --i-am-really-stupid 
+proc 120: Hyprland :: Hyprland --i-am-really-stupid 
+proc 159: mutter :: mutter --wayland --no-x11 --headless --virtual-monitor 1920x1080 --wayland-display=wayland-m 
+proc 171: Hyprland :: Hyprland --i-am-really-stupid 
+proc 173: Hyprland :: Hyprland --i-am-really-stupid 
+proc 213: mutter :: mutter --wayland --no-x11 --headless --virtual-monitor 1920x1080 --wayland-display=wayland-m 
+proc 226: Hyprland :: Hyprland --i-am-really-stupid 
+proc 228: Hyprland :: Hyprland --i-am-really-stupid 
+
+==================================================================
+## [3] close one session (1880fea9-3f99-437e-95ca-b4177efe4c63)
+==================================================================
+closed session 1880fea9-3f99-437e-95ca-b4177efe4c63
+close_rc=0
+-- list after close:
+ID  STATE  BACKEND  SCOPE  ORIGIN  IDLE-SINCE
+a4c2912c-d6de-40ce-b361-6ef504a10eac  running  headless  operator  shell  2026-10-16T18:01:46Z
+f73f8dde-36ff-4643-9750-61db490d34a8  running  headless  operator  shell  2026-10-16T18:01:46Z
+-- scopes after close:
+scope a4c2912c: procs=[159 171 173 186 187 ]
+scope f73f8dde: procs=[213 226 228 240 ]
+
+==================================================================
+## [4] SIGKILL the manager mid-session (pid 48)
+==================================================================
+kill_rc=0
+-- socket file after kill: srwxr-xr-x. 1 root root 0 Oct 16 18:01 /tmp/hr/daiorama/default/manager.sock
+-- compositors after kill:
+proc 173: Hyprland :: Hyprland --i-am-really-stupid 
+proc 228: Hyprland :: Hyprland --i-am-really-stupid 
+-- scopes after kill:
+scope a4c2912c: procs=[173 ]
+scope f73f8dde: procs=[228 ]
+
+==================================================================
+## [5] daemon start again — the startup sweep must reap
+==================================================================
+containment unavailable: cgroup v2 delegation is not available here (controllers not delegated to this scope; run under a scope with Delegate=yes (e.g. systemd-run --user … -p Delegate=yes), or set limits.mode = off). Fix: run with a writable/delegated cgroupfs (see the compose notes), or set limits.mode = off and accept losing per-session limits and crash-time cleanup. (limits_unavailable)
+hint: set limits.mode = off to accept the documented downgrade
+restart_rc=1
+-- daemon.log (tail 40):
+startup sweep: 0 stale session scope(s) reaped
+started manager (mode=background, pid=48) socket=/tmp/hr/daiorama/default/manager.sock
+{"error":{"code":"limits_unavailable","hint":"set limits.mode = off to accept the documented downgrade","message":"containment unavailable: cgroup v2 delegation is not available here (controllers not delegated to this scope; run under a scope with Delegate=yes (e.g. systemd-run --user … -p Delegate=yes), or set limits.mode = off). Fix: run with a writable/delegated cgroupfs (see the compose notes), or set limits.mode = off and accept losing per-session limits and crash-time cleanup."}}
+containment unavailable: cgroup v2 delegation is not available here (controllers not delegated to this scope; run under a scope with Delegate=yes (e.g. systemd-run --user … -p Delegate=yes), or set limits.mode = off). Fix: run with a writable/delegated cgroupfs (see the compose notes), or set limits.mode = off and accept losing per-session limits and crash-time cleanup. (limits_unavailable)
+hint: set limits.mode = off to accept the documented downgrade
+-- startup sweep lines:
+1:startup sweep: 0 stale session scope(s) reaped
+-- compositors after restart:
+proc 173: Hyprland :: Hyprland --i-am-really-stupid 
+proc 228: Hyprland :: Hyprland --i-am-really-stupid 
+-- scopes after restart:
+scope a4c2912c: procs=[173 ]
+scope f73f8dde: procs=[228 ]
+-- status:
+manager unreachable at /tmp/hr/daiorama/default/manager.sock (manager_unreachable)
+status_rc=1
+-- list:
+manager unreachable at /tmp/hr/daiorama/default/manager.sock (manager_unreachable)
+list_rc=1
+
+==================================================================
+## [6] end + post-state
+==================================================================
+no manager running
+end_rc=0
+-- compositors final:
+proc 173: Hyprland :: Hyprland --i-am-really-stupid 
+proc 228: Hyprland :: Hyprland --i-am-really-stupid 
+-- scopes final:
+scope a4c2912c: procs=[173 ]
+scope f73f8dde: procs=[228 ]
+-- session runtime dirs left: /tmp/dr-a4c2912c /tmp/dr-f73f8dde 
+RUN-A-DONE
+SCRIPT_RC=0
+RUN-ALL-DONE
