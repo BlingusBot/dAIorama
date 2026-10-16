@@ -10,7 +10,11 @@
 //!    writable cgroupfs. Controllers cannot be enabled while the root holds processes (the
 //!    cgroup v2 "no internal processes" rule under `nsdelegate` returns `EBUSY`), so the probe
 //!    applies the **keeper prep**: move every pid from the root into a keeper child, then enable
-//!    the controllers. (Raw sequence and outputs: `p2/cgroup-matrix/logs/cg-priv5.txt`.)
+//!    the controllers. (Raw sequence and outputs: `p2/cgroup-matrix/logs/cg-priv5.txt`.) A
+//!    later start in the same container sits at `0::/keeper`; the probe recognizes the prepared
+//!    shape (`keeper_reentry`) and manages the namespace root again — the same instance subtree
+//!    the first start built — so the startup sweep can reap crash leftovers
+//!    (`p2/hardening` round 1(a)).
 //! 3. **On, host-process** — the manager runs inside a delegated scope (e.g.
 //!    `systemd-run --user … -p Delegate=yes`): the controllers are already delegated in the
 //!    scope's `subtree_control`, so the probe just confirms them.
@@ -29,6 +33,11 @@ use crate::manager::startup::{ContainmentProbe, Delegation};
 
 /// Controllers the sessions need: memory + pids carry the limits, cpu fairness alongside.
 const NEEDED_CONTROLLERS: [&str; 3] = ["cpu", "memory", "pids"];
+
+/// The keeper child the containerized class's prep leaves at the namespace root. A process
+/// whose own cgroup is exactly this child (`0::/keeper`) with the root already carrying the
+/// controllers is a keeper-prepared container re-entered.
+const KEEPER_CHILD: &str = "keeper";
 
 /// EBUSY — the kernel's answer when controllers cannot be enabled under a process-holding
 /// cgroup (the no-internal-processes rule).
@@ -106,14 +115,33 @@ impl LinuxCgroupProbe {
     }
 
     /// The cgroup directory this process manages: the base at a namespace root (`0::/`), or
-    /// the base plus the delegated path otherwise — exactly what the class rules act on.
+    /// the base plus the delegated path otherwise — exactly what the class rules act on. One
+    /// shape folds onto the base: a keeper-prepared container, re-entered — its instance
+    /// subtree (and so the startup sweep's root) is the same one the first start built.
     pub fn cgroup_dir(&self) -> Result<PathBuf, String> {
         let path = self_cgroup_path(&self.self_cgroup)
             .ok_or_else(|| "no unified cgroup v2 entry in /proc/self/cgroup".to_string())?;
-        Ok(match path.trim_start_matches('/') {
-            "" => self.base.clone(),
-            rest => self.base.join(rest),
-        })
+        if path.trim_start_matches('/').is_empty() || self.keeper_reentry().is_some() {
+            return Ok(self.base.clone());
+        }
+        Ok(self.base.join(path.trim_start_matches('/')))
+    }
+
+    /// The one-shot prep's shape, re-entered: this process sits in the namespace root's
+    /// keeper child (`0::/keeper`) and the root already carries the needed controllers —
+    /// the containerized class on a second start. Returns the root's enabled controllers;
+    /// `None` for every other shape. A keeper child whose root does **not** carry the
+    /// controllers is not a container this prep ever prepared (moving the root's processes
+    /// is not ours to do there — class 1's refusal stands), and a deeper path is not the
+    /// prep's.
+    fn keeper_reentry(&self) -> Option<Vec<String>> {
+        let path = self_cgroup_path(&self.self_cgroup)?;
+        if path.strip_prefix('/') != Some(KEEPER_CHILD) {
+            return None;
+        }
+        let root = fs::read_to_string(self.base.join("cgroup.subtree_control")).unwrap_or_default();
+        let enabled = enabled_controllers(&root);
+        covers_needed(&enabled).then_some(enabled)
     }
 
     fn is_namespace_root(&self) -> bool {
@@ -138,7 +166,7 @@ impl LinuxCgroupProbe {
             )
         }
 
-        let keeper = dir.join("keeper");
+        let keeper = dir.join(KEEPER_CHILD);
         fs::create_dir_all(&keeper).map_err(|e| format!("keeper child: {e}"))?;
 
         drain(dir, &keeper);
@@ -178,6 +206,20 @@ impl ContainmentProbe for LinuxCgroupProbe {
                 let _ = fs::remove_dir(&probe_dir);
             }
             Err(error) => return Err(write_error_detail(&error)),
+        }
+
+        // 2b. Keeper-prepared container, re-entered (the containerized class on a second
+        //     start): the managed dir is the namespace root and it already carries the
+        //     controllers — nothing to prepare, and the instance subtree the first start
+        //     built (the startup sweep's root) is intact. Its own detail keeps re-entries
+        //     legible in startup evidence (`p2/hardening` round 1(a)).
+        if let Some(enabled) = self.keeper_reentry() {
+            return Ok(Delegation {
+                detail: format!(
+                    "keeper-prepared container re-entered: namespace root already carries {}",
+                    enabled.join(" ")
+                ),
+            });
         }
 
         // 3. Already delegated (the host-process class)? Confirm and be done.
@@ -452,12 +494,59 @@ mod tests {
         assert!(delegation.detail.contains("already enabled"));
     }
 
+    #[test]
+    fn keeper_prepared_container_reentry_manages_the_namespace_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(
+            tmp.path().join("cgroup.controllers"),
+            "cpu io memory pids\n",
+        )
+        .unwrap();
+        // The first start's prep left: the keeper child + the controllers at the root.
+        fs::write(
+            tmp.path().join("cgroup.subtree_control"),
+            "cpu memory pids\n",
+        )
+        .unwrap();
+        fs::create_dir(tmp.path().join("keeper")).unwrap();
+        let probe = LinuxCgroupProbe::with_paths(tmp.path(), "0::/keeper\n");
+        // The managed dir is the root again — the same instance subtree the first start
+        // built, so a restart's startup sweep resolves the subtree it must reap.
+        assert_eq!(probe.cgroup_dir().unwrap(), tmp.path());
+        let delegation = probe.probe().expect("the prepared shape is recognized");
+        assert!(
+            delegation.detail.contains("re-entered"),
+            "got: {}",
+            delegation.detail
+        );
+        assert!(
+            delegation.detail.contains("cpu memory pids"),
+            "got: {}",
+            delegation.detail
+        );
+    }
+
+    #[test]
+    fn keeper_shaped_path_without_the_roots_controllers_stays_the_child() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir(tmp.path().join("keeper")).unwrap();
+        // The root does not carry the controllers: not a container this prep prepared —
+        // the managed dir stays the keeper child, never silently the root.
+        let probe = LinuxCgroupProbe::with_paths(tmp.path(), "0::/keeper\n");
+        assert_eq!(probe.cgroup_dir().unwrap(), tmp.path().join("keeper"));
+        // A deeper path is likewise never folded onto the root.
+        let deep = LinuxCgroupProbe::with_paths(tmp.path(), "0::/keeper/child\n");
+        assert_eq!(deep.cgroup_dir().unwrap(), tmp.path().join("keeper/child"));
+    }
+
     /// The real-box check: runs the probe against the actual `/sys/fs/cgroup`. Run explicitly
     /// inside the two container classes from `p2/cgroup-matrix/`:
     ///
     /// - unprivileged container → `PROBE-ERR: cgroupfs is mounted read-only` (class 1);
     /// - privileged container → keeper prep runs → `PROBE-OK: … keeper prep (cpu memory pids)`
-    ///   (class 2).
+    ///   (class 2); a second run in the same container now reports the keeper re-entry
+    ///   (`PROBE-OK: keeper-prepared container re-entered: …`) instead of refusing — the fix
+    ///   from `p2/hardening` round 1(a).
     ///
     /// `cargo test --locked real_box_probe -- --ignored --nocapture`
     #[test]

@@ -3,6 +3,7 @@
 # L1 container: create several real sessions, list/status (renderer marks), close some,
 # SIGKILL the manager mid-session, start it again — the startup sweep must reap the orphaned
 # scopes and compositors. Raw evidence: this script's stdout.
+# Extended after the round-1(a) fix: [5b] post-restart create/close, [6b] doctor + cgroups.
 set -u
 
 BIN="${BIN:-/out/hardening/daiorama}"
@@ -94,6 +95,10 @@ echo "-- scopes after kill:"; show_scopes
 hr "[5] daemon start again — the startup sweep must reap"
 "$BIN" daemon start; echo "restart_rc=$?"
 sleep 1
+MGR_PID2=$("$BIN" --remote "$SOCK" status --json 2>/dev/null | sed -n 's/.*"pid": *\([0-9][0-9]*\).*/\1/p' | head -1)
+echo "manager_pid=${MGR_PID2:-unknown}"
+echo "-- manager cgroup: $(cat /proc/${MGR_PID2:-0}/cgroup 2>&1 | tr '\n' ' ')"
+echo "-- nsroot subtree_control now: $(cat /sys/fs/cgroup/cgroup.subtree_control 2>&1)"
 echo "-- daemon.log (tail 40):"; tail -n 40 "$DLOG" 2>&1
 echo "-- startup sweep lines:"; grep -n 'startup sweep' "$DLOG" 2>&1
 echo "-- compositors after restart:"; scan_compositors
@@ -101,10 +106,23 @@ echo "-- scopes after restart:"; show_scopes
 echo "-- status:"; "$BIN" --remote "$SOCK" status; echo "status_rc=$?"
 echo "-- list:"; "$BIN" --remote "$SOCK" list; echo "list_rc=$?"
 
+hr "[5b] a new session after the restart (recovered manager is fully functional)"
+S4=$("$BIN" --remote "$SOCK" new); echo "new4_rc=$? id=${S4:-<none>}"
+if [ -n "${S4:-}" ]; then
+  echo "-- status $S4:"; "$BIN" --remote "$SOCK" status "$S4"; echo "rc=$?"
+  echo "-- close $S4:"; "$BIN" --remote "$SOCK" close "$S4"; echo "close_rc=$?"
+fi
+echo "-- list after post-restart close:"; "$BIN" --remote "$SOCK" list
+echo "-- scopes after post-restart close:"; show_scopes
+
 hr "[6] end + post-state"
 "$BIN" daemon end --force; echo "end_rc=$?"
 echo "-- compositors final:"; scan_compositors
 echo "-- scopes final:"; show_scopes
 echo "-- session runtime dirs left: $(ls -d /tmp/dr-* 2>/dev/null | tr '\n' ' ')"
+
+hr "[6b] doctor in the keeper-prepared container (re-entry, after the fix)"
+echo "-- this shell's cgroup: $(cat /proc/self/cgroup 2>&1 | tr '\n' ' ')"
+"$BIN" doctor; echo "doctor_rc=$?"
 
 echo "RUN-A-DONE"
