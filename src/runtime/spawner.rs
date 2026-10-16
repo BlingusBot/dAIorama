@@ -33,6 +33,21 @@ pub const PARENT_SOCKET: &str = "wayland-m";
 /// The output the spawner creates on the child compositor.
 pub const PRIMARY_OUTPUT: &str = "HEADLESS-1";
 
+/// Unix socket paths are capped at 108 bytes (`sun_path`); Hyprland's instance-directory
+/// name runs ~61-64 chars and its IPC socket is `rt_dir + "/hypr/<instance>/.socket.sock"`.
+/// Small margin kept for variance.
+const SUN_PATH_BUDGET: usize = 106;
+const HYPR_IPC_SUFFIX: usize = 6 + 64 + 13; // "/hypr/" + instance dir + "/.socket.sock"
+
+/// The first candidate whose `dr-<id8>` child keeps the IPC socket under the unix
+/// `sun_path` cap; `None` when every candidate is too deep.
+fn first_fitting_runtime_dir(candidates: &[PathBuf], id: &str) -> Option<PathBuf> {
+    candidates.iter().find_map(|base| {
+        let rt_dir = base.join(format!("dr-{}", &id[..8]));
+        (rt_dir.display().to_string().len() + HYPR_IPC_SUFFIX <= SUN_PATH_BUDGET).then_some(rt_dir)
+    })
+}
+
 /// Binaries and paths the spawner drives. Tests point these at stubs.
 #[derive(Debug, Clone)]
 pub struct SpawnerConfig {
@@ -43,6 +58,8 @@ pub struct SpawnerConfig {
     /// Where the compositors' `XDG_RUNTIME_DIR` lives. Kept tiny and separate from the
     /// session dir: unix socket paths are capped at 108 bytes (`sun_path`) and Hyprland's
     /// instance-directory name alone runs ~61 chars, so the runtime dir must stay short.
+    /// When this base cannot fit the budget, `/tmp` then `$XDG_RUNTIME_DIR` are tried —
+    /// the spawner refuses only when no candidate fits.
     pub short_root: PathBuf,
     pub parent_ready_timeout: Duration,
     pub child_ready_timeout: Duration,
@@ -135,6 +152,26 @@ impl LinuxSpawner {
     fn kill_quietly(child: &mut Child) {
         let _ = child.kill();
         let _ = child.wait();
+    }
+
+    /// The compositors' runtime dir: the configured base first, then `/tmp`, then the
+    /// manager's `$XDG_RUNTIME_DIR` — the first candidate that keeps the IPC socket under
+    /// the unix `sun_path` cap. Refuses only when no candidate fits.
+    fn pick_runtime_dir(config: &SpawnerConfig, id: &str) -> Result<PathBuf, ErrorEnvelope> {
+        let mut candidates = vec![config.short_root.clone(), PathBuf::from("/tmp")];
+        if let Some(xdg) = std::env::var_os("XDG_RUNTIME_DIR").filter(|v| !v.is_empty()) {
+            candidates.push(PathBuf::from(xdg));
+        }
+        first_fitting_runtime_dir(&candidates, id).ok_or_else(|| {
+            ErrorEnvelope::internal(format!(
+                "no runtime dir fits the compositor IPC socket budget (tried: {})",
+                candidates
+                    .iter()
+                    .map(|base| base.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        })
     }
 
     /// The tail of a session log, for failure paths (the dir is gone right after).
@@ -308,19 +345,9 @@ impl SessionSpawner for LinuxSpawner {
 
         let id = uuid::Uuid::new_v4().to_string();
         let dir = self.config.runtime_root.join(&id);
-        // The compositors' XDG_RUNTIME_DIR: short by design (see `SpawnerConfig::short_root`).
-        // Hyprland's IPC socket lands at rt_dir + "/hypr/<~61-char instance dir>/.socket.sock";
-        // the whole path must stay under the 108-byte unix `sun_path` cap or bind() fails and
-        // the compositor never presents IPC — the exact failure this budget exists for.
-        let rt_dir = self.config.short_root.join(format!("dr-{}", &id[..8]));
-        const SUN_PATH_BUDGET: usize = 106;
-        const HYPR_IPC_SUFFIX: usize = 6 + 64 + 13; // "/hypr/" + instance dir + "/.socket.sock"
-        if rt_dir.display().to_string().len() + HYPR_IPC_SUFFIX > SUN_PATH_BUDGET {
-            return Err(ErrorEnvelope::internal(format!(
-                "compositor runtime dir {} exceeds the unix socket path budget",
-                rt_dir.display()
-            )));
-        }
+        // The compositors' XDG_RUNTIME_DIR: short by design — the first fitting candidate of
+        // the configured base, /tmp and $XDG_RUNTIME_DIR (see `pick_runtime_dir`).
+        let rt_dir = Self::pick_runtime_dir(&self.config, &id)?;
         // Fresh slate: never inherit sockets from a stale crashed session reusing this name.
         let _ = fs::remove_dir_all(&rt_dir);
         fs::create_dir_all(&dir)
@@ -524,6 +551,9 @@ mod tests {
         config.hyprctl_bin = write_stub(stub_dir, "hyprctl", HYPRCTL_STUB);
         config.parent_ready_timeout = Duration::from_secs(3);
         config.child_ready_timeout = Duration::from_secs(3);
+        // Never inherit an ambient TMPDIR here: the runtime-dir budget is a unit under test
+        // (`runtime_dir_picker_*`), not something the box's environment may decide.
+        config.short_root = PathBuf::from("/tmp");
         config
     }
 
@@ -568,7 +598,7 @@ mod tests {
         assert!(proc_alive(parent_pid), "parent alive after spawn");
         assert!(proc_alive(child_pid), "child alive after spawn");
         let dir = runtime.join(&id);
-        let rt_dir = std::env::temp_dir().join(format!("dr-{}", &id[..8]));
+        let rt_dir = PathBuf::from("/tmp").join(format!("dr-{}", &id[..8]));
         assert!(rt_dir.join("wayland-m").exists(), "parent socket present");
         assert!(rt_dir.join("hypr/test-signature/.socket.sock").exists());
         assert!(dir.join("mutter.log").exists() && dir.join("hyprland.log").exists());
@@ -701,5 +731,43 @@ mod tests {
         fs::create_dir_all(&stubs).unwrap();
         let spawner = LinuxSpawner::new(stub_config(&stubs, &tmp.path().join("run")));
         assert!(spawner.health("nope").is_none());
+    }
+
+    #[test]
+    fn runtime_dir_picker_skips_deep_candidates_and_refuses_when_none_fit() {
+        let deep = PathBuf::from("/some/very/deep/place").join("a".repeat(40));
+        let short = PathBuf::from("/tmp");
+        let id = "2f7a4c1e-9b3d-4a6f-8e21-77aa11bb22cc";
+
+        let picked = first_fitting_runtime_dir(&[deep.clone(), short.clone()], id)
+            .expect("the short candidate fits");
+        assert_eq!(picked, short.join("dr-2f7a4c1e"));
+
+        assert!(
+            first_fitting_runtime_dir(&[deep.clone(), deep.join("deeper")], id).is_none(),
+            "deep-only candidate lists refuse instead of overflowing silently"
+        );
+    }
+
+    #[test]
+    fn spawn_falls_back_to_a_short_base_when_the_configured_one_is_deep() {
+        let tmp = tempfile::tempdir().unwrap();
+        let stubs = tmp.path().join("stubs");
+        fs::create_dir_all(&stubs).unwrap();
+        let runtime = tmp.path().join("run");
+        let mut config = stub_config(&stubs, &runtime);
+        config.short_root = tmp
+            .path()
+            .join("deep/enough/to/overflow/the/socket/budget/for/sure");
+        let spawner = LinuxSpawner::new(config);
+
+        let id = spawner
+            .spawn(&SessionSpec::default())
+            .expect("a deep configured base falls back instead of refusing");
+        let rt_dir = PathBuf::from("/tmp").join(format!("dr-{}", &id[..8]));
+        assert!(rt_dir.exists(), "fell back to /tmp: {}", rt_dir.display());
+
+        spawner.kill_tree(&id).expect("teardown");
+        assert!(!rt_dir.exists(), "fallback runtime dir removed on teardown");
     }
 }
