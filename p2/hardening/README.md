@@ -1,4 +1,4 @@
-# P2 — hardening on the real chain: 1(a) lifecycle churn, 1(b) live-session drain
+# P2 — hardening on the real chain: 1(a) lifecycle churn, 1(b) live-session drain, 1(c) odd creation params
 
 Raw evidence that the shipped manager + CLI hold up under real lifecycle churn in the
 privileged L1 container: three real sessions created, listed, inspected (`renderer: verified`
@@ -29,6 +29,51 @@ running on the L1 chain:
 
 Raw: `evidence/drain-live.txt` (container `dai-hardening-c2`, output `hardening-c2.txt`);
 harness `run-b.sh`; create-spec `evidence/drain-live-spec.json`. No findings — no src change.
+
+## Round 1(c) — odd creation params: one finding, fixed; re-run green
+
+The matrix (harness `run-c.sh`, fresh L1 container `dai-hardening-d`: eight real sessions
+through the manager CLI — 1280x800 @1.5, 64x64, 1x1, 641x481 @1.5, 642x482 @1.25,
+1920x1080 @0.25, 7680x4320, 16384x16384) found one defect and pinned its mechanism:
+
+**Finding — silent scale substitution.** For a `(logical, scale)` whose rounded mode is
+not an exact multiple of the scale (e.g. 641x481 × 1.5 → mode 962x722), the compositor
+replaced the requested scale with one of its own: the instance log reads
+`ERR ]: Invalid scale passed to monitor, 1.5 found suggestion 2` — Hyprland 0.56.2
+(`src/output/Monitor.cpp`) snaps any scale whose logical size is non-integral to the
+nearest scale that makes it integral (1.5→2 for 962x722, 1.5→1.6 for 2560x1440, 1.4→1;
+probed live in `scale-substitution-diag.txt`). The session was created, marked
+`verified`, and recorded scale 1.5 — while its logical screen was 481x361, not 641x481.
+First run raw: `odd-params-firstrun.txt` (`FAILS=1` — the compositor readback asserted
+the requested scale and got 2).
+
+**Fix (this branch).** The session conf opts out of the heuristic
+(`debug:disable_scale_checks = true` — `(logical, scale) → mode` is the spawner's
+arithmetic, not the compositor's suggestion) and the spawn verifies the outcome anyway:
+after the monitor rule it reads the primary output back (`hyprctl monitors -j`); a
+mismatch that persists refuses the spawn (message names asked vs effective) and tears
+down like every other failure, one re-application guards a dropped keyword, and a
+compositor that cannot be queried degrades to a warning (renderer-gate precedent).
+Opt-out and readback timing proven live in `scale-optout-diag.txt` /
+`scale-readback-diag.txt` (requested scales 1.5, 1.25, 1.33, 1.4 land verbatim; a fresh
+output is read back within the first 250 ms poll).
+
+**Result — re-run green (`odd-params.txt`, container `dai-hardening-d2`).** All eight
+cases: created, renderer `verified`, the compositor carries the computed physical mode
+AND the requested scale verbatim (`962x722 @1.5`, `803x603 @1.25`, `480x270 @0.25`, …),
+clean close with no process/scope/runtime-dir left, per-case snapshot byte-identical;
+`FAILS=0`, `SCRIPT_RC=0`. Products of the run: a 1x1 session and a 16384x16384 session
+both create, read back, and close clean.
+
+Notes:
+- Probes are diagnostic, not the spawn path: the three `*-diag.txt` runs share one
+  recipe (same mounts/device as the matrix; `BIN` + `dbus-run-session`). Their runners'
+  `SCRIPT_RC=0`/`RUN-ALL-DONE` footers landed in the container logs, not the captured
+  files — every file is the raw script stdout.
+- Probe observation to revisit with mid-session work: re-applying monitor rules
+  repeatedly to one long-lived output stopped being reflected in later `hyprctl monitors`
+  reads in the probe containers (single-apply sessions — the spawn path — are unaffected
+  across the eight-case matrix). Mid-session resizes are out of scope (01).
 
 ## Finding (round 1(a), fixed this branch)
 
@@ -85,8 +130,11 @@ step now recovers:
   scopes and their processes are. A clean close removes them; a crash leaves them behind
   (they hold the compositor logs). Not part of the sweep's pinned contract (03); decide
   whether crash-time rt-dirs should be reaped (spawner-owned naming) or kept for diagnosis.
-- Everything else in this round is green; round 1(b) (above) is green with no findings — the
-  round continues to (c) odd creation params (scale 1.5, tiny and huge resolutions).
+- The repeated-reapply observation (probe containers, round 1(c) notes): revisit when
+  mid-session output work lands — nothing shipped re-applies a rule to a live output yet.
+- Round 1 added findings in (a) and (c), both fixed on this branch — per the round rule the
+  round repeats: a full (a)–(c) pass on the fixed tip, then the completion receipt (the
+  cross-verify handoff).
 
 ## Files
 
@@ -105,13 +153,25 @@ step now recovers:
 - `evidence/drain-live.txt` — round 1(b) raw container output (green; `FAILS=0`).
 - `evidence/drain-live-spec.json` — create-spec for the 1(b) run (mount sources genericized;
   container `dai-hardening-c2`, output `hardening-c2.txt`).
+- `run-c.sh` — the 1(c) odd-params harness (eight-case matrix; per-assertion `[OK]`/`[FAIL]`
+  and a final `FAILS=` count).
+- `diag-scale.sh`, `diag-scale2.sh`, `diag-scale3.sh` — the three live probes: substitution
+  matrix with the heuristic on; the `disable_scale_checks` opt-out proof; readback timing.
+- `evidence/odd-params-firstrun.txt` — round 1(c) first run (the finding; `FAILS=1`).
+- `evidence/odd-params.txt` — round 1(c) re-run on the fixed tip (green; `FAILS=0`).
+- `evidence/scale-substitution-diag.txt`, `evidence/scale-optout-diag.txt`,
+  `evidence/scale-readback-diag.txt` — the probe raws (containers
+  `dai-hardening-d-diag`, `-diag2`, `-diag3`).
+- `evidence/odd-params-spec.json` — create-spec for the 1(c) re-run (mount sources
+  genericized; container `dai-hardening-d2`, output `hardening-d2.txt`).
 
 ## Gate + run recipe
 
 Gate + binary in a `rust:slim` container from this tip (`rustup component add rustfmt
 clippy`; `cargo fmt --check`; `cargo clippy --all-targets --locked -- -D warnings`; `cargo
 test --locked`; `cargo build --locked`; copy `target/debug/daiorama` out), then the L1
-create-spec above (`dbus-run-session -- bash /src/p2/hardening/run-a.sh`).
+create-spec above (`dbus-run-session -- bash /src/p2/hardening/run-a.sh`; the later rounds
+substitute `run-b.sh` / `run-c.sh`).
 
 Gate (fresh container, fixed tip): fmt clean, clippy `-D warnings` clean, suite green —
 130 + 4 + 2 + 27 passed, 0 failed, 5 ignored (+2 re-entry tests).
@@ -119,3 +179,6 @@ Gate (fresh container, fixed tip): fmt clean, clippy `-D warnings` clean, suite 
 Re-gate with the 1(b) commit tree (docs + harness only, no `src/` delta; fresh `rust:slim`):
 fmt clean (no rewrite), clippy `-D warnings` clean, same suite — 130 + 4 + 2 + 27 passed,
 0 failed, 5 ignored.
+
+Re-gate with the 1(c) tip (geometry readback — spawner + tests; fresh `rust:slim`): fmt
+clean, clippy `-D warnings` clean — 133 + 4 + 2 + 27 passed, 0 failed, 5 ignored.

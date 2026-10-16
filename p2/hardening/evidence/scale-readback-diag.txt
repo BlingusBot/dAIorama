@@ -1,0 +1,57 @@
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=20 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c497,c783")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+sig=efb50993780079460b0cbed1363e2166a2de1d9f_1792184130_741429046
+int: 1
+set: true
+===== A. virgin output: create, then readback with timing =====
+ok
+after +0.3s:
+  mon: HEADLESS-1   w=1920   h=1080   scale=2        pos=0x0
+after +1s:
+  mon: HEADLESS-1   w=1920   h=1080   scale=2        pos=0x0
+after +2s:
+  mon: HEADLESS-1   w=1920   h=1080   scale=2        pos=0x0
+===== B: apply 962x722@60,0x0,1.5 =====
+ok
+after +0.3s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +1s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +2s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +4s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+===== C: apply 803x603@60,0x0,1.25 =====
+ok
+after +0.3s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +1s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +2s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +4s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+===== D: apply 1920x1080@60,0x0,0.25 =====
+ok
+after +0.3s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +1s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +2s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +4s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+===== E-repeat-962: apply 962x722@60,0x0,1.5 =====
+ok
+after +0.3s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +1s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +2s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+after +4s:
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+===== F. final state + instance log tail =====
+  mon: HEADLESS-1   w=962    h=722    scale=1.5      pos=0x0
+DEBUG ]: Monitor FALLBACK data dump: res 1920x1080@60.00Hz, scale 1.00, transform 0, pos -1x-1, 10b 0
+=== done ===

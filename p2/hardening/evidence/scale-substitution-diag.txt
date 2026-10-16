@@ -1,0 +1,180 @@
+===== A. parent: mutter --headless =====
+mutter alive=yes
+===== B. child: Hyprland nested =====
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=19 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c428,c491")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+hyprland alive=yes
+sig=efb50993780079460b0cbed1363e2166a2de1d9f_1792183277_533364094
+-- version:
+Hyprland 0.56.2 built from branch v0.56.2 at commit efb50993780079460b0cbed1363e2166a2de1d9f clean ([gha] Nix: update inputs).
+Date: Wed Aug 5 14:13:21 2026
+Tag: v0.56.2, commits: 7661
+
+instance log: /tmp/xdg/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792183277_533364094/hyprland.log (894 lines)
+===== C. headless output =====
+ok
+===== D. probe matrix =====
+----- apply monitor rule: HEADLESS-R,962x722@60,0x0,1.5
+ok
+readback: requested 962x722 @1.5 -> w=962 h=722 scale=2 refresh=60.0
+-- new instance-log lines mentioning scale/monitor (0 new):
+
+----- apply monitor rule: HEADLESS-R,1920x1200@60,0x0,1.5
+ok
+readback: requested 1920x1200 @1.5 -> w=1920 h=1200 scale=1.5 refresh=60.0
+-- new instance-log lines mentioning scale/monitor (0 new):
+
+----- apply monitor rule: HEADLESS-R,960x720@60,0x0,1.5
+ok
+readback: requested 960x720 @1.5 -> w=960 h=720 scale=1.5 refresh=60.0
+-- new instance-log lines mentioning scale/monitor (110 new):
+DEBUG ]: Framebuffer "Monitor FALLBACK workbuffer" created, status 36053
+DEBUG ]: Monitor FALLBACK -> destroyed all render data
+DEBUG ]: Disconnecting Monitor FALLBACK was on workspace 1
+DEBUG ]: Removed monitor FALLBACK!
+DEBUG ]: Destroy called for monitor FALLBACK
+DEBUG ]: Monitor FALLBACK -> destroyed all render data
+DEBUG ]: arrangeMonitors: 0 to arrange
+ERR ]: [./src/protocols/XDGOutput.cpp:70] New xdg_output from client 55c9ba39a120 (xwayland) has no CMonitor?!
+DEBUG ]: [CMonitorStateTracker] New monitor: HEADLESS-R
+DEBUG ]: Applying monitor rule for HEADLESS-R
+DEBUG ]: CMonitorState::ensureBufferPresent: no buffer or mismatched format, attaching one from the swapchain for modeset being possible
+DEBUG ]: Monitor HEADLESS-R: requested preferred, using preferred mode 1920x1080@60.00Hz
+DEBUG ]: Monitor HEADLESS-R -> destroyed all render data
+DEBUG ]: CMonitor::updateVCGTRamps: skipping, no gamma ramp for output
+
+----- apply monitor rule: HEADLESS-R,2560x1440@60,0x0,1.5
+ok
+readback: requested 2560x1440 @1.5 -> w=2560 h=1440 scale=1.6 refresh=60.0
+-- new instance-log lines mentioning scale/monitor (0 new):
+DEBUG ]: Monitor HEADLESS-R: requested 960x720@60.00Hz, using available mode 960x720@60.00Hz
+
+----- apply monitor rule: HEADLESS-R,1920x1000@60,0x0,1.5
+ok
+readback: requested 1920x1000 @1.5 -> w=1920 h=1000 scale=1.6 refresh=60.0
+-- new instance-log lines mentioning scale/monitor (0 new):
+DEBUG ]: Monitor HEADLESS-R: requested 960x720@60.00Hz, using available mode 960x720@60.00Hz
+
+----- apply monitor rule: HEADLESS-R,962x722@60,0x0,1.4
+ok
+readback: requested 962x722 @1.4 -> w=962 h=722 scale=1 refresh=60.0
+-- new instance-log lines mentioning scale/monitor (0 new):
+DEBUG ]: Monitor HEADLESS-R: requested 960x720@60.00Hz, using available mode 960x720@60.00Hz
+
+----- apply monitor rule: HEADLESS-R,962x722@60,0x0,1.6
+ok
+readback: requested 962x722 @1.6 -> w=962 h=722 scale=2 refresh=60.0
+-- new instance-log lines mentioning scale/monitor (0 new):
+DEBUG ]: Monitor HEADLESS-R: requested 960x720@60.00Hz, using available mode 960x720@60.00Hz
+
+----- apply monitor rule: HEADLESS-R,1920x1080@60,0x0,1.33
+ok
+readback: requested 1920x1080 @1.33 -> w=1920 h=1080 scale=1.3333334 refresh=60.0
+-- new instance-log lines mentioning scale/monitor (109 new):
+DEBUG ]: Monitor HEADLESS-R: requested 960x720@60.00Hz, using available mode 960x720@60.00Hz
+DEBUG ]: Monitor HEADLESS-R -> destroyed all render data
+DEBUG ]: CMonitor::updateVCGTRamps: skipping, no gamma ramp for output
+DEBUG ]: Monitor HEADLESS-R data dump: res 960x720@60.00Hz, scale 1.50, transform 0, pos 0x0, 10b 0
+DEBUG ]: arrangeMonitors: 1 to arrange
+DEBUG ]: arrangeMonitors: HEADLESS-R explicit [0, 0]
+DEBUG ]: arrangeMonitors: HEADLESS-R xwayland [0, 0]
+DEBUG ]: Framebuffer "Monitor HEADLESS-R blur FB" created, status 36053
+DEBUG ]: Framebuffer "Monitor HEADLESS-R workbuffer" created, status 36053
+DEBUG ]: Hyprctl: keyword monitor : HEADLESS-R,2560x1440@60,0x0,1.5
+DEBUG ]: Applying monitor rule for HEADLESS-R
+DEBUG ]: Monitor HEADLESS-R: requested 2560x1440@60.00Hz, using available mode 2560x1440@60.00Hz
+ERR ]: Invalid scale passed to monitor, 1.5 found suggestion 1.6
+DEBUG ]: Monitor HEADLESS-R -> destroyed all render data
+
+----- apply monitor rule: HEADLESS-R,962x722@60,0x0,1.5
+ok
+readback: requested 962x722 @1.5 -> w=962 h=722 scale=2 refresh=60.0
+-- new instance-log lines mentioning scale/monitor (0 new):
+DEBUG ]: Monitor HEADLESS-R -> destroyed all render data
+
+===== E. full monitors JSON (current state) =====
+[
+    {
+        "id": 0,
+        "name": "HEADLESS-R",
+        "description": "",
+        "make": "",
+        "model": "",
+        "serial": "",
+        "width": 962,
+        "height": 722,
+        "physicalWidth": 0,
+        "physicalHeight": 0,
+        "refreshRate": 60.0,
+        "x": 0,
+        "y": 0,
+        "activeWorkspace": {
+            "id": 1,
+            "name": "1"
+        },
+        "specialWorkspace": {
+            "id": 0,
+            "name": ""
+        },
+        "reserved": [
+            0,
+            0,
+            0,
+            0
+        ],
+        "scale": 2,
+        "transform": 0,
+        "focused": true,
+        "dpmsStatus": true,
+        "vrr": false,
+        "solitary": "0",
+        "solitaryBlockedBy": [
+            "NOTIFICATION",
+            "WINDOWED",
+            "CANDIDATE"
+        ],
+        "activelyTearing": false,
+        "tearingBlockedBy": [
+            "NOT_TORN",
+            "USER",
+            "SUPPORT",
+            "CANDIDATE"
+        ],
+        "directScanoutTo": "0",
+        "directScanoutBlockedBy": [
+            "USER",
+            "SW",
+            "CANDIDATE"
+        ],
+        "disabled": false,
+        "currentFormat": "XRGB8888",
+        "mirrorOf": "none",
+        "availableModes": [
+            "1920x1080@60.00Hz"
+        ],
+        "colorManagementPreset": "srgb",
+        "sdrBrightness": 1,
+        "sdrSaturation": 1,
+        "sdrMinLuminance": 0.2,
+        "sdrMaxLuminance": 80,
+        "hardwareCursorsInUse": true
+    }
+]
+===== F. grep instance log for scale-ish lines (whole file) =====
+646:DEBUG ]: [IWaylandProtocol] Registered global [FractionalScale]
+697:DEBUG ]: [IWaylandProtocol] Registered global [BackgroundEffect]
+879:DEBUG ]: Monitor FALLBACK data dump: res 1920x1080@60.00Hz, scale 1.00, transform 0, pos -1x-1, 10b 0
+935:DEBUG ]: Monitor HEADLESS-R data dump: res 1920x1080@60.00Hz, scale 2.00, transform 0, pos -1x-1, 10b 0
+962:ERR ]: Invalid scale passed to monitor, 1.5 found suggestion 2
+965:DEBUG ]: Monitor HEADLESS-R data dump: res 962x722@60.00Hz, scale 2.00, transform 0, pos 0x0, 10b 0
+987:DEBUG ]: Monitor HEADLESS-R data dump: res 1920x1200@60.00Hz, scale 1.50, transform 0, pos 0x0, 10b 0
+1009:DEBUG ]: Monitor HEADLESS-R data dump: res 960x720@60.00Hz, scale 1.50, transform 0, pos 0x0, 10b 0
+1029:ERR ]: Invalid scale passed to monitor, 1.5 found suggestion 1.6
+1032:DEBUG ]: Monitor HEADLESS-R data dump: res 2560x1440@60.00Hz, scale 1.60, transform 0, pos 0x0, 10b 0
+1052:ERR ]: Invalid scale passed to monitor, 1.5 found suggestion 1.6
+1055:DEBUG ]: Monitor HEADLESS-R data dump: res 1920x1000@60.00Hz, scale 1.60, transform 0, pos 0x0, 10b 0
+1075:ERR ]: Invalid scale passed to monitor, 1.4 found suggestion 1
+1078:DEBUG ]: Monitor HEADLESS-R data dump: res 962x722@60.00Hz, scale 1.00, transform 0, pos 0x0, 10b 0
+1094:ERR ]: Invalid scale passed to monitor, 1.6 found suggestion 2
+1096:DEBUG ]: Monitor HEADLESS-R data dump: res 962x722@60.00Hz, scale 2.00, transform 0, pos 0x0, 10b 0
+=== done ===

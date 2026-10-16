@@ -1,0 +1,59 @@
+===== A. parent: mutter --headless =====
+mutter alive=yes
+===== B. child: Hyprland nested (conf has disable_scale_checks = true) =====
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=20 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c352,c753")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+hyprland alive=yes
+sig=efb50993780079460b0cbed1363e2166a2de1d9f_1792183782_1418057071
+-- config value seen by the compositor:
+int: 1
+set: true
+===== C. headless output =====
+ok
+===== D. probe matrix (opt-out active) =====
+----- apply monitor rule: HEADLESS-R,962x722@60,0x0,1.5
+ok
+readback: requested 962x722 @1.5 -> w=962 h=722 scale=1.5 refresh=60.0
+-- new instance-log ERR/scale lines:
+
+----- apply monitor rule: HEADLESS-R,2560x1440@60,0x0,1.5
+ok
+readback: requested 2560x1440 @1.5 -> w=2560 h=1440 scale=1.5 refresh=60.0
+-- new instance-log ERR/scale lines:
+
+----- apply monitor rule: HEADLESS-R,1920x1080@60,0x0,1.33
+ok
+readback: requested 1920x1080 @1.33 -> w=1920 h=1080 scale=1.33 refresh=60.0
+-- new instance-log ERR/scale lines:
+ERR ]: resolveAssetPath: looking for wall1.png failed (no provider found)
+WARN ]: FIXME: color management protocol is enabled and outputs changed, check preferred image description changes
+ERR ]: [./src/protocols/XDGOutput.cpp:70] New xdg_output from client 56269b080120 (xwayland) has no CMonitor?!
+DEBUG ]: Monitor HEADLESS-R: requested preferred, using preferred mode 1920x1080@60.00Hz
+DEBUG ]: Monitor HEADLESS-R data dump: res 1920x1080@60.00Hz, scale 2.00, transform 0, pos -1x-1, 10b 0
+WARN ]: FIXME: color management protocol is enabled and outputs changed, check preferred image description changes
+DEBUG ]: Monitor HEADLESS-R data dump: res 962x722@60.00Hz, scale 1.50, transform 0, pos 0x0, 10b 0
+WARN ]: FIXME: color management protocol is enabled and outputs changed, check preferred image description changes
+
+----- apply monitor rule: HEADLESS-R,962x722@60,0x0,1.4
+ok
+readback: requested 962x722 @1.4 -> w=962 h=722 scale=1.4 refresh=60.0
+-- new instance-log ERR/scale lines:
+
+----- apply monitor rule: HEADLESS-R,803x603@60,0x0,1.25
+ok
+readback: requested 803x603 @1.25 -> w=803 h=603 scale=1.25 refresh=60.0
+-- new instance-log ERR/scale lines:
+
+----- apply monitor rule: HEADLESS-R,1920x1080@60,0x0,0.25
+ok
+readback: requested 1920x1080 @0.25 -> w=803 h=603 scale=1.25 refresh=60.0
+-- new instance-log ERR/scale lines:
+
+===== E. confirm the option really is what unblocked it: flip back on, retry =====
+ok
+----- apply monitor rule: HEADLESS-R,962x722@60,0x0,1.5
+ok
+readback: requested 962x722 @1.5 -> w=803 h=603 scale=1.25 refresh=60.0
+-- new instance-log ERR/scale lines:
+
+=== done ===
