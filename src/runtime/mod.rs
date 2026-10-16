@@ -8,10 +8,13 @@
 //!    evidence: `p2/cgroup-matrix/` and `fixtures/README.md` §Containment classes.
 //! 2. `spawner` — the L1 chain (mutter `--headless` parent → nested Hyprland → on-demand
 //!    outputs) as a daemon-managed child: readiness, teardown, and the health pass.
+//! 3. `service` — the real dispatcher behind `daiorama serve` ([`service::RuntimeService`]):
+//!    the lifecycle verbs over the registry, speaking the pinned wire shapes.
 //!
-//! Nothing here is wired into `daiorama serve` yet — the CLI keeps answering the phase-1 stub
-//! envelope until the slices land and the wiring point flips (W3).
+//! The CLI's `serve`/`daemon` branches flip to `RuntimeService` with W3; until then they keep
+//! answering the phase-1 stub envelope.
 #![allow(dead_code)] // wires in as the slices land; unit tests exercise everything today
 
 pub mod containment;
+pub mod service;
 pub mod spawner;

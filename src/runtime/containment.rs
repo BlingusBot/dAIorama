@@ -197,11 +197,16 @@ impl ContainmentProbe for LinuxCgroupProbe {
             Ok(()) => {
                 let now =
                     fs::read_to_string(dir.join("cgroup.subtree_control")).unwrap_or_default();
+                let enabled = enabled_controllers(&now);
+                // Mirror the keeper path (above): report only what the readback shows.
+                if !covers_needed(&enabled) {
+                    return Err(format!(
+                        "controllers unavailable after enabling (present: {})",
+                        enabled.join(" ")
+                    ));
+                }
                 Ok(Delegation {
-                    detail: format!(
-                        "controllers enabled ({})",
-                        enabled_controllers(&now).join(" ")
-                    ),
+                    detail: format!("controllers enabled ({})", enabled.join(" ")),
                 })
             }
             Err(error) if error.raw_os_error() == Some(EBUSY) && self.is_namespace_root() => {
