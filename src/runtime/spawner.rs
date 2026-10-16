@@ -24,6 +24,12 @@
 //! refuses the session (the pinned 04 string) unless the caller's live
 //! `renderer.allow_software` allows it, and the detected mark (`verified` / `software` /
 //! `unverified`) rides back on [`crate::manager::SpawnOutcome`]. Never silently `verified`.
+//!
+//! The geometry readback (hardening round 1c) rides the same frame: the session conf opts
+//! out of the compositor's scale heuristics (`debug:disable_scale_checks`) and the spawn
+//! verifies the effective `(mode, scale)` of the primary output before registering the
+//! session — a compositor that would run another geometry refuses the spawn (never a
+//! registered session whose screen differs from the request).
 
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -49,6 +55,10 @@ pub const PARENT_SOCKET: &str = "wayland-m";
 
 /// The output the spawner creates on the child compositor.
 pub const PRIMARY_OUTPUT: &str = "HEADLESS-1";
+
+/// Geometry readback (hardening round 1c): how many 250 ms polls the spawner spends
+/// confirming the compositor runs the requested `(mode, scale)` before it gives up.
+const READBACK_ATTEMPTS: u32 = 5;
 
 /// Unix socket paths are capped at 108 bytes (`sun_path`); Hyprland's instance-directory
 /// name runs ~61-64 chars and its IPC socket is `rt_dir + "/hypr/<instance>/.socket.sock"`.
@@ -128,6 +138,17 @@ impl SpawnerConfig {
             containment: Containment::Off,
         }
     }
+}
+
+/// What the geometry readback saw after the monitor rule was applied (hardening round 1c).
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum GeometryCheck {
+    /// The compositor runs exactly the requested `(mode, scale)`.
+    Verified,
+    /// The compositor reports a different geometry — even after a re-application.
+    Diverged { width: u64, height: u64, scale: f64 },
+    /// The compositor could not be queried at all on the first attempt.
+    Unavailable,
 }
 
 #[derive(Debug)]
@@ -573,6 +594,69 @@ impl LinuxSpawner {
             .map(|status| status.success())
             .unwrap_or(false)
     }
+
+    /// The primary output's effective `(width, height, scale)` as the compositor reports it
+    /// (`hyprctl monitors -j`), or `None` when the query cannot run or the output is absent.
+    fn read_monitor(&self, rt_dir: &Path, signature: &str) -> Option<(u64, u64, f64)> {
+        let output = Command::new(&self.config.hyprctl_bin)
+            .args(["monitors", "-j"])
+            .env("XDG_RUNTIME_DIR", rt_dir)
+            .env("HYPRLAND_INSTANCE_SIGNATURE", signature)
+            .stdin(Stdio::null())
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let monitors: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
+        for monitor in monitors.as_array()? {
+            if monitor.get("name").and_then(serde_json::Value::as_str) == Some(PRIMARY_OUTPUT) {
+                return Some((
+                    monitor.get("width")?.as_u64()?,
+                    monitor.get("height")?.as_u64()?,
+                    monitor.get("scale")?.as_f64()?,
+                ));
+            }
+        }
+        None
+    }
+
+    /// Geometry readback (hardening round 1c): poll [`Self::read_monitor`] up to `attempts`
+    /// times, 250 ms apart, for the compositor to run exactly the requested `(mode, scale)`.
+    /// A readback matching on the first attempt wins immediately; a divergence that persists
+    /// through the window is `Diverged`; a compositor that cannot be queried at all on the
+    /// FIRST attempt is `Unavailable` (the caller degrades — the renderer gate's precedent
+    /// for an undetectable fact — instead of refusing on an unmet diagnostic).
+    fn verify_geometry(
+        &self,
+        rt_dir: &Path,
+        signature: &str,
+        want: (u64, u64, f32),
+        attempts: u32,
+    ) -> GeometryCheck {
+        let mut diverged: Option<(u64, u64, f64)> = None;
+        for attempt in 1..=attempts {
+            match self.read_monitor(rt_dir, signature) {
+                Some(seen) if seen.0 == want.0 && seen.1 == want.1 && (seen.2 as f32) == want.2 => {
+                    return GeometryCheck::Verified;
+                }
+                Some(seen) => diverged = Some(seen),
+                None if attempt == 1 && diverged.is_none() => return GeometryCheck::Unavailable,
+                None => {}
+            }
+            if attempt < attempts {
+                std::thread::sleep(Duration::from_millis(250));
+            }
+        }
+        match diverged {
+            Some((width, height, scale)) => GeometryCheck::Diverged {
+                width,
+                height,
+                scale,
+            },
+            None => GeometryCheck::Unavailable,
+        }
+    }
 }
 
 impl SessionSpawner for LinuxSpawner {
@@ -602,9 +686,13 @@ impl SessionSpawner for LinuxSpawner {
         let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
         let _ = fs::set_permissions(&rt_dir, fs::Permissions::from_mode(0o700));
 
+        // The session conf: logs on for diagnosis, and the compositor's scale heuristics
+        // opted OUT — `(logical, scale) → mode` is this spawner's arithmetic, and Hyprland's
+        // "invalid scale, found suggestion" substitution would otherwise silently rewrite
+        // the screen geometry (hardening 1c; the readback after the rule verifies it anyway).
         fs::write(
             dir.join("hypr.conf"),
-            "debug {\n    disable_logs = false\n}\n",
+            "debug {\n    disable_logs = false\n    disable_scale_checks = true\n}\n",
         )
         .map_err(|error| {
             Self::discard_dirs(&dir, &rt_dir);
@@ -796,6 +884,44 @@ impl SessionSpawner for LinuxSpawner {
             return Err(ErrorEnvelope::internal(format!(
                 "hyprctl output setup failed: {detail}"
             )));
+        }
+
+        // Geometry readback (hardening 1c): the compositor's scale heuristics must not
+        // register a session whose screen silently differs from the request. The session
+        // conf opts out of them; this verify checks the outcome anyway — exactly the
+        // requested `(mode, scale)` or the spawn refuses and cleans up like every other
+        // failure. One re-application guards a keyword the compositor dropped; a compositor
+        // that cannot be queried at all degrades to a warning (renderer-gate precedent).
+        let want = (mode_w as u64, mode_h as u64, spec.scale as f32);
+        let mut verdict = self.verify_geometry(&rt_dir, &signature, want, READBACK_ATTEMPTS);
+        if matches!(verdict, GeometryCheck::Diverged { .. })
+            && run_hyprctl(&["keyword", "monitor", &monitor_rule]).is_ok()
+        {
+            verdict = self.verify_geometry(&rt_dir, &signature, want, READBACK_ATTEMPTS);
+        }
+        match verdict {
+            GeometryCheck::Verified => {}
+            GeometryCheck::Diverged {
+                width,
+                height,
+                scale: effective,
+            } => {
+                Self::discard_scope(scope.as_deref());
+                Self::kill_quietly(&mut child);
+                Self::kill_quietly(&mut parent);
+                Self::discard_dirs(&dir, &rt_dir);
+                return Err(ErrorEnvelope::internal(format!(
+                    "compositor did not apply the requested geometry (asked {mode_w}x{mode_h} \
+                     at scale {scale}, effective {width}x{height} at scale {effective}); \
+                     session refused, its screen would not match the request"
+                )));
+            }
+            GeometryCheck::Unavailable => {
+                eprintln!(
+                    "warning: monitor readback unavailable for session {id}; geometry not \
+                     verified (hardening 1c)"
+                );
+            }
         }
 
         self.sessions.lock().expect("spawner table").insert(
@@ -1081,6 +1207,96 @@ mod tests {
             .expect("spawn");
         assert_eq!(outcome.renderer, RendererMark::Unverified);
         spawner.kill_tree(&outcome.id).expect("teardown");
+    }
+
+    // -----------------------------------------------------------------------
+    // Geometry readback (hardening round 1c)
+    // -----------------------------------------------------------------------
+
+    /// A hyprctl stub that answers `monitors -j` with a fixed monitor document and `ok` for
+    /// every other command — the shape the readback parses.
+    fn hyprctl_stub_reporting(monitors_json: &str) -> String {
+        format!(
+            "#!/bin/sh\ncase \"$1 $2\" in\n  \"monitors -j\") printf '%s' '{monitors_json}' ; exit 0 ;;\nesac\necho ok\nexit 0\n"
+        )
+    }
+
+    #[test]
+    fn geometry_readback_accepts_a_matching_report_and_the_conf_opts_out() {
+        let tmp = tempfile::tempdir().unwrap();
+        let stubs = tmp.path().join("stubs");
+        fs::create_dir_all(&stubs).unwrap();
+        let runtime = tmp.path().join("run");
+        let mut config = stub_config(&stubs, &runtime);
+        config.hyprctl_bin = write_stub(
+            &stubs,
+            "hyprctl-match",
+            &hyprctl_stub_reporting(
+                r#"[{"name":"HEADLESS-1","width":1920,"height":1200,"scale":1.5}]"#,
+            ),
+        );
+        let spawner = LinuxSpawner::new(config);
+
+        // 1280x800 at 1.5 → mode 1920x1200, exactly what the stub reports back.
+        let spec = SessionSpec {
+            resolution: "1280x800".to_string(),
+            scale: 1.5,
+            ..SessionSpec::default()
+        };
+        let outcome = spawner
+            .spawn(&spec, false)
+            .expect("a matching readback spawns");
+        let conf = fs::read_to_string(runtime.join(&outcome.id).join("hypr.conf")).unwrap();
+        assert!(
+            conf.contains("disable_scale_checks = true"),
+            "the session conf must opt out of the compositor's scale heuristics: {conf}"
+        );
+        spawner.kill_tree(&outcome.id).expect("teardown");
+    }
+
+    #[test]
+    fn geometry_readback_refuses_a_divergent_report_and_cleans_up() {
+        let tmp = tempfile::tempdir().unwrap();
+        let stubs = tmp.path().join("stubs");
+        fs::create_dir_all(&stubs).unwrap();
+        let runtime = tmp.path().join("run");
+        let mut config = stub_config(&stubs, &runtime);
+        let mutter = config.mutter_bin.clone();
+        let hypr = config.hyprland_bin.clone();
+        // The compositor substituted scale 2 for the requested 1.5 (the live shape this
+        // check exists for: `Invalid scale passed to monitor, 1.5 found suggestion 2`).
+        config.hyprctl_bin = write_stub(
+            &stubs,
+            "hyprctl-diverged",
+            &hyprctl_stub_reporting(
+                r#"[{"name":"HEADLESS-1","width":1920,"height":1200,"scale":2}]"#,
+            ),
+        );
+        let spawner = LinuxSpawner::new(config);
+
+        let spec = SessionSpec {
+            resolution: "1280x800".to_string(),
+            scale: 1.5,
+            ..SessionSpec::default()
+        };
+        let error = spawner.spawn(&spec, false).unwrap_err();
+        assert_eq!(error.code, crate::ipc::ErrorCode::Internal);
+        assert!(
+            error
+                .message
+                .contains("asked 1920x1200 at scale 1.5, effective 1920x1200 at scale 2"),
+            "got: {}",
+            error.message
+        );
+        assert!(
+            spawner.sessions.lock().expect("spawner table").is_empty(),
+            "no session registered"
+        );
+        assert!(!stub_processes_running(&mutter), "mutter stub killed");
+        assert!(!stub_processes_running(&hypr), "Hyprland stub killed");
+        if let Ok(entries) = fs::read_dir(&runtime) {
+            assert_eq!(entries.count(), 0, "no session dir left behind");
+        }
     }
 
     #[test]
