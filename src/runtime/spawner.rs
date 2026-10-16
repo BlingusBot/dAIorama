@@ -1102,4 +1102,242 @@ mod tests {
             });
         assert!(named, "the forker thread is alive under its own name");
     }
+
+    /// Exited = gone from `/proc`, or a zombie (the process is dead; whether anyone has
+    /// reaped it yet is not part of the guarantee being witnessed).
+    fn process_has_exited(pid: u32) -> bool {
+        match fs::read_to_string(format!("/proc/{pid}/status")) {
+            Err(_) => true,
+            Ok(status) => status
+                .lines()
+                .find_map(|line| line.strip_prefix("State:"))
+                .is_none_or(|state| {
+                    let state = state.trim_start();
+                    state.starts_with('Z') || state.starts_with('X')
+                }),
+        }
+    }
+
+    /// Bounded wait on a child's exit; panics with a clear message on timeout.
+    fn wait_for_exit(child: &mut Child, timeout: Duration) -> std::process::ExitStatus {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(status) = child.try_wait().expect("try_wait") {
+                return status;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "child did not exit within {timeout:?}"
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    /// The real containment chain — the C6 attach end to end on a real cgroupfs with real
+    /// compositors, inside the privileged L1 container:
+    ///
+    /// 1. the probe's keeper-prep path brings the namespace root to `limits.mode=on`;
+    /// 2. one real session (mutter → Hyprland) spawns with containment on — both
+    ///    compositors self-join the session's scope, which carries the provisional limits;
+    /// 3. `kill_tree` is the completion guarantee: processes gone, scope dir gone;
+    /// 4. the startup sweep kills a stale scope's live process and removes the scope;
+    /// 5. the parent-death witness: a child spawned through the same forker + `pre_exec`
+    ///    PEP dies when its parent is SIGKILLed — the no-graceful-teardown completion.
+    ///
+    /// Ignored by default; run it in the privileged L1 image (recipe + raw evidence in
+    /// `p2/scope/`):
+    ///
+    /// ```text
+    /// dbus-run-session -- ./daiorama-tests real_containment_chain --ignored --nocapture --test-threads=1
+    /// ```
+    #[test]
+    #[ignore = "real cgroupfs + real compositors: run in the privileged L1 container"]
+    fn real_containment_chain() {
+        use crate::manager::startup::ContainmentProbe;
+        use crate::runtime::containment::{
+            LinuxCgroupProbe, SESSION_MEMORY_MAX, ensure_session_subtree, session_subtree,
+            sweep_session_subtree,
+        };
+        use std::io::Read;
+        use std::os::unix::process::ExitStatusExt;
+
+        // 1. The keeper-prep path: in a fresh privileged container this is where the
+        //    controllers get enabled at the namespace root.
+        let probe = LinuxCgroupProbe::new();
+        let delegation = probe
+            .probe()
+            .expect("probe succeeds inside the privileged container");
+        println!("CHAIN-PROBE: {}", delegation.detail);
+        let subtree = session_subtree(&probe.cgroup_dir().expect("manager cgroup dir"));
+        println!("CHAIN-SUBTREE: {}", subtree.display());
+        ensure_session_subtree(&subtree).expect("session subtree prepares");
+
+        // 2. One real session with containment on.
+        let runtime_root = PathBuf::from("/tmp/daiorama-real-chain");
+        fs::create_dir_all(&runtime_root).expect("runtime root");
+        let mut config = SpawnerConfig::new(&runtime_root);
+        config.containment = Containment::On {
+            subtree: subtree.clone(),
+        };
+        let spawner = LinuxSpawner::new(config);
+
+        let id = spawner
+            .spawn(&SessionSpec::default())
+            .expect("real session");
+        let scope = subtree.join(scope_name(&id));
+        assert!(scope.is_dir(), "scope exists at {}", scope.display());
+        let (parent_pid, child_pid) = spawner.child_pids(&id).expect("session tracked");
+        let procs = fs::read_to_string(scope.join("cgroup.procs")).expect("scope cgroup.procs");
+        let listed: Vec<u32> = procs
+            .split_whitespace()
+            .filter_map(|pid| pid.parse().ok())
+            .collect();
+        println!("CHAIN-PIDS: mutter={parent_pid} hyprland={child_pid} scope={listed:?}");
+        assert!(listed.contains(&parent_pid), "mutter joined the scope");
+        assert!(listed.contains(&child_pid), "Hyprland joined the scope");
+        let memory_max = fs::read_to_string(scope.join("memory.max")).expect("memory.max");
+        assert_eq!(
+            memory_max.trim(),
+            SESSION_MEMORY_MAX,
+            "per-session memory limit"
+        );
+
+        // 3. kill_tree: the completion guarantee — the whole tree, then the scope dir.
+        spawner.kill_tree(&id).expect("kill_tree");
+        assert!(
+            process_has_exited(parent_pid),
+            "mutter gone after kill_tree"
+        );
+        assert!(
+            process_has_exited(child_pid),
+            "Hyprland gone after kill_tree"
+        );
+        assert!(!scope.exists(), "scope dir gone after kill_tree");
+
+        // 4. The startup sweep: a stale scope with a live process, as a crashed manager
+        //    would leave behind.
+        let stale = create_session_scope(&subtree, "deadbeef").expect("stale scope");
+        let mut sleeper = Command::new("sleep")
+            .arg("300")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("stale scope's process");
+        let sleeper_pid = sleeper.id();
+        fs::write(stale.join("cgroup.procs"), sleeper_pid.to_string()).expect("sleeper joins");
+        let swept = sweep_session_subtree(&subtree).expect("sweep");
+        println!("CHAIN-SWEEP: swept={swept} sleeper={sleeper_pid}");
+        assert!(swept >= 1, "the stale scope was swept");
+        let exit = wait_for_exit(&mut sleeper, Duration::from_secs(5));
+        assert_eq!(
+            exit.signal(),
+            Some(libc::SIGKILL),
+            "the sweep killed the stale scope's process: {exit:?}"
+        );
+        assert!(!stale.exists(), "stale scope dir removed by the sweep");
+
+        // 5. The parent-death witness: SIGKILL the parent; the kernel must take the child.
+        let mut witness = Command::new(std::env::current_exe().expect("test binary path"))
+            .args([
+                "pdeathsig_witness",
+                "--ignored",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .expect("witness spawns");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let status = loop {
+            if let Some(status) = witness.try_wait().expect("try_wait") {
+                break status;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the witness did not self-kill within 10s"
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        let mut witness_out = String::new();
+        witness
+            .stdout
+            .take()
+            .expect("piped stdout")
+            .read_to_string(&mut witness_out)
+            .expect("witness stdout to eof");
+        // The harness prints its `test <name> ... ` prefix on the same line as the test's
+        // own output, so the marker is found by position, not as a line prefix.
+        let witness_pid: u32 = witness_out
+            .split("WITNESS-PID: ")
+            .nth(1)
+            .and_then(|rest| rest.split_whitespace().next())
+            .and_then(|pid| pid.parse().ok())
+            .unwrap_or_else(|| panic!("the witness printed no pid; output:\n{witness_out}"));
+        println!("CHAIN-WITNESS: child={witness_pid} self-kill={status:?}");
+        assert_eq!(
+            status.signal(),
+            Some(libc::SIGKILL),
+            "the witness died by its own SIGKILL"
+        );
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !process_has_exited(witness_pid) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(
+            process_has_exited(witness_pid),
+            "witness child {witness_pid} survived its parent's SIGKILL"
+        );
+
+        // Nothing may be left under the instance subtree (control files are not scopes).
+        let leftover: Vec<String> = fs::read_dir(&subtree)
+            .expect("subtree readable")
+            .flatten()
+            .filter(|entry| entry.path().is_dir())
+            .map(|entry| entry.file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(
+            leftover.is_empty(),
+            "no scope dirs left behind: {leftover:?}"
+        );
+        println!("CHAIN-DONE: keeper prep, scope attach, kill_tree, sweep, pdeathsig all green");
+    }
+
+    /// The witness `real_containment_chain` supervises: spawn a `sleep` through the same
+    /// forker + parent-death PEP the spawner attaches to compositors, print its pid, then
+    /// SIGKILL our own process. The outer test asserts the `sleep` dies within 5s — the
+    /// completion guarantee worked by the kernel alone, with no teardown code running.
+    #[test]
+    #[ignore = "witness for real_containment_chain; kills its own process by design"]
+    fn pdeathsig_witness() {
+        use std::io::Write;
+
+        let forker = Forker::new();
+        // The parent-death half of the PEP, attached exactly as the spawner attaches it
+        // (the scope-join half rides the live-session leg of the chain test).
+        let pep = ParentDeathPep {
+            expected_parent: std::process::id() as libc::pid_t,
+            scope_procs: None,
+        };
+        let mut command = Command::new("sleep");
+        command
+            .arg("300")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        attach_parent_death_pep(&mut command, &pep);
+        let child = forker.fork(command).expect("witness fork");
+        // Let the child settle (exec, 300s sleep started) before the parent dies.
+        std::thread::sleep(Duration::from_millis(300));
+        println!("WITNESS-PID: {}", child.id());
+        std::io::stdout().flush().expect("witness stdout flush");
+        // No graceful teardown: SIGKILL the parent; the kernel does the rest.
+        unsafe {
+            libc::kill(libc::getpid(), libc::SIGKILL);
+        }
+        // Unreachable (SIGKILL cannot be caught); belt only.
+        std::process::abort();
+    }
 }

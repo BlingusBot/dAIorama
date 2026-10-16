@@ -1,0 +1,15 @@
+
+running 1 test
+test runtime::containment::tests::real_box_probe ... PROBE-OK: controllers enabled after keeper prep (cpu memory pids)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 109 filtered out; finished in 0.02s
+
+exit=0
+== nsroot subtree_control after probe ==
+cpu memory pids
+== nsroot procs after ==
+== keeper procs after ==
+1
+6
+RUN-DONE
