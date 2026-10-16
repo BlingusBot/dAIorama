@@ -131,7 +131,7 @@ the fixed tip, now carried onto the merged `spec/v1` (@52f05f3, the frame-cap sl
 via merge `16f9b61`. Fresh L1 containers per segment, binary built from this tip
 (CI `dai-r2-ci`, sha256 `b64b74f5…`).
 
-- (a) lifecycle churn — `round2-lifecycle-churn.txt`: 41/41 assertions `[OK]`, `FAILS=0`.
+- (a) lifecycle churn — `round2-lifecycle-churn.txt`: 42/42 assertions `[OK]`, `FAILS=0`.
   Three sessions created (`renderer: verified` on each, raw `Renderer: NV117` in all three
   instance logs), one closed; SIGKILL mid-session leaves two orphaned `Hyprland` survivors,
   one per remaining scope; restart lands `startup sweep: 2 stale session scope(s) reaped` —
@@ -143,7 +143,7 @@ via merge `16f9b61`. Fresh L1 containers per segment, binary built from this tip
   (`{active, remaining:3}`), `new` refused with the pinned 04 string and zero spawn, closes
   drop remaining 3→2→1→0, the `--wait` bound fires at 1, `--wait` completes at zero, drain
   sticky at zero, end-state leak sweep clean.
-- (c) odd creation params — `round2-odd-params.txt`: 106/106 `[OK]`, `FAILS=0` — all eight
+- (c) odd creation params — `round2-odd-params.txt`: 97/97 `[OK]`, `FAILS=0` — all eight
   cases (incl. 641x481 @1.5 → `962x722 scale=1.5` and 642x482 @1.25 → `803x603 scale=1.25`
   reading the requested scale back verbatim; 1x1; 16384x16384) create, carry the requested
   geometry, and close with zero residue.
