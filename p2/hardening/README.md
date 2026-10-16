@@ -1,9 +1,34 @@
-# P2 — hardening round 1(a): lifecycle churn on the real chain
+# P2 — hardening on the real chain: 1(a) lifecycle churn, 1(b) live-session drain
 
 Raw evidence that the shipped manager + CLI hold up under real lifecycle churn in the
 privileged L1 container: three real sessions created, listed, inspected (`renderer: verified`
 on each — raw `Renderer: NV117` in every instance log), one closed clean; then the manager
 SIGKILLed mid-session and started again — the crash-recovery path.
+
+## Round 1(b) — drain integration with LIVE sessions (green, no findings)
+
+The shipped drain path exercised the way an operator upgrades, with three real sessions
+running on the L1 chain:
+
+- `drain` enters and reports the live state — `draining; 3 still running`, `--json`
+  `{"active":true,"remaining":3}`, instance status `drain: active, 3 still running`; entering
+  again is idempotent.
+- `new` is refused with the pinned 04 string byte-for-byte (`manager is draining for upgrade;
+  new sessions are refused (3 still running). (draining)` + hint), before anything spawns: the
+  process/scope/runtime-dir snapshot is byte-identical before and after the refusal and the
+  list is unchanged.
+- closing live sessions drops `remaining` 3 → 2 → 1 over the wire; each close tears its scope,
+  compositors and runtime dir down cleanly (compositors 9 → 6 → 3, scopes 3 → 2 → 1).
+- `drain --wait --timeout 2` with one session left exits 1 after the bound, naming what
+  remains (`drain did not reach zero running sessions within 2s (1 still running)`).
+- `drain --wait --timeout 60` launched with one session left is still polling 2 s in; the last
+  close lands while it polls and the waiter completes `drain complete` rc=0. At zero the state
+  stays active — `new` still refused, `(0 still running)` — until the manager stops.
+- `daemon end --force` leaves nothing behind: no compositors, no scope dirs, no session
+  runtime dirs, no manager process.
+
+Raw: `evidence/drain-live.txt` (container `dai-hardening-c2`, output `hardening-c2.txt`);
+harness `run-b.sh`; create-spec `evidence/drain-live-spec.json`. No findings — no src change.
 
 ## Finding (round 1(a), fixed this branch)
 
@@ -60,19 +85,26 @@ step now recovers:
   scopes and their processes are. A clean close removes them; a crash leaves them behind
   (they hold the compositor logs). Not part of the sweep's pinned contract (03); decide
   whether crash-time rt-dirs should be reaped (spawner-owned naming) or kept for diagnosis.
-- Everything else in this round is green; the round continues to (b) drain integration with
-  live sessions.
+- Everything else in this round is green; round 1(b) (above) is green with no findings — the
+  round continues to (c) odd creation params (scale 1.5, tiny and huge resolutions).
 
 ## Files
 
 - `run-a.sh` — the churn harness (real CLI + daemon inside the L1 container; `BIN` points at
   the built binary; output captured to the raw log). Extended after the fix: `[5b]`
   post-restart create/close, `[6b]` doctor + shell cgroup.
+- `run-b.sh` — the 1(b) drain harness (same pattern): three live sessions, the refusal drill,
+  remaining-drop closes, the `--wait` bound + completion (close lands while it polls), the
+  sticky-at-zero check, then the end-state leak sweep. Prints `[OK]`/`[FAIL]` per assertion
+  and a final `FAILS=` count.
 - `evidence/lifecycle-churn.txt` — round 1(a) raw container output (the finding).
 - `evidence/lifecycle-churn-rerun.txt` — round 1(a) re-run on the fixed tip (the proof).
 - `evidence/lifecycle-churn-spec.json` — create-spec for the L1 run (mount sources
   genericized — substitute your checkout/artifact paths). The re-run used the same recipe
   (container name `dai-hardening-b`, output `hardening-b.txt`).
+- `evidence/drain-live.txt` — round 1(b) raw container output (green; `FAILS=0`).
+- `evidence/drain-live-spec.json` — create-spec for the 1(b) run (mount sources genericized;
+  container `dai-hardening-c2`, output `hardening-c2.txt`).
 
 ## Gate + run recipe
 
@@ -83,3 +115,7 @@ create-spec above (`dbus-run-session -- bash /src/p2/hardening/run-a.sh`).
 
 Gate (fresh container, fixed tip): fmt clean, clippy `-D warnings` clean, suite green —
 130 + 4 + 2 + 27 passed, 0 failed, 5 ignored (+2 re-entry tests).
+
+Re-gate with the 1(b) commit tree (docs + harness only, no `src/` delta; fresh `rust:slim`):
+fmt clean (no rewrite), clippy `-D warnings` clean, same suite — 130 + 4 + 2 + 27 passed,
+0 failed, 5 ignored.
