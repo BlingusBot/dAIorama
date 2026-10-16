@@ -8,6 +8,12 @@
 //! manager owns dies with it: the spawner's `Drop` kills the session trees, the socket file is
 //! removed, and the flock is released by the kernel (10).
 //!
+//! Containment-on runs wire the C6 seam here: the instance's session subtree (under the
+//! manager cgroup dir the class decision acted on) is resolved and handed to the spawner as
+//! the scope root sessions attach under, prepared before the service can spawn anything, and
+//! swept before the socket binds (03 — session cgroups left by a previous manager run are
+//! `cgroup.kill`ed). Off-mode runs never touch the cgroupfs.
+//!
 //! Provisional shapes (additive, flagged as such — none is observable on the wire yet): the
 //! lock file name (`manager.lock` beside the socket), the loser's notice line, the session
 //! scratch root (`<data-root>/sessions/`), the instance-id file (`<data-root>/instance-id`,
@@ -24,11 +30,13 @@ use crate::config::{CoreConfig, Paths, StartMode};
 use crate::ipc::{self, Address, Client, EnvView, ErrorEnvelope};
 use crate::manager::{
     self, Handler, InstanceMode, Listener, SessionSpawner,
-    startup::{ContainmentProbe, StartupDecision, plan_startup},
+    startup::{ContainmentProbe, LimitsPlan, StartupDecision, StartupPlan, plan_startup},
 };
-use crate::runtime::containment::LinuxCgroupProbe;
+use crate::runtime::containment::{
+    LinuxCgroupProbe, ensure_session_subtree, session_subtree, sweep_session_subtree,
+};
 use crate::runtime::service::{RuntimeService, ServiceOptions};
-use crate::runtime::spawner::{LinuxSpawner, SpawnerConfig};
+use crate::runtime::spawner::{Containment, LinuxSpawner, SpawnerConfig};
 use crate::strings;
 
 /// How long a second `serve` (the lock loser) waits for the winner's socket before deciding
@@ -47,7 +55,18 @@ pub struct ServeDeps {
     pub paths: Paths,
     pub config: CoreConfig,
     pub spawner: Arc<dyn SessionSpawner>,
+    /// The containment precondition probe. `prepare` reads it when no decision was taken
+    /// ahead (tests, embedders); production takes the decision once in `run()` — one probe
+    /// pass — because the plan selects the spawner's containment, and replays it via `plan`.
     pub probe: Box<dyn ContainmentProbe>,
+    /// A containment decision taken ahead of the spawner's construction (production `run`
+    /// replays it here). `None`: `prepare` takes the decision itself — the tests' shape.
+    pub plan: Option<StartupPlan>,
+    /// The instance session subtree (06 C6 seam) for an enabled plan, resolved by the
+    /// caller: production via `LinuxCgroupProbe::cgroup_dir`; tests that exercise the seam
+    /// inject a tempdir. When set with the plan enabled, `prepare` prepares it (idempotent)
+    /// and startup sweeps it before binding. `None` skips both.
+    pub session_subtree: Option<PathBuf>,
     /// The manager socket. Production derives it from the environment (08,
     /// `ipc::socket_path`); tests inject a temp path so no test touches the real runtime dir.
     pub socket: PathBuf,
@@ -62,6 +81,10 @@ pub struct Prepared {
     /// The recorded-downgrade notice when `limits.mode = off` (06); `None` otherwise.
     pub notice: Option<&'static str>,
     pub lock_wait: Duration,
+    /// The instance session subtree startup must sweep before binding (03): `Some` when the
+    /// plan enables the sweep and the subtree was resolved (production). `None` leaves the
+    /// sweep off.
+    pub sweep_root: Option<PathBuf>,
 }
 
 /// `daiorama serve` — the real thing. Startup failures are printed in the launcher's contract
@@ -81,14 +104,33 @@ async fn run(instance: &str, env: &EnvView) -> Result<(), ErrorEnvelope> {
         .map_err(|error| ErrorEnvelope::internal(format!("runtime dir: {error}")))?;
     let paths = Paths::from_process(instance);
     let config = CoreConfig::load_or_default(&paths.core_config())?;
-    let spawner: Arc<dyn SessionSpawner> = Arc::new(LinuxSpawner::new(SpawnerConfig::new(
-        paths.data_dir.join("sessions"),
-    )));
+    // The containment decision must precede the spawner: the plan's scope root is part of
+    // the spawner's config (sessions attach their scopes beneath it), and the same root is
+    // what the startup sweep works on. Take the plan once, here — one probe pass — and
+    // replay it through `prepare` rather than taking it a second time.
+    let cgroup_probe = LinuxCgroupProbe::new();
+    let plan = match plan_startup(&config, &cgroup_probe) {
+        StartupDecision::Refuse(envelope) => return Err(envelope),
+        StartupDecision::Proceed(plan) => plan,
+    };
+    let session_subtree = match &plan.limits {
+        LimitsPlan::Enabled { .. } => Some(resolve_session_subtree(&cgroup_probe)?),
+        LimitsPlan::Disabled => None,
+    };
+    let mut spawner_config = SpawnerConfig::new(paths.data_dir.join("sessions"));
+    if let Some(subtree) = &session_subtree {
+        spawner_config.containment = Containment::On {
+            subtree: subtree.clone(),
+        };
+    }
+    let spawner: Arc<dyn SessionSpawner> = Arc::new(LinuxSpawner::new(spawner_config));
     let deps = ServeDeps {
         paths,
         config,
         spawner,
-        probe: Box::new(LinuxCgroupProbe::new()),
+        probe: Box::new(cgroup_probe),
+        plan: Some(plan),
+        session_subtree,
         socket: ipc::socket_path(instance),
         lock_wait: LOSER_WAIT,
     };
@@ -98,14 +140,30 @@ async fn run(instance: &str, env: &EnvView) -> Result<(), ErrorEnvelope> {
 
 /// The startup decision, made concrete: containment plan → service → socket path. No binding,
 /// no spawning — everything here is reversible and unit-testable.
+///
+/// The decision is taken here unless the caller already had to take it earlier (`deps.plan`,
+/// production `run` — the plan selects the spawner's containment, which must precede this
+/// call; replaying avoids a second probe pass). With the plan enabled and a caller-resolved
+/// session subtree in hand, that subtree is prepared (idempotent: mkdir + controller enable,
+/// read back) and startup sweeps it before binding (03). The injected spawner is always used
+/// as-is.
 pub fn prepare(deps: &ServeDeps) -> Result<Prepared, ErrorEnvelope> {
-    let plan = match plan_startup(&deps.config, deps.probe.as_ref()) {
-        StartupDecision::Refuse(envelope) => return Err(envelope),
-        StartupDecision::Proceed(plan) => plan,
+    let plan = match &deps.plan {
+        Some(plan) => plan.clone(),
+        None => match plan_startup(&deps.config, deps.probe.as_ref()) {
+            StartupDecision::Refuse(envelope) => return Err(envelope),
+            StartupDecision::Proceed(plan) => plan,
+        },
     };
-    // `plan.sweep` is recorded but vacuous here: sessions do not create cgroup scopes until
-    // the containment-scope slice attaches (W2), so there is no subtree to sweep yet. When
-    // that slice lands, a stale instance subtree is exactly what startup sweeps (03).
+    let sweep_root = match (&plan.limits, &deps.session_subtree) {
+        (LimitsPlan::Enabled { .. }, Some(subtree)) => {
+            ensure_session_subtree(subtree).map_err(|error| {
+                ErrorEnvelope::internal(format!("session subtree {}: {error}", subtree.display()))
+            })?;
+            plan.sweep.then_some(subtree.clone())
+        }
+        _ => None,
+    };
     let notice = manager::limits_disabled_notice(&plan);
     let mode = effective_mode(&deps.config);
     let instance_id = read_or_create_instance_id(&deps.paths)?;
@@ -126,7 +184,19 @@ pub fn prepare(deps: &ServeDeps) -> Result<Prepared, ErrorEnvelope> {
         mode,
         notice,
         lock_wait: deps.lock_wait,
+        sweep_root,
     })
+}
+
+/// The C6 seam's path step: the manager's own cgroup dir — the dir the class decision acted
+/// on, read from the probe instance that took the decision — and the instance session
+/// subtree beneath it. Isolated so tests drive it exactly as the containment tests do
+/// (`LinuxCgroupProbe::with_paths` against a tempdir).
+fn resolve_session_subtree(probe: &LinuxCgroupProbe) -> Result<PathBuf, ErrorEnvelope> {
+    let manager_cgroup = probe
+        .cgroup_dir()
+        .map_err(|detail| ErrorEnvelope::internal(format!("cgroup dir: {detail}")))?;
+    Ok(session_subtree(&manager_cgroup))
 }
 
 /// The mode this process presents (04: attached/background). The launcher hands its choice
@@ -288,6 +358,17 @@ pub async fn run_until(
         let _ = std::fs::remove_file(&prepared.socket);
     }
 
+    // 03: the one thing that is cleaned — session cgroups left under this instance's subtree
+    // by a previous manager run are `cgroup.kill`ed before anything binds. An absent subtree
+    // (off mode) is a no-op. A sweep failure is reported, not fatal: leftover scopes cannot
+    // collide with new sessions (fresh ids), so the honest line beats a refused start.
+    if let Some(root) = &prepared.sweep_root {
+        match sweep_session_subtree(root) {
+            Ok(count) => eprintln!("startup sweep: {count} stale session scope(s) reaped"),
+            Err(error) => eprintln!("startup sweep failed under {}: {error}", root.display()),
+        }
+    }
+
     let listener = Listener::bind(&prepared.socket)
         .await
         .map_err(|error| ErrorEnvelope::internal(format!("manager socket: {error}")))?;
@@ -339,7 +420,7 @@ mod tests {
     use crate::config::Toggle;
     use crate::ipc::methods;
     use crate::manager::SessionSpec;
-    use crate::manager::startup::Delegation;
+    use crate::manager::startup::{DelegatedProbe, Delegation};
     use std::sync::Mutex as StdMutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -382,6 +463,8 @@ mod tests {
             config,
             spawner: Arc::new(StubSpawner::default()),
             probe,
+            plan: None,
+            session_subtree: None,
             socket: tmp.join("manager.sock"),
             lock_wait: Duration::from_millis(300),
         }
@@ -390,6 +473,12 @@ mod tests {
     fn off_mode_config() -> CoreConfig {
         let mut config = CoreConfig::default();
         config.limits.mode = Toggle::Off;
+        config
+    }
+
+    fn on_mode_config() -> CoreConfig {
+        let mut config = CoreConfig::default();
+        config.limits.mode = Toggle::On;
         config
     }
 
@@ -612,5 +701,93 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
         serving.await.unwrap().unwrap();
+    }
+
+    #[test]
+    fn session_subtree_resolves_under_the_probes_cgroup_dir() {
+        // Exactly the containment tests' pattern: a fake cgroupfs rooted at a tempdir.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = LinuxCgroupProbe::with_paths(tmp.path(), "0::/\n");
+        assert_eq!(
+            resolve_session_subtree(&root).unwrap(),
+            tmp.path()
+                .join(crate::runtime::containment::SESSION_SUBTREE)
+        );
+        // A delegated scope: the base plus the delegated path (06 class 3).
+        let scope =
+            LinuxCgroupProbe::with_paths(tmp.path(), "0::/user.slice/user-4242.slice/run.scope\n");
+        assert_eq!(
+            resolve_session_subtree(&scope).unwrap(),
+            tmp.path()
+                .join("user.slice/user-4242.slice/run.scope")
+                .join(crate::runtime::containment::SESSION_SUBTREE)
+        );
+    }
+
+    #[test]
+    fn enabled_plan_prepares_the_resolved_subtree_and_arms_the_sweep() {
+        let tmp = tempfile::tempdir().unwrap();
+        let subtree = tmp.path().join("daiorama-sessions");
+        let mut deps = deps(
+            tmp.path(),
+            on_mode_config(),
+            Box::new(DelegatedProbe::default()),
+        );
+        deps.session_subtree = Some(subtree.clone());
+        let prepared = prepare(&deps).expect("an enabled plan proceeds");
+        let control = std::fs::read_to_string(subtree.join("cgroup.subtree_control"))
+            .expect("the subtree is prepared with its control file");
+        for controller in ["+cpu", "+memory", "+pids"] {
+            assert!(
+                control.contains(controller),
+                "subtree enables {controller}: {control}"
+            );
+        }
+        assert_eq!(
+            prepared.sweep_root,
+            Some(subtree),
+            "startup sweeps the subtree it prepared"
+        );
+        assert!(prepared.notice.is_none(), "no downgrade notice when on");
+    }
+
+    #[test]
+    fn enabled_plan_without_a_resolved_subtree_skips_the_cgroupfs() {
+        // The embedder shape: delegation present, no subtree resolved — nothing on the
+        // cgroupfs is touched and the sweep stays off.
+        let tmp = tempfile::tempdir().unwrap();
+        let deps = deps(
+            tmp.path(),
+            on_mode_config(),
+            Box::new(DelegatedProbe::default()),
+        );
+        let prepared = prepare(&deps).expect("an enabled plan proceeds");
+        assert!(prepared.sweep_root.is_none());
+        assert!(prepared.notice.is_none());
+    }
+
+    #[tokio::test]
+    async fn startup_sweep_clears_stale_scopes_before_binding() {
+        let tmp = tempfile::tempdir().unwrap();
+        // A stale scope a previous manager run left behind (empty here; the privileged
+        // real-box run exercises the `cgroup.kill` leg against a live process tree).
+        let subtree = tmp.path().join("daiorama-sessions");
+        std::fs::create_dir_all(subtree.join("deadbeef")).unwrap();
+        let mut prepared = prepare(&deps(
+            tmp.path(),
+            off_mode_config(),
+            Box::new(FailingProbe("never consulted in off mode")),
+        ))
+        .unwrap();
+        prepared.sweep_root = Some(subtree.clone());
+        let serving = tokio::spawn(run_until(
+            prepared,
+            tokio::time::sleep(Duration::from_millis(300)),
+        ));
+        serving.await.unwrap().expect("clean shutdown");
+        assert!(
+            !subtree.join("deadbeef").exists(),
+            "stale session scope swept before binding"
+        );
     }
 }
