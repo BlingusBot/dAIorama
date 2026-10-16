@@ -23,6 +23,7 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use crate::manager::startup::{ContainmentProbe, Delegation};
 
@@ -224,6 +225,116 @@ impl ContainmentProbe for LinuxCgroupProbe {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Session scopes (the C6 wiring: per-session limits, cgroup.kill, the startup sweep)
+// ---------------------------------------------------------------------------
+
+/// The subtree under the manager's cgroup that owns this instance's session scopes (03:
+/// "session cgroups live under an instance-owned subtree"; name provisional).
+pub const SESSION_SUBTREE: &str = "daiorama-sessions";
+
+/// Provisional per-session limits (06 C6 pins the mechanism, not the numbers — documented
+/// provisionals, adjustable in one place when the review pins values).
+pub const SESSION_MEMORY_MAX: &str = "4294967296"; // 4 GiB
+pub const SESSION_CPU_MAX: &str = "200000 100000"; // 2 CPUs (quota/period, µs)
+pub const SESSION_PIDS_MAX: &str = "512";
+
+/// The instance session subtree under a manager cgroup directory.
+pub fn session_subtree(manager_cgroup: &Path) -> PathBuf {
+    manager_cgroup.join(SESSION_SUBTREE)
+}
+
+/// Create the subtree (idempotent) and enable the per-session controllers for its children.
+/// The subtree holds no processes, so this cannot hit the no-internal-processes rule; the
+/// readback is asserted the same way the keeper path asserts its own.
+pub fn ensure_session_subtree(subtree: &Path) -> io::Result<()> {
+    fs::create_dir_all(subtree)?;
+    fs::write(
+        subtree.join("cgroup.subtree_control"),
+        format!("+{}\n", NEEDED_CONTROLLERS.join(" +")),
+    )?;
+    let now = fs::read_to_string(subtree.join("cgroup.subtree_control")).unwrap_or_default();
+    let enabled = enabled_controllers(&now);
+    if !covers_needed(&enabled) {
+        return Err(io::Error::other(format!(
+            "controllers unavailable on the session subtree (present: {})",
+            enabled.join(" ")
+        )));
+    }
+    Ok(())
+}
+
+/// Write one limit file with its path in the error (memory.max / cpu.max / pids.max).
+pub fn write_limit(scope: &Path, file: &str, value: &str) -> io::Result<()> {
+    let path = scope.join(file);
+    fs::write(&path, value)
+        .map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", path.display())))
+}
+
+/// Create one session scope with its provisional limits. On any failure nothing is left
+/// half-created.
+pub fn create_session_scope(subtree: &Path, id8: &str) -> io::Result<PathBuf> {
+    let scope = subtree.join(id8);
+    fs::create_dir(&scope)?;
+    let result = write_limit(&scope, "memory.max", SESSION_MEMORY_MAX)
+        .and_then(|_| write_limit(&scope, "cpu.max", SESSION_CPU_MAX))
+        .and_then(|_| write_limit(&scope, "pids.max", SESSION_PIDS_MAX));
+    if let Err(error) = result {
+        let _ = fs::remove_dir(&scope);
+        return Err(error);
+    }
+    Ok(scope)
+}
+
+/// `cgroup.kill` a scope, wait for the kernel to report it unpopulated (bounded), remove it.
+/// This is the completion guarantee (03): every process in the scope — grandchildren and
+/// browser process trees included — dies, whatever the parent links look like.
+pub fn kill_scope(scope: &Path) -> io::Result<()> {
+    let kill = scope.join("cgroup.kill");
+    if !kill.exists() {
+        // Nothing to kill (scope already gone or never populated); remove if still present.
+        let _ = fs::remove_dir(scope);
+        return Ok(());
+    }
+    let path = kill.display().to_string();
+    fs::write(&kill, "1").map_err(|e| io::Error::new(e.kind(), format!("{path}: {e}")))?;
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        match fs::read_to_string(scope.join("cgroup.events")) {
+            Ok(events) if events.lines().any(|l| l.trim() == "populated 0") => break,
+            Ok(_) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Ok(_) => {
+                return Err(io::Error::other(format!(
+                    "scope {} still populated after cgroup.kill",
+                    scope.display()
+                )));
+            }
+            Err(_) => break, // the scope vanished under us — done
+        }
+    }
+    fs::remove_dir(scope)
+        .map_err(|e| io::Error::new(e.kind(), format!("removing scope {}: {e}", scope.display())))
+}
+
+/// The startup sweep (03): every session scope left under the subtree by a previous manager
+/// run is `cgroup.kill`ed before this manager binds. An absent subtree is a no-op.
+pub fn sweep_session_subtree(subtree: &Path) -> io::Result<u32> {
+    let Ok(entries) = fs::read_dir(subtree) else {
+        return Ok(0);
+    };
+    let mut swept = 0u32;
+    for entry in entries.flatten() {
+        if !entry.path().is_dir() {
+            continue;
+        }
+        kill_scope(&entry.path())?;
+        swept += 1;
+    }
+    Ok(swept)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -357,5 +468,37 @@ mod tests {
             Ok(delegation) => println!("PROBE-OK: {}", delegation.detail),
             Err(detail) => println!("PROBE-ERR: {detail}"),
         }
+    }
+
+    #[test]
+    fn session_subtree_lives_under_the_manager_cgroup() {
+        let subtree = session_subtree(Path::new("/sys/fs/cgroup"));
+        assert_eq!(subtree, Path::new("/sys/fs/cgroup/daiorama-sessions"));
+        assert!(
+            SESSION_MEMORY_MAX.parse::<u64>().is_ok(),
+            "memory.max is bytes"
+        );
+        assert_eq!(
+            SESSION_CPU_MAX.split_whitespace().count(),
+            2,
+            "cpu.max is quota + period"
+        );
+        assert!(SESSION_PIDS_MAX.parse::<u32>().is_ok());
+    }
+
+    #[test]
+    fn sweep_is_a_noop_without_a_subtree_and_skips_non_scopes() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert_eq!(
+            sweep_session_subtree(&tmp.path().join("absent")).unwrap(),
+            0,
+            "an absent subtree is a no-op (03)"
+        );
+        fs::write(tmp.path().join("stray-file"), "x").unwrap();
+        assert_eq!(
+            sweep_session_subtree(tmp.path()).unwrap(),
+            0,
+            "files are not scopes"
+        );
     }
 }
