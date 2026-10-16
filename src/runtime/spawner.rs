@@ -13,19 +13,28 @@
 //!
 //! Deliberate slice scope: tests drive the machinery with **stubbed binaries**; the real
 //! compositors land with the serve wiring inside the container image from `p1/l1/Containerfile`.
-//! Slice 3 adds the health pass (liveness + compositor responsiveness); the containment scope
-//! attaches with the serve wiring — through this same table.
+//! Containment attaches here: every managed child is forked on a dedicated **forker** thread —
+//! the kernel binds the parent-death signal to the *forking thread*, so worker threads never
+//! fork children — with a `pre_exec` PEP (`PR_SET_PDEATHSIG`, a `getppid` re-check, and the
+//! session-scope self-join when containment is on). Transient clients (hyprctl, diagnostics)
+//! are not managed children and stay direct spawns.
 
 use std::collections::HashMap;
+use std::ffi::CString;
 use std::fs::{self, File};
+use std::io;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use crate::ipc::ErrorEnvelope;
 use crate::manager::{Resolution, SessionSpawner, SessionSpec, SessionState};
+use crate::runtime::containment::{create_session_scope, kill_scope};
 
 /// The parent's wayland socket name inside each session's runtime dir.
 pub const PARENT_SOCKET: &str = "wayland-m";
@@ -48,6 +57,32 @@ fn first_fitting_runtime_dir(candidates: &[PathBuf], id: &str) -> Option<PathBuf
     })
 }
 
+/// Containment wiring for the sessions this spawner manages (the C6 attach).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum Containment {
+    /// No containment: the compositors are plain direct children — today's behavior.
+    #[default]
+    Off,
+    /// Sessions attach to per-session cgroup scopes under this subtree (the manager
+    /// instance's subtree: `containment::session_subtree` of the manager cgroup dir).
+    On { subtree: PathBuf },
+}
+
+/// The scope-directory name for a session: the first 8 characters of the session id (the
+/// convention `containment::create_session_scope` takes as its `id8`).
+fn scope_name(id: &str) -> &str {
+    id.get(..8).unwrap_or(id)
+}
+
+/// The scope directory a session attaches to under a containment mode, or `None` when
+/// containment is off.
+fn session_scope_path(containment: &Containment, id: &str) -> Option<PathBuf> {
+    match containment {
+        Containment::Off => None,
+        Containment::On { subtree } => Some(subtree.join(scope_name(id))),
+    }
+}
+
 /// Binaries and paths the spawner drives. Tests point these at stubs.
 #[derive(Debug, Clone)]
 pub struct SpawnerConfig {
@@ -63,6 +98,8 @@ pub struct SpawnerConfig {
     pub short_root: PathBuf,
     pub parent_ready_timeout: Duration,
     pub child_ready_timeout: Duration,
+    /// Containment wiring for session children; `Off` (the default) keeps today's behavior.
+    pub containment: Containment,
 }
 
 impl SpawnerConfig {
@@ -75,6 +112,7 @@ impl SpawnerConfig {
             short_root: std::env::temp_dir(),
             parent_ready_timeout: Duration::from_secs(15),
             child_ready_timeout: Duration::from_secs(30),
+            containment: Containment::Off,
         }
     }
 }
@@ -83,6 +121,8 @@ impl SpawnerConfig {
 struct ManagedSession {
     dir: PathBuf,
     rt_dir: PathBuf,
+    /// The session's cgroup scope when containment is on; `None` when off.
+    scope: Option<PathBuf>,
     parent: Child,
     child: Child,
     signature: String,
@@ -112,12 +152,113 @@ impl HealthReport {
     }
 }
 
-/// The production spawner: spawns the chain as direct children, keeps the process table, and
-/// tears sessions down to nothing. One instance per manager process.
+/// One spawn request for the forker thread: the prepared command, and the channel the
+/// thread answers on.
+struct ForkRequest {
+    command: Command,
+    reply: mpsc::Sender<io::Result<Child>>,
+}
+
+/// The dedicated thread that owns every managed child fork.
+///
+/// The kernel binds the parent-death signal to the *thread* that forked the child: if that
+/// thread exits, the child is signalled even while the rest of the manager lives. Worker
+/// threads must therefore never fork managed children (tokio's blocking pool retires idle
+/// threads on its own schedule); this thread does every managed fork and lives for the
+/// process.
+#[derive(Debug)]
+struct Forker {
+    requests: mpsc::Sender<ForkRequest>,
+}
+
+impl Forker {
+    fn new() -> Self {
+        let (requests, queue) = mpsc::channel::<ForkRequest>();
+        std::thread::Builder::new()
+            .name("spawner-forker".to_string())
+            .spawn(move || {
+                for mut request in queue {
+                    let child = request.command.spawn();
+                    let _ = request.reply.send(child);
+                }
+            })
+            .expect("spawning the spawner fork thread");
+        Self { requests }
+    }
+
+    /// Fork one managed child on the forker thread; blocks until the fork happened (or
+    /// failed). The thread's job is ownership of the fork, not throughput.
+    fn fork(&self, command: Command) -> io::Result<Child> {
+        let (reply, answer) = mpsc::channel();
+        self.requests
+            .send(ForkRequest { command, reply })
+            .map_err(|_| io::Error::other("spawner fork thread is gone"))?;
+        answer
+            .recv()
+            .map_err(|_| io::Error::other("spawner fork thread dropped the reply"))?
+    }
+}
+
+/// The pre-fork pieces of the parent-death PEP. Everything the child-side closure needs is
+/// prepared here — the closure itself runs after `fork`, where allocation and locks are
+/// off-limits.
+struct ParentDeathPep {
+    expected_parent: libc::pid_t,
+    /// `<scope>/cgroup.procs` when containment is on: the child writes "0" (itself) there to
+    /// join its session scope.
+    scope_procs: Option<CString>,
+}
+
+/// `cgroup.procs` accepts "0" as "the writing process": the child joins the scope itself.
+const PROCS_SELF: &[u8] = b"0";
+
+/// Attach the parent-death PEP to a compositor command. Async-signal-safe syscalls only —
+/// this closure runs in the forked child, before exec:
+///
+/// 1. `PR_SET_PDEATHSIG = SIGKILL`: the manager's death kills the child;
+/// 2. a `getppid()` re-check: PDEATHSIG never fires for a parent that is already dead when
+///    it is set, so a fork racing the manager's death exits itself (101; `_exit`, not
+///    `std::process::exit` — a post-fork child must not run atexit handlers or take locks);
+/// 3. with containment: `open(<scope>/cgroup.procs)` + `write("0")` joins the session scope.
+///    A failed join fails the spawn: containment fails closed, never silently uncontained.
+fn attach_parent_death_pep(command: &mut Command, pep: &ParentDeathPep) {
+    let expected_parent = pep.expected_parent;
+    let scope_procs = pep.scope_procs.clone();
+    // SAFETY: between fork and exec only async-signal-safe calls are made — prctl, getppid,
+    // open, write, close, _exit — with no allocation, locking, or Rust-runtime use.
+    unsafe {
+        command.pre_exec(move || {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            if libc::getppid() != expected_parent {
+                libc::_exit(101);
+            }
+            if let Some(path) = scope_procs.as_deref() {
+                let fd = libc::open(path.as_ptr(), libc::O_WRONLY | libc::O_CLOEXEC);
+                if fd < 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                let written = libc::write(fd, PROCS_SELF.as_ptr().cast(), PROCS_SELF.len());
+                let error = io::Error::last_os_error();
+                libc::close(fd);
+                if written != 1 {
+                    return Err(error);
+                }
+            }
+            Ok(())
+        });
+    }
+}
+
+/// The production spawner: spawns the chain as managed children (forked on the forker
+/// thread), keeps the process table, and tears sessions down to nothing. One instance per
+/// manager process.
 #[derive(Debug)]
 pub struct LinuxSpawner {
     config: SpawnerConfig,
     sessions: Mutex<HashMap<String, ManagedSession>>,
+    forker: Forker,
 }
 
 impl LinuxSpawner {
@@ -125,6 +266,7 @@ impl LinuxSpawner {
         Self {
             config,
             sessions: Mutex::new(HashMap::new()),
+            forker: Forker::new(),
         }
     }
 
@@ -152,6 +294,21 @@ impl LinuxSpawner {
     fn kill_quietly(child: &mut Child) {
         let _ = child.kill();
         let _ = child.wait();
+    }
+
+    /// Best-effort scope teardown: `cgroup.kill` everything in the scope (the completion
+    /// guarantee for the whole tree), then drop the scope dir. `None` = containment off.
+    fn discard_scope(scope: Option<&Path>) {
+        if let Some(scope) = scope {
+            let _ = kill_scope(scope);
+            let _ = fs::remove_dir(scope); // kill_scope removes it; belt for partial states
+        }
+    }
+
+    /// Best-effort removal of a session's own directories.
+    fn discard_dirs(dir: &Path, rt_dir: &Path) {
+        let _ = fs::remove_dir_all(dir);
+        let _ = fs::remove_dir_all(rt_dir);
     }
 
     /// The compositors' runtime dir: the configured base first, then `/tmp`, then the
@@ -368,7 +525,36 @@ impl SessionSpawner for LinuxSpawner {
         let parent_display = format!("--wayland-display={PARENT_SOCKET}");
         let (out, err) = Self::log_stdio(&dir, "mutter")
             .map_err(|error| ErrorEnvelope::internal(format!("session log: {error}")))?;
-        let mut parent = Command::new(&self.config.mutter_bin)
+
+        // The session scope (containment On) exists before anything is spawned; the
+        // compositors self-join it via the PEP. A scope that cannot be created fails the
+        // spawn — containment never degrades silently.
+        let scope = match &self.config.containment {
+            Containment::Off => None,
+            Containment::On { subtree } => Some(
+                create_session_scope(subtree, scope_name(&id)).map_err(|error| {
+                    Self::discard_dirs(&dir, &rt_dir);
+                    ErrorEnvelope::internal(format!("session scope: {error}"))
+                })?,
+            ),
+        };
+        // Everything the child-side closure needs, prepared before the fork (no allocation
+        // and no locks between fork and exec).
+        let pep = ParentDeathPep {
+            expected_parent: std::process::id() as libc::pid_t,
+            scope_procs: scope
+                .as_ref()
+                .map(|path| CString::new(path.join("cgroup.procs").as_os_str().as_bytes()))
+                .transpose()
+                .map_err(|error| {
+                    Self::discard_scope(scope.as_deref());
+                    Self::discard_dirs(&dir, &rt_dir);
+                    ErrorEnvelope::internal(format!("session scope procs path: {error}"))
+                })?,
+        };
+
+        let mut parent_command = Command::new(&self.config.mutter_bin);
+        parent_command
             .args([
                 "--wayland",
                 "--no-x11",
@@ -381,31 +567,33 @@ impl SessionSpawner for LinuxSpawner {
             .env("HOME", &dir)
             .stdin(Stdio::null())
             .stdout(out)
-            .stderr(err)
-            .spawn()
-            .map_err(|error| {
-                let _ = fs::remove_dir_all(&dir);
-                let _ = fs::remove_dir_all(&rt_dir);
-                ErrorEnvelope::internal(format!("spawning mutter: {error}"))
-            })?;
+            .stderr(err);
+        attach_parent_death_pep(&mut parent_command, &pep);
+        let mut parent = self.forker.fork(parent_command).map_err(|error| {
+            Self::discard_scope(scope.as_deref());
+            Self::discard_dirs(&dir, &rt_dir);
+            ErrorEnvelope::internal(format!("spawning mutter: {error}"))
+        })?;
 
         if !Self::wait_for(
             || rt_dir.join(PARENT_SOCKET).exists(),
             self.config.parent_ready_timeout,
         ) {
             let detail = Self::log_tail(&dir, "mutter.log");
+            Self::discard_scope(scope.as_deref());
             Self::kill_quietly(&mut parent);
-            let _ = fs::remove_dir_all(&dir);
-            let _ = fs::remove_dir_all(&rt_dir);
+            Self::discard_dirs(&dir, &rt_dir);
             return Err(ErrorEnvelope::internal(format!(
                 "mutter parent did not present its wayland socket in time{detail}"
             )));
         }
 
-        // Child: Hyprland nested on the parent.
+        // Child: Hyprland nested on the parent — same PEP and forker: the child carries the
+        // same guarantees as the parent.
         let (out, err) = Self::log_stdio(&dir, "hyprland")
             .map_err(|error| ErrorEnvelope::internal(format!("session log: {error}")))?;
-        let mut child = match Command::new(&self.config.hyprland_bin)
+        let mut child_command = Command::new(&self.config.hyprland_bin);
+        child_command
             .arg("--i-am-really-stupid")
             .env("WAYLAND_DISPLAY", PARENT_SOCKET)
             .env("HYPRLAND_CONFIG", dir.join("hypr.conf"))
@@ -413,14 +601,14 @@ impl SessionSpawner for LinuxSpawner {
             .env("HOME", &dir)
             .stdin(Stdio::null())
             .stdout(out)
-            .stderr(err)
-            .spawn()
-        {
+            .stderr(err);
+        attach_parent_death_pep(&mut child_command, &pep);
+        let mut child = match self.forker.fork(child_command) {
             Ok(child) => child,
             Err(error) => {
+                Self::discard_scope(scope.as_deref());
                 Self::kill_quietly(&mut parent);
-                let _ = fs::remove_dir_all(&dir);
-                let _ = fs::remove_dir_all(&rt_dir);
+                Self::discard_dirs(&dir, &rt_dir);
                 return Err(ErrorEnvelope::internal(format!(
                     "spawning Hyprland: {error}"
                 )));
@@ -446,10 +634,10 @@ impl SessionSpawner for LinuxSpawner {
         );
         if !child_ready {
             let detail = Self::failure_dump(&dir, &rt_dir, child.id());
+            Self::discard_scope(scope.as_deref());
             Self::kill_quietly(&mut child);
             Self::kill_quietly(&mut parent);
-            let _ = fs::remove_dir_all(&dir);
-            let _ = fs::remove_dir_all(&rt_dir);
+            Self::discard_dirs(&dir, &rt_dir);
             return Err(ErrorEnvelope::internal(format!(
                 "Hyprland child did not present its IPC socket in time{detail}"
             )));
@@ -476,10 +664,10 @@ impl SessionSpawner for LinuxSpawner {
             created = run_hyprctl(&["keyword", "monitor", &monitor_rule]);
         }
         if let Err(detail) = created {
+            Self::discard_scope(scope.as_deref());
             Self::kill_quietly(&mut child);
             Self::kill_quietly(&mut parent);
-            let _ = fs::remove_dir_all(&dir);
-            let _ = fs::remove_dir_all(&rt_dir);
+            Self::discard_dirs(&dir, &rt_dir);
             return Err(ErrorEnvelope::internal(format!(
                 "hyprctl output setup failed: {detail}"
             )));
@@ -490,6 +678,7 @@ impl SessionSpawner for LinuxSpawner {
             ManagedSession {
                 dir,
                 rt_dir,
+                scope,
                 parent,
                 child,
                 signature,
@@ -507,11 +696,13 @@ impl SessionSpawner for LinuxSpawner {
         else {
             return Err(ErrorEnvelope::session_not_found());
         };
-        // Child first (it dies with the parent anyway, but be explicit), then the parent.
+        // Scope first: `cgroup.kill` is the completion guarantee for the whole tree —
+        // grandchildren and browser process trees included. Then our direct children (child
+        // first: it dies with the parent anyway, but be explicit), then the dirs.
+        Self::discard_scope(session.scope.as_deref());
         Self::kill_quietly(&mut session.child);
         Self::kill_quietly(&mut session.parent);
-        let _ = fs::remove_dir_all(&session.dir);
-        let _ = fs::remove_dir_all(&session.rt_dir);
+        Self::discard_dirs(&session.dir, &session.rt_dir);
         Ok(())
     }
 }
@@ -520,10 +711,10 @@ impl Drop for LinuxSpawner {
     fn drop(&mut self) {
         let mut sessions = self.sessions.lock().expect("spawner table");
         for (_, mut session) in sessions.drain() {
+            Self::discard_scope(session.scope.as_deref());
             Self::kill_quietly(&mut session.child);
             Self::kill_quietly(&mut session.parent);
-            let _ = fs::remove_dir_all(&session.dir);
-            let _ = fs::remove_dir_all(&session.rt_dir);
+            Self::discard_dirs(&session.dir, &session.rt_dir);
         }
     }
 }
@@ -769,5 +960,136 @@ mod tests {
 
         spawner.kill_tree(&id).expect("teardown");
         assert!(!rt_dir.exists(), "fallback runtime dir removed on teardown");
+    }
+
+    #[test]
+    fn containment_defaults_to_off_for_existing_callers() {
+        // Off is the default: a plain `SpawnerConfig::new` keeps today's behavior; turning
+        // containment on is an explicit act.
+        assert_eq!(Containment::default(), Containment::Off);
+        assert_eq!(
+            SpawnerConfig::new("/run/daiorama").containment,
+            Containment::Off
+        );
+        let mut config = SpawnerConfig::new("/run/daiorama");
+        config.containment = Containment::On {
+            subtree: PathBuf::from("/cg/daiorama-sessions"),
+        };
+        assert_eq!(
+            session_scope_path(&config.containment, "2f7a4c1e-9b3d-4a6f-8e21-77aa11bb22cc"),
+            Some(PathBuf::from("/cg/daiorama-sessions/2f7a4c1e"))
+        );
+    }
+
+    #[test]
+    fn scope_path_selection_follows_containment_and_the_id() {
+        let id = "2f7a4c1e-9b3d-4a6f-8e21-77aa11bb22cc";
+        assert_eq!(
+            session_scope_path(&Containment::Off, id),
+            None,
+            "off computes no scope path"
+        );
+        let mode = Containment::On {
+            subtree: PathBuf::from("/cg/manager/daiorama-sessions"),
+        };
+        assert_eq!(
+            session_scope_path(&mode, id),
+            Some(PathBuf::from("/cg/manager/daiorama-sessions/2f7a4c1e"))
+        );
+        // Short ids stay whole — the helper is total, nothing indexes out of range.
+        assert_eq!(scope_name("abc"), "abc");
+        assert_eq!(
+            session_scope_path(&mode, "abc"),
+            Some(PathBuf::from("/cg/manager/daiorama-sessions/abc"))
+        );
+
+        // What the spawner creates is the path this rule names: on a plain directory (the
+        // real-cgroupfs checks are the ignored real_box tests), scope creation lands exactly
+        // on the selected path and writes the limit files there.
+        let fake_subtree = tempfile::tempdir().unwrap();
+        let created = create_session_scope(fake_subtree.path(), scope_name(id)).unwrap();
+        let expected = session_scope_path(
+            &Containment::On {
+                subtree: fake_subtree.path().to_path_buf(),
+            },
+            id,
+        )
+        .unwrap();
+        assert_eq!(
+            created, expected,
+            "scope creation lands on the selected path"
+        );
+        assert!(created.join("memory.max").exists(), "limit file written");
+    }
+
+    #[test]
+    fn containment_on_with_an_absent_subtree_fails_the_spawn_cleanly() {
+        let tmp = tempfile::tempdir().unwrap();
+        let stubs = tmp.path().join("stubs");
+        fs::create_dir_all(&stubs).unwrap();
+        let runtime = tmp.path().join("run");
+        let mut config = stub_config(&stubs, &runtime);
+        let mutter_path = config.mutter_bin.clone();
+        config.containment = Containment::On {
+            subtree: tmp.path().join("absent-cgroupfs"),
+        };
+        let spawner = LinuxSpawner::new(config);
+
+        let error = spawner.spawn(&SessionSpec::default()).unwrap_err();
+        assert!(error.message.contains("session scope"), "got: {error:?}");
+        if let Ok(entries) = fs::read_dir(&runtime) {
+            assert_eq!(entries.count(), 0, "no session dir left behind");
+        }
+        assert!(!stub_processes_running(&mutter_path), "nothing was spawned");
+    }
+
+    #[test]
+    fn pep_fails_the_spawn_when_the_scope_join_is_impossible() {
+        // The scope self-join is part of the spawn: if the child cannot join, the spawn
+        // fails — containment never degrades silently.
+        let forker = Forker::new();
+        let pep = ParentDeathPep {
+            expected_parent: std::process::id() as libc::pid_t,
+            scope_procs: Some(CString::new("/nonexistent-daiorama/cgroup.procs").unwrap()),
+        };
+        let mut command = Command::new("sh");
+        command
+            .arg("-c")
+            .arg("exit 0")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        attach_parent_death_pep(&mut command, &pep);
+
+        let error = forker
+            .fork(command)
+            .expect_err("a join that cannot happen fails the spawn");
+        assert!(error.to_string().contains("No such file"), "got: {error}");
+    }
+
+    #[test]
+    fn forker_forks_on_its_own_named_thread() {
+        let forker = Forker::new();
+        // Serve a round trip first: once a request has been answered, the thread is
+        // provably running, under its own name (the name is set before the loop runs).
+        let mut command = Command::new("sh");
+        command
+            .args(["-c", "exit 7"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut child = forker.fork(command).expect("fork round-trips");
+        assert_eq!(child.wait().expect("wait").code(), Some(7), "the child ran");
+
+        // The parent-death binding is per-thread: the forker must exist as its own thread.
+        let named = fs::read_dir("/proc/self/task")
+            .expect("/proc/self/task readable")
+            .flatten()
+            .any(|entry| {
+                fs::read_to_string(entry.path().join("comm"))
+                    .map(|comm| comm.trim() == "spawner-forker")
+                    .unwrap_or(false)
+            });
+        assert!(named, "the forker thread is alive under its own name");
     }
 }
