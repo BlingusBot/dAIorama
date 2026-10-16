@@ -1,0 +1,328 @@
+
+==================================================================
+## [0] pre-state (fresh container)
+==================================================================
+uid=0(root) gid=0(root) groups=0(root)
+binary: -rwxr-xr-x. 1 root root 41245280 Oct 16 20:39 /out/hardening/daiorama
+daiorama 0.1.0
+protocol 0.1.0 (min 0.1.0)
+version_rc=0
+nsroot subtree_control: 
+-- compositors:
+(no mutter/Hyprland processes)
+-- scopes:
+(no session subtree at /sys/fs/cgroup/daiorama-sessions)
+-- snapshot: compositors=0 scopes=0 daiorama=0 dr_dirs=0
+
+==================================================================
+## [1] daemon start (cold)
+==================================================================
+started manager (mode=background, pid=79) socket=/tmp/hr/daiorama/default/manager.sock
+start_rc=0
+status_rc=0
+state: running
+mode: background
+pid: 79
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 0 running, 0 dead
+drain: inactive
+instance_id: 7e6bce16-1469-4f68-b252-837e7a1a133e
+[OK]   cold status: drain inactive
+-- snapshot: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+
+==================================================================
+## case s1.5-1280x800 :: new --resolution 1280x800 --scale 1.5 (expect=win, physical 1920x1200)
+==================================================================
+-- snapshot before: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=203 comm="Hyprland --i-am-really-stupid" label="unconfined_u:unconfined_r:spc_t:s0")
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+new_rc=0 id=584a5b38-0765-45fc-8dd0-2bd31adf0fc7
+[OK]   s1.5-1280x800: created id=584a5b38-0765-45fc-8dd0-2bd31adf0fc7
+status_rc=0
+id: 584a5b38-0765-45fc-8dd0-2bd31adf0fc7
+label: 
+state: running
+backend: headless
+resolution: 1280x800
+scale: 1.5
+scope: operator
+origin: shell
+idle_since: 2026-10-16T20:39:16Z
+view: none
+renderer: verified
+instance_id: 7e6bce16-1469-4f68-b252-837e7a1a133e
+[OK]   s1.5-1280x800 status resolution
+[OK]   s1.5-1280x800 status scale
+[OK]   s1.5-1280x800 renderer verified
+[OK]   s1.5-1280x800 list shows 1 running (1)
+rt_dir=/tmp/dr-584a5b38 signature=efb50993780079460b0cbed1363e2166a2de1d9f_1792183155_1162332804
+hyprctl_monitors_rc=0 stderr: 
+monitor: HEADLESS-1 w=1920 h=1200 scale=1.5 refresh=60.0
+monitor-core: w=1920 h=1200 scale=1.5
+[OK]   s1.5-1280x800 compositor carries the physical mode
+close_rc=0 closed session 584a5b38-0765-45fc-8dd0-2bd31adf0fc7
+[OK]   s1.5-1280x800 close rc (rc=0)
+[OK]   s1.5-1280x800 close reported
+[OK]   s1.5-1280x800 compositors after close (0)
+[OK]   s1.5-1280x800 scope dirs after close (0)
+[OK]   s1.5-1280x800 runtime dir after close
+-- snapshot after: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+[OK]   s1.5-1280x800 no residue (snapshot unchanged) (compositors=0 scopes=0 daiorama=1 dr_dirs=0)
+list_rc=0
+no sessions
+
+==================================================================
+## case tiny-64x64 :: new --resolution 64x64 --scale 1 (expect=any, physical 64x64)
+==================================================================
+-- snapshot before: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+new_rc=0 id=d03f99f1-fcb3-478a-9d66-ddb0bc9abb57
+[OK]   tiny-64x64: created id=d03f99f1-fcb3-478a-9d66-ddb0bc9abb57
+status_rc=0
+id: d03f99f1-fcb3-478a-9d66-ddb0bc9abb57
+label: 
+state: running
+backend: headless
+resolution: 64x64
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-16T20:39:18Z
+view: none
+renderer: verified
+instance_id: 7e6bce16-1469-4f68-b252-837e7a1a133e
+[OK]   tiny-64x64 status resolution
+[OK]   tiny-64x64 status scale
+[OK]   tiny-64x64 renderer verified
+[OK]   tiny-64x64 list shows 1 running (1)
+rt_dir=/tmp/dr-d03f99f1 signature=efb50993780079460b0cbed1363e2166a2de1d9f_1792183157_744559424
+hyprctl_monitors_rc=0 stderr: 
+monitor: HEADLESS-1 w=64 h=64 scale=1 refresh=60.0
+monitor-core: w=64 h=64 scale=1
+[OK]   tiny-64x64 compositor carries the physical mode
+close_rc=0 closed session d03f99f1-fcb3-478a-9d66-ddb0bc9abb57
+[OK]   tiny-64x64 close rc (rc=0)
+[OK]   tiny-64x64 close reported
+[OK]   tiny-64x64 compositors after close (0)
+[OK]   tiny-64x64 scope dirs after close (0)
+[OK]   tiny-64x64 runtime dir after close
+-- snapshot after: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+[OK]   tiny-64x64 no residue (snapshot unchanged) (compositors=0 scopes=0 daiorama=1 dr_dirs=0)
+list_rc=0
+no sessions
+
+==================================================================
+## case tiny-1x1 :: new --resolution 1x1 --scale 1 (expect=any, physical 1x1)
+==================================================================
+-- snapshot before: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+new_rc=0 id=2a6b4e00-37f3-4276-a5f6-2b778a8b1081
+[OK]   tiny-1x1: created id=2a6b4e00-37f3-4276-a5f6-2b778a8b1081
+status_rc=0
+id: 2a6b4e00-37f3-4276-a5f6-2b778a8b1081
+label: 
+state: running
+backend: headless
+resolution: 1x1
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-16T20:39:20Z
+view: none
+renderer: verified
+instance_id: 7e6bce16-1469-4f68-b252-837e7a1a133e
+[OK]   tiny-1x1 status resolution
+[OK]   tiny-1x1 status scale
+[OK]   tiny-1x1 renderer verified
+[OK]   tiny-1x1 list shows 1 running (1)
+rt_dir=/tmp/dr-2a6b4e00 signature=efb50993780079460b0cbed1363e2166a2de1d9f_1792183159_1798082776
+hyprctl_monitors_rc=0 stderr: 
+monitor: HEADLESS-1 w=1 h=1 scale=1 refresh=60.0
+monitor-core: w=1 h=1 scale=1
+[OK]   tiny-1x1 compositor carries the physical mode
+close_rc=0 closed session 2a6b4e00-37f3-4276-a5f6-2b778a8b1081
+[OK]   tiny-1x1 close rc (rc=0)
+[OK]   tiny-1x1 close reported
+[OK]   tiny-1x1 compositors after close (0)
+[OK]   tiny-1x1 scope dirs after close (0)
+[OK]   tiny-1x1 runtime dir after close
+-- snapshot after: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+[OK]   tiny-1x1 no residue (snapshot unchanged) (compositors=0 scopes=0 daiorama=1 dr_dirs=0)
+list_rc=0
+no sessions
+
+==================================================================
+## case round-641x481-s1.5 :: new --resolution 641x481 --scale 1.5 (expect=any, physical 962x722)
+==================================================================
+-- snapshot before: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+new_rc=0 id=b6c2cfdd-ce6a-4538-bd7b-c8446bb956c9
+[OK]   round-641x481-s1.5: created id=b6c2cfdd-ce6a-4538-bd7b-c8446bb956c9
+status_rc=0
+id: b6c2cfdd-ce6a-4538-bd7b-c8446bb956c9
+label: 
+state: running
+backend: headless
+resolution: 641x481
+scale: 1.5
+scope: operator
+origin: shell
+idle_since: 2026-10-16T20:39:23Z
+view: none
+renderer: verified
+instance_id: 7e6bce16-1469-4f68-b252-837e7a1a133e
+[OK]   round-641x481-s1.5 status resolution
+[OK]   round-641x481-s1.5 status scale
+[OK]   round-641x481-s1.5 renderer verified
+[OK]   round-641x481-s1.5 list shows 1 running (1)
+rt_dir=/tmp/dr-b6c2cfdd signature=efb50993780079460b0cbed1363e2166a2de1d9f_1792183162_1411817792
+hyprctl_monitors_rc=0 stderr: 
+monitor: HEADLESS-1 w=962 h=722 scale=2 refresh=60.0
+monitor-core: w=962 h=722 scale=2
+[FAIL] round-641x481-s1.5 compositor carries the physical mode :: expected 'monitor-core: w=962 h=722 scale=1.5' in /tmp/c3.mon.txt
+close_rc=0 closed session b6c2cfdd-ce6a-4538-bd7b-c8446bb956c9
+[OK]   round-641x481-s1.5 close rc (rc=0)
+[OK]   round-641x481-s1.5 close reported
+[OK]   round-641x481-s1.5 compositors after close (0)
+[OK]   round-641x481-s1.5 scope dirs after close (0)
+[OK]   round-641x481-s1.5 runtime dir after close
+-- snapshot after: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+[OK]   round-641x481-s1.5 no residue (snapshot unchanged) (compositors=0 scopes=0 daiorama=1 dr_dirs=0)
+list_rc=0
+no sessions
+
+==================================================================
+## case scale-0.25-1920x1080 :: new --resolution 1920x1080 --scale 0.25 (expect=any, physical 480x270)
+==================================================================
+-- snapshot before: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+new_rc=0 id=be713c9b-5c24-46c0-90e2-99d6ed9fbf24
+[OK]   scale-0.25-1920x1080: created id=be713c9b-5c24-46c0-90e2-99d6ed9fbf24
+status_rc=0
+id: be713c9b-5c24-46c0-90e2-99d6ed9fbf24
+label: 
+state: running
+backend: headless
+resolution: 1920x1080
+scale: 0.25
+scope: operator
+origin: shell
+idle_since: 2026-10-16T20:39:25Z
+view: none
+renderer: verified
+instance_id: 7e6bce16-1469-4f68-b252-837e7a1a133e
+[OK]   scale-0.25-1920x1080 status resolution
+[OK]   scale-0.25-1920x1080 status scale
+[OK]   scale-0.25-1920x1080 renderer verified
+[OK]   scale-0.25-1920x1080 list shows 1 running (1)
+rt_dir=/tmp/dr-be713c9b signature=efb50993780079460b0cbed1363e2166a2de1d9f_1792183164_1705434966
+hyprctl_monitors_rc=0 stderr: 
+monitor: HEADLESS-1 w=480 h=270 scale=0.25 refresh=60.0
+monitor-core: w=480 h=270 scale=0.25
+[OK]   scale-0.25-1920x1080 compositor carries the physical mode
+close_rc=0 closed session be713c9b-5c24-46c0-90e2-99d6ed9fbf24
+[OK]   scale-0.25-1920x1080 close rc (rc=0)
+[OK]   scale-0.25-1920x1080 close reported
+[OK]   scale-0.25-1920x1080 compositors after close (0)
+[OK]   scale-0.25-1920x1080 scope dirs after close (0)
+[OK]   scale-0.25-1920x1080 runtime dir after close
+-- snapshot after: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+[OK]   scale-0.25-1920x1080 no residue (snapshot unchanged) (compositors=0 scopes=0 daiorama=1 dr_dirs=0)
+list_rc=0
+no sessions
+
+==================================================================
+## case huge-7680x4320 :: new --resolution 7680x4320 --scale 1 (expect=any, physical 7680x4320)
+==================================================================
+-- snapshot before: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+new_rc=0 id=ec170939-15e2-4024-b2c9-a03277c47fbb
+[OK]   huge-7680x4320: created id=ec170939-15e2-4024-b2c9-a03277c47fbb
+status_rc=0
+id: ec170939-15e2-4024-b2c9-a03277c47fbb
+label: 
+state: running
+backend: headless
+resolution: 7680x4320
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-16T20:39:26Z
+view: none
+renderer: verified
+instance_id: 7e6bce16-1469-4f68-b252-837e7a1a133e
+[OK]   huge-7680x4320 status resolution
+[OK]   huge-7680x4320 status scale
+[OK]   huge-7680x4320 renderer verified
+[OK]   huge-7680x4320 list shows 1 running (1)
+rt_dir=/tmp/dr-ec170939 signature=efb50993780079460b0cbed1363e2166a2de1d9f_1792183166_1961526288
+hyprctl_monitors_rc=0 stderr: 
+monitor: HEADLESS-1 w=7680 h=4320 scale=1 refresh=60.0
+monitor-core: w=7680 h=4320 scale=1
+[OK]   huge-7680x4320 compositor carries the physical mode
+close_rc=0 closed session ec170939-15e2-4024-b2c9-a03277c47fbb
+[OK]   huge-7680x4320 close rc (rc=0)
+[OK]   huge-7680x4320 close reported
+[OK]   huge-7680x4320 compositors after close (0)
+[OK]   huge-7680x4320 scope dirs after close (0)
+[OK]   huge-7680x4320 runtime dir after close
+-- snapshot after: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+[OK]   huge-7680x4320 no residue (snapshot unchanged) (compositors=0 scopes=0 daiorama=1 dr_dirs=0)
+list_rc=0
+no sessions
+
+==================================================================
+## case extreme-16384x16384 :: new --resolution 16384x16384 --scale 1 (expect=any, physical 16384x16384)
+==================================================================
+-- snapshot before: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+new_rc=0 id=ba8c202d-eb4b-406e-9b06-72f004cd352b
+[OK]   extreme-16384x16384: created id=ba8c202d-eb4b-406e-9b06-72f004cd352b
+status_rc=0
+id: ba8c202d-eb4b-406e-9b06-72f004cd352b
+label: 
+state: running
+backend: headless
+resolution: 16384x16384
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-16T20:39:29Z
+view: none
+renderer: verified
+instance_id: 7e6bce16-1469-4f68-b252-837e7a1a133e
+[OK]   extreme-16384x16384 status resolution
+[OK]   extreme-16384x16384 status scale
+[OK]   extreme-16384x16384 renderer verified
+[OK]   extreme-16384x16384 list shows 1 running (1)
+rt_dir=/tmp/dr-ba8c202d signature=efb50993780079460b0cbed1363e2166a2de1d9f_1792183168_1389940460
+hyprctl_monitors_rc=0 stderr: 
+monitor: HEADLESS-1 w=16384 h=16384 scale=1 refresh=60.0
+monitor-core: w=16384 h=16384 scale=1
+[OK]   extreme-16384x16384 compositor carries the physical mode
+close_rc=0 closed session ba8c202d-eb4b-406e-9b06-72f004cd352b
+[OK]   extreme-16384x16384 close rc (rc=0)
+[OK]   extreme-16384x16384 close reported
+[OK]   extreme-16384x16384 compositors after close (0)
+[OK]   extreme-16384x16384 scope dirs after close (0)
+[OK]   extreme-16384x16384 runtime dir after close
+-- snapshot after: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+[OK]   extreme-16384x16384 no residue (snapshot unchanged) (compositors=0 scopes=0 daiorama=1 dr_dirs=0)
+list_rc=0
+no sessions
+
+==================================================================
+## [Z] end + post-state (leak check)
+==================================================================
+end_rc=0 stopped manager (pid 79)
+-- compositors final:
+(no mutter/Hyprland processes)
+-- scopes final:
+(subtree present, no scope dirs)
+-- snapshot final: compositors=0 scopes=0 daiorama=0 dr_dirs=0
+-- session runtime dirs left: 
+-- daemon.log tail (30):
+startup sweep: 0 stale session scope(s) reaped
+started manager (mode=background, pid=79) socket=/tmp/hr/daiorama/default/manager.sock
+
+FAILS=1
+RUN-C-DONE
+SCRIPT_RC=0
+RUN-ALL-DONE
