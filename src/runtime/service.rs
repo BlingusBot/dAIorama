@@ -417,6 +417,7 @@ mod tests {
     use crate::config::Paths;
     use crate::ipc::{Address, Client};
     use crate::manager::Listener;
+    use crate::runtime::spawner::{LinuxSpawner, SpawnerConfig};
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::Duration as StdDuration;
 
@@ -444,7 +445,10 @@ mod tests {
         }
     }
 
-    fn make_service(dir: &std::path::Path, spawner: Arc<TestSpawner>) -> RuntimeService {
+    fn make_service_with(
+        dir: &std::path::Path,
+        spawner: Arc<dyn SessionSpawner>,
+    ) -> RuntimeService {
         let paths = Paths::for_env(Some(dir), Some(dir), Some(dir), "default");
         RuntimeService::new(
             ServiceOptions {
@@ -456,6 +460,10 @@ mod tests {
             },
             spawner,
         )
+    }
+
+    fn make_service(dir: &std::path::Path, spawner: Arc<TestSpawner>) -> RuntimeService {
+        make_service_with(dir, spawner)
     }
 
     fn result(
@@ -895,5 +903,120 @@ mod tests {
             rfc3339_from_unix_secs(1_709_209_496),
             "2024-02-29T12:24:56Z"
         );
+    }
+
+    /// The P2 exit run: the lifecycle verbs against the **real** chain (mutter `--headless` →
+    /// nested Hyprland on the render node) inside the L1 image. Ignored by default — it needs
+    /// the image's compositors and render node; run there like:
+    ///
+    /// ```text
+    /// dbus-run-session -- ./daiorama-tests real_chain --ignored --nocapture --test-threads=1
+    /// ```
+    #[tokio::test]
+    #[ignore = "real chain: needs the L1 image (mutter + Hyprland + render node)"]
+    async fn real_chain_lifecycle_verbs() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let spawner = Arc::new(LinuxSpawner::new(SpawnerConfig::new(
+            tmp.path().join("sessions"),
+        )));
+
+        let socket = tmp.path().join("manager.sock");
+        let service = Arc::new(make_service_with(tmp.path(), spawner));
+        let handler: Arc<dyn Handler> = service;
+        let listener = Listener::bind(&socket).await.expect("bind");
+        let serving = tokio::spawn(listener.serve(handler));
+
+        let mut client = Client::connect(
+            &Address::Unix(socket.clone()),
+            StdDuration::from_secs(2),
+            None,
+        )
+        .await
+        .expect("connect");
+        client.handshake().await.expect("handshake");
+
+        // Create: the real chain — mutter, Hyprland, the output at the pinned defaults.
+        let first = client
+            .request(methods::CREATE_SESSION, Some(json!({})), None)
+            .await
+            .expect("create 1");
+        eprintln!(
+            "CHAIN: created {} state={} resolution={}",
+            first["id"], first["state"], first["resolution"]
+        );
+        assert_eq!(first["state"], "running");
+
+        // A second session at a different size and scale (mode = 1024x768 x 1.5).
+        let second = client
+            .request(
+                methods::CREATE_SESSION,
+                Some(json!({ "resolution": "1024x768", "scale": 1.5 })),
+                None,
+            )
+            .await
+            .expect("create 2");
+        eprintln!("CHAIN: created {} state={}", second["id"], second["state"]);
+
+        let listed = client
+            .request(methods::LIST_SESSIONS, None, None)
+            .await
+            .expect("list");
+        assert_eq!(listed["sessions"].as_array().unwrap().len(), 2, "{listed}");
+
+        let first_id = first["id"].as_str().unwrap().to_string();
+        let read = client
+            .request(
+                methods::SESSION_STATUS,
+                Some(json!({ "session_id": first_id })),
+                None,
+            )
+            .await
+            .expect("status");
+        assert_eq!(read["state"], "running");
+
+        let closed = client
+            .request(
+                methods::CLOSE_SESSION,
+                Some(json!({ "session_id": first_id })),
+                None,
+            )
+            .await
+            .expect("close 1");
+        assert_eq!(closed["state"], "closed");
+        eprintln!("CHAIN: closed {first_id}");
+
+        let err = client
+            .request(
+                methods::SESSION_STATUS,
+                Some(json!({ "session_id": first_id })),
+                None,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, ErrorCode::SessionClosed);
+
+        let second_id = second["id"].as_str().unwrap().to_string();
+        let closed = client
+            .request(
+                methods::CLOSE_SESSION,
+                Some(json!({ "session_id": second_id })),
+                None,
+            )
+            .await
+            .expect("close 2");
+        assert_eq!(closed["state"], "closed");
+        eprintln!("CHAIN: closed {second_id}");
+
+        let listed = client
+            .request(methods::LIST_SESSIONS, None, None)
+            .await
+            .expect("list after closes");
+        assert!(
+            listed["sessions"].as_array().unwrap().is_empty(),
+            "closed sessions leave no live entries: {listed}"
+        );
+
+        serving.abort();
+        eprintln!("CHAIN: all lifecycle verbs green on the real chain");
     }
 }

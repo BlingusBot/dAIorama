@@ -1,0 +1,15 @@
+
+running 1 test
+test runtime::service::tests::real_chain_lifecycle_verbs ... dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=16 comm="Hyprland --i-am-really-stupid" label="system_u:system_r:container_t:s0:c110,c958")
+dbus-daemon[3]: [session uid=0 pid=3 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+CHAIN: created "f03338f2-515c-4c1c-ab8c-2e11c84aaca6" state="running" resolution="1920x1080"
+CHAIN: created "3074d58c-9831-4aab-bef0-12861dab7f39" state="running"
+CHAIN: closed f03338f2-515c-4c1c-ab8c-2e11c84aaca6
+CHAIN: closed 3074d58c-9831-4aab-bef0-12861dab7f39
+CHAIN: all lifecycle verbs green on the real chain
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 86 filtered out; finished in 1.38s
+
+exit=0
+RUN-DONE
