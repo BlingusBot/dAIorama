@@ -518,13 +518,18 @@ impl SessionSpawner for LinuxSpawner {
             dir.join("hypr.conf"),
             "debug {\n    disable_logs = false\n}\n",
         )
-        .map_err(|error| ErrorEnvelope::internal(format!("session config: {error}")))?;
+        .map_err(|error| {
+            Self::discard_dirs(&dir, &rt_dir);
+            ErrorEnvelope::internal(format!("session config: {error}"))
+        })?;
 
         // Parent: mutter --headless (no KMS, no seat; renders on the render node).
         let mode = format!("{mode_w}x{mode_h}");
         let parent_display = format!("--wayland-display={PARENT_SOCKET}");
-        let (out, err) = Self::log_stdio(&dir, "mutter")
-            .map_err(|error| ErrorEnvelope::internal(format!("session log: {error}")))?;
+        let (out, err) = Self::log_stdio(&dir, "mutter").map_err(|error| {
+            Self::discard_dirs(&dir, &rt_dir);
+            ErrorEnvelope::internal(format!("session log: {error}"))
+        })?;
 
         // The session scope (containment On) exists before anything is spawned; the
         // compositors self-join it via the PEP. A scope that cannot be created fails the
@@ -589,9 +594,14 @@ impl SessionSpawner for LinuxSpawner {
         }
 
         // Child: Hyprland nested on the parent — same PEP and forker: the child carries the
-        // same guarantees as the parent.
-        let (out, err) = Self::log_stdio(&dir, "hyprland")
-            .map_err(|error| ErrorEnvelope::internal(format!("session log: {error}")))?;
+        // same guarantees as the parent. (This failure path runs after the parent exists:
+        // kill it and discard the scope, like every other mid-spawn failure.)
+        let (out, err) = Self::log_stdio(&dir, "hyprland").map_err(|error| {
+            Self::discard_scope(scope.as_deref());
+            Self::kill_quietly(&mut parent);
+            Self::discard_dirs(&dir, &rt_dir);
+            ErrorEnvelope::internal(format!("session log: {error}"))
+        })?;
         let mut child_command = Command::new(&self.config.hyprland_bin);
         child_command
             .arg("--i-am-really-stupid")
