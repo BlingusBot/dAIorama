@@ -124,7 +124,34 @@ step now recovers:
 - `daiorama doctor` in the same container reports the re-entry through the real probe:
   `ok — keeper-prepared container re-entered: namespace root already carries cpu memory pids`.
 
-## Residual (round 2 candidates)
+## Round 2 — full (a)–(c) re-run on the fixed+merged tip (green, no findings — round closed)
+
+The round rule after round 1 (findings in (a) and (c), both fixed): repeat the full pass on
+the fixed tip, now carried onto the merged `spec/v1` (@52f05f3, the frame-cap slice included)
+via merge `16f9b61`. Fresh L1 containers per segment, binary built from this tip
+(CI `dai-r2-ci`, sha256 `b64b74f5…`).
+
+- (a) lifecycle churn — `round2-lifecycle-churn.txt`: 41/41 assertions `[OK]`, `FAILS=0`.
+  Three sessions created (`renderer: verified` on each, raw `Renderer: NV117` in all three
+  instance logs), one closed; SIGKILL mid-session leaves two orphaned `Hyprland` survivors,
+  one per remaining scope; restart lands `startup sweep: 2 stale session scope(s) reaped` —
+  after it, no compositor process and no scope dir remain (`/proc` scan + scope-subtree
+  listing in the raw log); the recovered manager creates and closes a new session; doctor
+  reports the keeper re-entry. The harness was upgraded this round to self-checking
+  (per-assertion `[OK]`/`[FAIL]` + `FAILS=`, exit code = `FAILS`) — (b) and (c) already were.
+- (b) drain integration — `round2-drain-live.txt`: 28/28 `[OK]`, `FAILS=0` — drain enters
+  (`{active, remaining:3}`), `new` refused with the pinned 04 string and zero spawn, closes
+  drop remaining 3→2→1→0, the `--wait` bound fires at 1, `--wait` completes at zero, drain
+  sticky at zero, end-state leak sweep clean.
+- (c) odd creation params — `round2-odd-params.txt`: 106/106 `[OK]`, `FAILS=0` — all eight
+  cases (incl. 641x481 @1.5 → `962x722 scale=1.5` and 642x482 @1.25 → `803x603 scale=1.25`
+  reading the requested scale back verbatim; 1x1; 16384x16384) create, carry the requested
+  geometry, and close with zero residue.
+
+No findings in the full pass → the round closes: cross-verify handoff is PR #22 at this
+round's tip (freeze: the verdict binds to the sha reviewed).
+
+## Residual (tracked, post-round)
 
 - Crashed sessions' runtime dirs (`/tmp/dr-<id8>`) are not reaped by the sweep — only the
   scopes and their processes are. A clean close removes them; a crash leaves them behind
@@ -132,15 +159,15 @@ step now recovers:
   whether crash-time rt-dirs should be reaped (spawner-owned naming) or kept for diagnosis.
 - The repeated-reapply observation (probe containers, round 1(c) notes): revisit when
   mid-session output work lands — nothing shipped re-applies a rule to a live output yet.
-- Round 1 added findings in (a) and (c), both fixed on this branch — per the round rule the
-  round repeats: a full (a)–(c) pass on the fixed tip, then the completion receipt (the
-  cross-verify handoff).
+- Round 2 (the full (a)–(c) pass on the fixed+merged tip) added no findings — the round is
+  closed and out for cross-verify; the two items above are scope decisions for later.
 
 ## Files
 
 - `run-a.sh` — the churn harness (real CLI + daemon inside the L1 container; `BIN` points at
   the built binary; output captured to the raw log). Extended after the fix: `[5b]`
-  post-restart create/close, `[6b]` doctor + shell cgroup.
+  post-restart create/close, `[6b]` doctor + shell cgroup. Self-checking since round 2:
+  per-assertion `[OK]`/`[FAIL]` + a final `FAILS=`, exit code = `FAILS`.
 - `run-b.sh` — the 1(b) drain harness (same pattern): three live sessions, the refusal drill,
   remaining-drop closes, the `--wait` bound + completion (close lands while it polls), the
   sticky-at-zero check, then the end-state leak sweep. Prints `[OK]`/`[FAIL]` per assertion
@@ -164,6 +191,11 @@ step now recovers:
   `dai-hardening-d-diag`, `-diag2`, `-diag3`).
 - `evidence/odd-params-spec.json` — create-spec for the 1(c) re-run (mount sources
   genericized; container `dai-hardening-d2`, output `hardening-d2.txt`).
+- `evidence/round2-lifecycle-churn.txt`, `evidence/round2-drain-live.txt`,
+  `evidence/round2-odd-params.txt` — round 2 raws on the fixed+merged tip (all green,
+  `FAILS=0`; containers `dai-r2-a`, `dai-r2-b`, `dai-r2-c`).
+- `evidence/round2-a-spec.json`, `evidence/round2-b-spec.json`, `evidence/round2-c-spec.json`
+  — create-specs for the round-2 runs (mount sources genericized).
 
 ## Gate + run recipe
 
@@ -182,3 +214,7 @@ fmt clean (no rewrite), clippy `-D warnings` clean, same suite — 130 + 4 + 2 +
 
 Re-gate with the 1(c) tip (geometry readback — spawner + tests; fresh `rust:slim`): fmt
 clean, clippy `-D warnings` clean — 133 + 4 + 2 + 27 passed, 0 failed, 5 ignored.
+
+Round 2 with the merged tip (merge `16f9b61`; fresh `rust:slim`, container `dai-r2-ci`):
+fmt clean, clippy `-D warnings` clean — 135 + 4 + 2 + 27 passed, 0 failed, 5 ignored. The
+L1 binary for the whole round is this tree's `target/debug/daiorama` (sha256 `b64b74f5…`).
