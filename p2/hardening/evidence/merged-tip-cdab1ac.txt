@@ -247,7 +247,7 @@ ALLDONE
    dangling / parent-climbing / absolute / dot / file / non-version targets all answer null
    while status and readiness agree on every read.
 6. New D2 scope-create leg (`p2/hardening/run-scope-create.sh` +
-   `probe-scope-create.py`): PASS, FAILS=0, 40 assertions. It proves the claim the docs make
+   `probe-scope-create.py`): PASS, FAILS=0, 56 assertions. It proves the claim the docs make
    after create — "the next network start mints one for every existing scope file" (07):
    - the three templates render, `dashboard` prints only its path, the file is 0600 with the
      commented `visibility: all` body, and no scope secret is written;
