@@ -323,6 +323,9 @@ pub fn takes_no_parameters(found: &str) -> String {
     format!("unknown parameter {found:?}; this method takes no parameters")
 }
 
+/// Capture is exempt from the B9 bucket but serialized: one at a time per session.
+pub const CAPTURE_IN_FLIGHT: &str = "a capture is already running for this session";
+
 /// The front's pinned message when the noVNC asset tree is absent (05/07): packaging ships it
 /// in P5, and a missing tree is refused rather than served as a blank page.
 pub const VIEW_ASSETS_MISSING: &str = "view assets not installed (expected <data>/novnc)";
