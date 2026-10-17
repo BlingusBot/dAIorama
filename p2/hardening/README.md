@@ -238,6 +238,38 @@ added a finding. This branch is the completion handoff for cross-verify (freeze:
 binds to the sha reviewed). Phase-level follow-ups left are the two residual items below —
 both scope decisions, not defects.
 
+## Soak/leak pass — post-P2 on the P3-era tip `0020763` (green, no findings)
+
+The rounds above answer "is each transition clean?"; this pass asks the repeat question a
+one-shot round cannot: does walking the same path many times return the manager's
+per-session and per-connection resources to baseline? Tip `0020763` (merged listen/SDK
+slice); binary built from that tip in CI (`dai-soak-ci`, sha256 `9d16fbde…`); L1 container
+`dai-soak-b`; harness `run-e.sh`. Gates at that tip: fmt clean, clippy `-D warnings` clean,
+`165 (+5 ignored) · 4 · 2 · 27 · 7 · 22` passed, 0 failed (`evidence/soak-gates.log`).
+
+- **Sequential soak — 24 real create → status (`renderer: verified`) → close cycles** over
+  an eight-entry resolution/scale matrix (1280x800, 1920x1080, 640x480, 800x600; scales
+  1 / 1.5 / 2). Every cycle tears down to zero scope dirs, zero compositor processes and
+  zero `/tmp/dr-*` runtime dirs, and `list` reports no sessions. Manager footprint is flat
+  across all 24: **fds 11, threads 14** at baseline and at every cycle boundary (`SNAP`
+  lines in the raw log). RSS 5,700 → 6,096 kB over the whole run (+396 kB, <1%).
+- **RPC soak — 400 sequential `list` calls** on the same manager: 400/400 answered, fds 11
+  before and after, threads unchanged — the per-connection path holds nothing open.
+- **Burst soak — 5 rounds of 3 concurrent sessions**, closed out of order: 3 scopes and 9
+  compositor processes while live, zero of each after every round; fds 11 after every burst.
+- Hardware path confirmed in the run: the first session's compositor log carries
+  `Renderer: NV117`, and every session marked `renderer: verified`.
+- End state: `daemon end --force` leaves no daiorama process, no compositor, no scope dir,
+  no session runtime dir.
+
+**328/328 assertions `[OK]`, `FAILS=0`** (`evidence/soak.txt`). No leak in the per-session or
+per-connection path; the manager's resident footprint is O(1) in the number of sessions
+(Hyprland is a child process, not a manager-held socket — fds/threads read 11/14 with 0, 1
+or 3 sessions live). No src change this round.
+
+Not covered (unchanged residual): crash-time runtime dirs (`/tmp/dr-<id8>`) are still not
+reaped by the startup sweep — see the residual item below.
+
 ## Residual (tracked, post-round)
 
 - Crashed sessions' runtime dirs (`/tmp/dr-<id8>`) are not reaped by the sweep — only the
@@ -307,6 +339,14 @@ both scope decisions, not defects.
   — create-specs for the round-5 runs (mount sources genericized).
 - `evidence/round5-gates.log` — round-5 gate + build output at `4686218` (container
   `dai-r5-ci`; the image carries no `git`, so the tip is the mounted worktree).
+- `run-e.sh` — the soak/leak harness (24 sequential create/status/close cycles, a 400-call
+  `list` soak, five 3-session bursts closed out of order; manager fd/thread/RSS sampled at
+  every boundary, scope/compositor/runtime-dir residue checked after every close).
+  Self-checking like the others: per-assertion `[OK]`/`[FAIL]`, final `FAILS=`, exit code =
+  `FAILS`.
+- `evidence/soak.txt` — soak/leak raw on the P3-era tip `0020763` (green; 328 `[OK]`,
+  `FAILS=0`; container `dai-soak-b`, output `soak-b.txt`).
+- `evidence/soak-spec.json` — create-spec for the soak run (mount sources genericized).
 
 ## Gate + run recipe
 
@@ -314,7 +354,7 @@ Gate + binary in a `rust:slim` container from this tip (`rustup component add ru
 clippy`; `cargo fmt --check`; `cargo clippy --all-targets --locked -- -D warnings`; `cargo
 test --locked`; `cargo build --locked`; copy `target/debug/daiorama` out), then the L1
 create-spec above (`dbus-run-session -- bash /src/p2/hardening/run-a.sh`; the later rounds
-substitute `run-b.sh` / `run-c.sh`).
+substitute `run-b.sh` / `run-c.sh` / `run-e.sh`).
 
 Gate (fresh container, fixed tip): fmt clean, clippy `-D warnings` clean, suite green —
 130 + 4 + 2 + 27 passed, 0 failed, 5 ignored (+2 re-entry tests).

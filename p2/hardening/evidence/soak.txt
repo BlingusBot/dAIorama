@@ -1,0 +1,702 @@
+
+===================================================================
+## [0] pre-state (fresh container)
+===================================================================
+uid=0(root) gid=0(root) groups=0(root)
+binary: -rwxr-xr-x. 1 root root 4221424 Oct 17 13:06 /out/hardening/daiorama
+daiorama 0.1.0
+protocol 0.1.0 (min 0.1.0)
+version_rc=0
+nsroot subtree_control: 
+[OK]   [0] fresh container: no compositors (0)
+[OK]   [0] fresh container: no scope dirs (0)
+[OK]   [0] fresh container: no session runtime dirs (0)
+
+===================================================================
+## [1] daemon start (cold) — baseline footprint
+===================================================================
+started manager (mode=background, pid=51) socket=/tmp/hr/daiorama/default/manager.sock
+start_rc=0
+[OK]   [1] cold start (rc=0)
+manager_pid=51
+manager_cgroup: 0::/keeper 
+baseline: fds=11 threads=14 rss_kb=5696
+[OK]   [1] baseline fd count is sane (11 <= 64)
+SNAP baseline pid=51 fds=11 threads=14 rss_kb=5700 comps=0 scopes=0 drs=0 daiorama=1
+
+===================================================================
+## [2] sequential soak — 24 create/status/close cycles
+===================================================================
+
+===================================================================
+## [2.1] new --resolution 1280x800 --scale 1
+===================================================================
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=157 comm="Hyprland --i-am-really-stupid" label="unconfined_u:unconfined_r:spc_t:s0")
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+new_rc=0 id=0ded67c3-3fe3-4cbf-8fbd-30439e019e0c stderr=
+[OK]   [2.1] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.1] renderer verified
+[OK]   [2.1] session reports running
+-- raw renderer lines:
+/tmp/dr-0ded67c3/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792242524_266136200/hyprland.log :: DEBUG ]: Renderer: NV117
+[OK]   [2.1] hardware renderer string in the session log
+live: fds=11 rss_kb=5872 comps=3 scopes=1 drs=1
+[OK]   [2.1] one scope for the live session (1)
+close_rc=0 closed session 0ded67c3-3fe3-4cbf-8fbd-30439e019e0c
+[OK]   [2.1] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.1] zero scope dirs after close (0)
+[OK]   [2.1] zero compositors after close (0)
+[OK]   [2.1] zero session runtime dirs after close (0)
+[OK]   [2.1] list empty after close
+SNAP cycle1 pid=51 fds=11 threads=14 rss_kb=5888 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.1] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.1] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.1] rss_kb=5888 (baseline 5696)
+
+===================================================================
+## [2.2] new --resolution 1920x1080 --scale 1
+===================================================================
+new_rc=0 id=e4371317-78ab-461f-9a9e-d2f104b45bfd stderr=
+[OK]   [2.2] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.2] renderer verified
+[OK]   [2.2] session reports running
+live: fds=11 rss_kb=5956 comps=3 scopes=1 drs=1
+[OK]   [2.2] one scope for the live session (1)
+close_rc=0 closed session e4371317-78ab-461f-9a9e-d2f104b45bfd
+[OK]   [2.2] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.2] zero scope dirs after close (0)
+[OK]   [2.2] zero compositors after close (0)
+[OK]   [2.2] zero session runtime dirs after close (0)
+[OK]   [2.2] list empty after close
+SNAP cycle2 pid=51 fds=11 threads=14 rss_kb=5968 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.2] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.2] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.2] rss_kb=5968 (baseline 5696)
+
+===================================================================
+## [2.3] new --resolution 640x480 --scale 1
+===================================================================
+new_rc=0 id=52407fa4-32c4-48eb-8219-bd6d35c5e9bd stderr=
+[OK]   [2.3] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.3] renderer verified
+[OK]   [2.3] session reports running
+live: fds=11 rss_kb=5972 comps=3 scopes=1 drs=1
+[OK]   [2.3] one scope for the live session (1)
+close_rc=0 closed session 52407fa4-32c4-48eb-8219-bd6d35c5e9bd
+[OK]   [2.3] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.3] zero scope dirs after close (0)
+[OK]   [2.3] zero compositors after close (0)
+[OK]   [2.3] zero session runtime dirs after close (0)
+[OK]   [2.3] list empty after close
+SNAP cycle3 pid=51 fds=11 threads=14 rss_kb=5972 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.3] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.3] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.3] rss_kb=5972 (baseline 5696)
+
+===================================================================
+## [2.4] new --resolution 1280x800 --scale 1.5
+===================================================================
+new_rc=0 id=bd9b51fe-91b8-4406-841e-a436106e1035 stderr=
+[OK]   [2.4] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.4] renderer verified
+[OK]   [2.4] session reports running
+live: fds=11 rss_kb=6012 comps=3 scopes=1 drs=1
+[OK]   [2.4] one scope for the live session (1)
+close_rc=0 closed session bd9b51fe-91b8-4406-841e-a436106e1035
+[OK]   [2.4] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.4] zero scope dirs after close (0)
+[OK]   [2.4] zero compositors after close (0)
+[OK]   [2.4] zero session runtime dirs after close (0)
+[OK]   [2.4] list empty after close
+SNAP cycle4 pid=51 fds=11 threads=14 rss_kb=6016 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.4] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.4] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.4] rss_kb=6016 (baseline 5696)
+
+===================================================================
+## [2.5] new --resolution 800x600 --scale 2
+===================================================================
+new_rc=0 id=826eee51-733f-491c-a54d-87060cad2970 stderr=
+[OK]   [2.5] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.5] renderer verified
+[OK]   [2.5] session reports running
+live: fds=11 rss_kb=6016 comps=3 scopes=1 drs=1
+[OK]   [2.5] one scope for the live session (1)
+close_rc=0 closed session 826eee51-733f-491c-a54d-87060cad2970
+[OK]   [2.5] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.5] zero scope dirs after close (0)
+[OK]   [2.5] zero compositors after close (0)
+[OK]   [2.5] zero session runtime dirs after close (0)
+[OK]   [2.5] list empty after close
+SNAP cycle5 pid=51 fds=11 threads=14 rss_kb=6024 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.5] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.5] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.5] rss_kb=6024 (baseline 5696)
+
+===================================================================
+## [2.6] new --resolution 1920x1080 --scale 1
+===================================================================
+new_rc=0 id=b8b81374-cbef-4703-90e3-7f9ca3935fd3 stderr=
+[OK]   [2.6] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.6] renderer verified
+[OK]   [2.6] session reports running
+live: fds=11 rss_kb=6028 comps=3 scopes=1 drs=1
+[OK]   [2.6] one scope for the live session (1)
+close_rc=0 closed session b8b81374-cbef-4703-90e3-7f9ca3935fd3
+[OK]   [2.6] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.6] zero scope dirs after close (0)
+[OK]   [2.6] zero compositors after close (0)
+[OK]   [2.6] zero session runtime dirs after close (0)
+[OK]   [2.6] list empty after close
+SNAP cycle6 pid=51 fds=11 threads=14 rss_kb=6028 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.6] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.6] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.6] rss_kb=6028 (baseline 5696)
+
+===================================================================
+## [2.7] new --resolution 640x480 --scale 1.5
+===================================================================
+new_rc=0 id=749478ca-d0ea-4ea2-9f49-1e41254c75e8 stderr=
+[OK]   [2.7] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.7] renderer verified
+[OK]   [2.7] session reports running
+live: fds=11 rss_kb=6028 comps=3 scopes=1 drs=1
+[OK]   [2.7] one scope for the live session (1)
+close_rc=0 closed session 749478ca-d0ea-4ea2-9f49-1e41254c75e8
+[OK]   [2.7] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.7] zero scope dirs after close (0)
+[OK]   [2.7] zero compositors after close (0)
+[OK]   [2.7] zero session runtime dirs after close (0)
+[OK]   [2.7] list empty after close
+SNAP cycle7 pid=51 fds=11 threads=14 rss_kb=6044 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.7] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.7] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.7] rss_kb=6044 (baseline 5696)
+
+===================================================================
+## [2.8] new --resolution 1280x800 --scale 1
+===================================================================
+new_rc=0 id=03913f66-a24d-475a-9741-33b8a602507d stderr=
+[OK]   [2.8] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.8] renderer verified
+[OK]   [2.8] session reports running
+live: fds=11 rss_kb=6048 comps=3 scopes=1 drs=1
+[OK]   [2.8] one scope for the live session (1)
+close_rc=0 closed session 03913f66-a24d-475a-9741-33b8a602507d
+[OK]   [2.8] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.8] zero scope dirs after close (0)
+[OK]   [2.8] zero compositors after close (0)
+[OK]   [2.8] zero session runtime dirs after close (0)
+[OK]   [2.8] list empty after close
+SNAP cycle8 pid=51 fds=11 threads=14 rss_kb=6048 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.8] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.8] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.8] rss_kb=6048 (baseline 5696)
+
+===================================================================
+## [2.9] new --resolution 1280x800 --scale 1
+===================================================================
+new_rc=0 id=18651068-1ed5-4694-b8dc-90ab7cdc5567 stderr=
+[OK]   [2.9] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.9] renderer verified
+[OK]   [2.9] session reports running
+live: fds=11 rss_kb=6048 comps=3 scopes=1 drs=1
+[OK]   [2.9] one scope for the live session (1)
+close_rc=0 closed session 18651068-1ed5-4694-b8dc-90ab7cdc5567
+[OK]   [2.9] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.9] zero scope dirs after close (0)
+[OK]   [2.9] zero compositors after close (0)
+[OK]   [2.9] zero session runtime dirs after close (0)
+[OK]   [2.9] list empty after close
+SNAP cycle9 pid=51 fds=11 threads=14 rss_kb=6060 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.9] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.9] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.9] rss_kb=6060 (baseline 5696)
+
+===================================================================
+## [2.10] new --resolution 1920x1080 --scale 1
+===================================================================
+new_rc=0 id=c53cad33-fc02-4081-8cc5-a817cc309f02 stderr=
+[OK]   [2.10] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.10] renderer verified
+[OK]   [2.10] session reports running
+live: fds=11 rss_kb=6060 comps=3 scopes=1 drs=1
+[OK]   [2.10] one scope for the live session (1)
+close_rc=0 closed session c53cad33-fc02-4081-8cc5-a817cc309f02
+[OK]   [2.10] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.10] zero scope dirs after close (0)
+[OK]   [2.10] zero compositors after close (0)
+[OK]   [2.10] zero session runtime dirs after close (0)
+[OK]   [2.10] list empty after close
+SNAP cycle10 pid=51 fds=11 threads=14 rss_kb=6060 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.10] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.10] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.10] rss_kb=6060 (baseline 5696)
+
+===================================================================
+## [2.11] new --resolution 640x480 --scale 1
+===================================================================
+new_rc=0 id=3176003e-d9ab-42d4-9427-b69a795b18fb stderr=
+[OK]   [2.11] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.11] renderer verified
+[OK]   [2.11] session reports running
+live: fds=11 rss_kb=6060 comps=3 scopes=1 drs=1
+[OK]   [2.11] one scope for the live session (1)
+close_rc=0 closed session 3176003e-d9ab-42d4-9427-b69a795b18fb
+[OK]   [2.11] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.11] zero scope dirs after close (0)
+[OK]   [2.11] zero compositors after close (0)
+[OK]   [2.11] zero session runtime dirs after close (0)
+[OK]   [2.11] list empty after close
+SNAP cycle11 pid=51 fds=11 threads=14 rss_kb=6060 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.11] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.11] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.11] rss_kb=6060 (baseline 5696)
+
+===================================================================
+## [2.12] new --resolution 1280x800 --scale 1.5
+===================================================================
+new_rc=0 id=dd43f56b-f449-4547-a5bb-3d90dd19459f stderr=
+[OK]   [2.12] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.12] renderer verified
+[OK]   [2.12] session reports running
+live: fds=11 rss_kb=6060 comps=3 scopes=1 drs=1
+[OK]   [2.12] one scope for the live session (1)
+close_rc=0 closed session dd43f56b-f449-4547-a5bb-3d90dd19459f
+[OK]   [2.12] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.12] zero scope dirs after close (0)
+[OK]   [2.12] zero compositors after close (0)
+[OK]   [2.12] zero session runtime dirs after close (0)
+[OK]   [2.12] list empty after close
+SNAP cycle12 pid=51 fds=11 threads=14 rss_kb=6060 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.12] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.12] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.12] rss_kb=6060 (baseline 5696)
+
+===================================================================
+## [2.13] new --resolution 800x600 --scale 2
+===================================================================
+new_rc=0 id=62fca8e6-a82f-44d7-b8e5-3a48e9dac121 stderr=
+[OK]   [2.13] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.13] renderer verified
+[OK]   [2.13] session reports running
+live: fds=11 rss_kb=6060 comps=3 scopes=1 drs=1
+[OK]   [2.13] one scope for the live session (1)
+close_rc=0 closed session 62fca8e6-a82f-44d7-b8e5-3a48e9dac121
+[OK]   [2.13] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.13] zero scope dirs after close (0)
+[OK]   [2.13] zero compositors after close (0)
+[OK]   [2.13] zero session runtime dirs after close (0)
+[OK]   [2.13] list empty after close
+SNAP cycle13 pid=51 fds=11 threads=14 rss_kb=6068 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.13] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.13] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.13] rss_kb=6068 (baseline 5696)
+
+===================================================================
+## [2.14] new --resolution 1920x1080 --scale 1
+===================================================================
+new_rc=0 id=1e6b8eb7-2c94-400a-8f1e-323dadd30255 stderr=
+[OK]   [2.14] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.14] renderer verified
+[OK]   [2.14] session reports running
+live: fds=11 rss_kb=6068 comps=3 scopes=1 drs=1
+[OK]   [2.14] one scope for the live session (1)
+close_rc=0 closed session 1e6b8eb7-2c94-400a-8f1e-323dadd30255
+[OK]   [2.14] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.14] zero scope dirs after close (0)
+[OK]   [2.14] zero compositors after close (0)
+[OK]   [2.14] zero session runtime dirs after close (0)
+[OK]   [2.14] list empty after close
+SNAP cycle14 pid=51 fds=11 threads=14 rss_kb=6068 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.14] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.14] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.14] rss_kb=6068 (baseline 5696)
+
+===================================================================
+## [2.15] new --resolution 640x480 --scale 1.5
+===================================================================
+new_rc=0 id=6f8fd5ae-a8df-4aa6-bc28-bccd4b2a6410 stderr=
+[OK]   [2.15] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.15] renderer verified
+[OK]   [2.15] session reports running
+live: fds=11 rss_kb=6068 comps=3 scopes=1 drs=1
+[OK]   [2.15] one scope for the live session (1)
+close_rc=0 closed session 6f8fd5ae-a8df-4aa6-bc28-bccd4b2a6410
+[OK]   [2.15] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.15] zero scope dirs after close (0)
+[OK]   [2.15] zero compositors after close (0)
+[OK]   [2.15] zero session runtime dirs after close (0)
+[OK]   [2.15] list empty after close
+SNAP cycle15 pid=51 fds=11 threads=14 rss_kb=6072 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.15] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.15] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.15] rss_kb=6072 (baseline 5696)
+
+===================================================================
+## [2.16] new --resolution 1280x800 --scale 1
+===================================================================
+new_rc=0 id=48cf991a-78c3-4526-bda3-216fa5c8868a stderr=
+[OK]   [2.16] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.16] renderer verified
+[OK]   [2.16] session reports running
+live: fds=11 rss_kb=6076 comps=3 scopes=1 drs=1
+[OK]   [2.16] one scope for the live session (1)
+close_rc=0 closed session 48cf991a-78c3-4526-bda3-216fa5c8868a
+[OK]   [2.16] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.16] zero scope dirs after close (0)
+[OK]   [2.16] zero compositors after close (0)
+[OK]   [2.16] zero session runtime dirs after close (0)
+[OK]   [2.16] list empty after close
+SNAP cycle16 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.16] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.16] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.16] rss_kb=6084 (baseline 5696)
+
+===================================================================
+## [2.17] new --resolution 1280x800 --scale 1
+===================================================================
+new_rc=0 id=a012d723-e0fb-4881-9241-06b9c0569c49 stderr=
+[OK]   [2.17] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.17] renderer verified
+[OK]   [2.17] session reports running
+live: fds=11 rss_kb=6084 comps=3 scopes=1 drs=1
+[OK]   [2.17] one scope for the live session (1)
+close_rc=0 closed session a012d723-e0fb-4881-9241-06b9c0569c49
+[OK]   [2.17] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.17] zero scope dirs after close (0)
+[OK]   [2.17] zero compositors after close (0)
+[OK]   [2.17] zero session runtime dirs after close (0)
+[OK]   [2.17] list empty after close
+SNAP cycle17 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.17] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.17] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.17] rss_kb=6084 (baseline 5696)
+
+===================================================================
+## [2.18] new --resolution 1920x1080 --scale 1
+===================================================================
+new_rc=0 id=dfdc13ff-c9cd-4c27-9136-b705c1d5bca7 stderr=
+[OK]   [2.18] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.18] renderer verified
+[OK]   [2.18] session reports running
+live: fds=11 rss_kb=6084 comps=3 scopes=1 drs=1
+[OK]   [2.18] one scope for the live session (1)
+close_rc=0 closed session dfdc13ff-c9cd-4c27-9136-b705c1d5bca7
+[OK]   [2.18] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.18] zero scope dirs after close (0)
+[OK]   [2.18] zero compositors after close (0)
+[OK]   [2.18] zero session runtime dirs after close (0)
+[OK]   [2.18] list empty after close
+SNAP cycle18 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.18] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.18] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.18] rss_kb=6084 (baseline 5696)
+
+===================================================================
+## [2.19] new --resolution 640x480 --scale 1
+===================================================================
+new_rc=0 id=431d87d1-1b6e-4ffb-9087-bcc3a36b77e7 stderr=
+[OK]   [2.19] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.19] renderer verified
+[OK]   [2.19] session reports running
+live: fds=11 rss_kb=6084 comps=3 scopes=1 drs=1
+[OK]   [2.19] one scope for the live session (1)
+close_rc=0 closed session 431d87d1-1b6e-4ffb-9087-bcc3a36b77e7
+[OK]   [2.19] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.19] zero scope dirs after close (0)
+[OK]   [2.19] zero compositors after close (0)
+[OK]   [2.19] zero session runtime dirs after close (0)
+[OK]   [2.19] list empty after close
+SNAP cycle19 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.19] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.19] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.19] rss_kb=6084 (baseline 5696)
+
+===================================================================
+## [2.20] new --resolution 1280x800 --scale 1.5
+===================================================================
+new_rc=0 id=286c5ad3-e40d-48a9-83df-d3be50dbd3f3 stderr=
+[OK]   [2.20] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.20] renderer verified
+[OK]   [2.20] session reports running
+live: fds=11 rss_kb=6084 comps=3 scopes=1 drs=1
+[OK]   [2.20] one scope for the live session (1)
+close_rc=0 closed session 286c5ad3-e40d-48a9-83df-d3be50dbd3f3
+[OK]   [2.20] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.20] zero scope dirs after close (0)
+[OK]   [2.20] zero compositors after close (0)
+[OK]   [2.20] zero session runtime dirs after close (0)
+[OK]   [2.20] list empty after close
+SNAP cycle20 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.20] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.20] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.20] rss_kb=6084 (baseline 5696)
+
+===================================================================
+## [2.21] new --resolution 800x600 --scale 2
+===================================================================
+new_rc=0 id=09440bb7-cbda-4c6b-a9d1-5a6df31e406c stderr=
+[OK]   [2.21] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.21] renderer verified
+[OK]   [2.21] session reports running
+live: fds=11 rss_kb=6084 comps=3 scopes=1 drs=1
+[OK]   [2.21] one scope for the live session (1)
+close_rc=0 closed session 09440bb7-cbda-4c6b-a9d1-5a6df31e406c
+[OK]   [2.21] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.21] zero scope dirs after close (0)
+[OK]   [2.21] zero compositors after close (0)
+[OK]   [2.21] zero session runtime dirs after close (0)
+[OK]   [2.21] list empty after close
+SNAP cycle21 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.21] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.21] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.21] rss_kb=6084 (baseline 5696)
+
+===================================================================
+## [2.22] new --resolution 1920x1080 --scale 1
+===================================================================
+new_rc=0 id=9cdfc31e-b1ec-4300-8b6d-f84922e34c7d stderr=
+[OK]   [2.22] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.22] renderer verified
+[OK]   [2.22] session reports running
+live: fds=11 rss_kb=6084 comps=3 scopes=1 drs=1
+[OK]   [2.22] one scope for the live session (1)
+close_rc=0 closed session 9cdfc31e-b1ec-4300-8b6d-f84922e34c7d
+[OK]   [2.22] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.22] zero scope dirs after close (0)
+[OK]   [2.22] zero compositors after close (0)
+[OK]   [2.22] zero session runtime dirs after close (0)
+[OK]   [2.22] list empty after close
+SNAP cycle22 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.22] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.22] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.22] rss_kb=6084 (baseline 5696)
+
+===================================================================
+## [2.23] new --resolution 640x480 --scale 1.5
+===================================================================
+new_rc=0 id=e1f2fb08-b1fd-4a1b-b7fd-b256d67f3ecf stderr=
+[OK]   [2.23] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.23] renderer verified
+[OK]   [2.23] session reports running
+live: fds=11 rss_kb=6084 comps=3 scopes=1 drs=1
+[OK]   [2.23] one scope for the live session (1)
+close_rc=0 closed session e1f2fb08-b1fd-4a1b-b7fd-b256d67f3ecf
+[OK]   [2.23] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.23] zero scope dirs after close (0)
+[OK]   [2.23] zero compositors after close (0)
+[OK]   [2.23] zero session runtime dirs after close (0)
+[OK]   [2.23] list empty after close
+SNAP cycle23 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.23] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.23] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.23] rss_kb=6084 (baseline 5696)
+
+===================================================================
+## [2.24] new --resolution 1280x800 --scale 1
+===================================================================
+new_rc=0 id=0d18d971-5fde-4feb-9dd7-6654a1360308 stderr=
+[OK]   [2.24] new (rc=0)
+-- status poll: verified_after=0
+[OK]   [2.24] renderer verified
+[OK]   [2.24] session reports running
+live: fds=11 rss_kb=6084 comps=3 scopes=1 drs=1
+[OK]   [2.24] one scope for the live session (1)
+close_rc=0 closed session 0d18d971-5fde-4feb-9dd7-6654a1360308
+[OK]   [2.24] close (rc=0)
+-- residue poll: clean_after=0
+[OK]   [2.24] zero scope dirs after close (0)
+[OK]   [2.24] zero compositors after close (0)
+[OK]   [2.24] zero session runtime dirs after close (0)
+[OK]   [2.24] list empty after close
+SNAP cycle24 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [2.24] manager fds back at baseline+4 (11 <= 15)
+[OK]   [2.24] manager threads back at baseline+4 (14 <= 18)
+[OBS]  [2.24] rss_kb=6084 (baseline 5696)
+
+===================================================================
+## [3] RPC hammer — 400 sequential list calls on one manager
+===================================================================
+before: fds=11 rss_kb=6084
+hammer_calls=400 failures=0
+[OK]   [3] every list call answered (0)
+after: fds=11 rss_kb=6084
+[OK]   [3] manager fds back at baseline+4 after 400 calls (11 <= 15)
+SNAP post-hammer pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+
+===================================================================
+## [4] burst soak — 3 sessions at once, closed out of order, x5
+===================================================================
+
+===================================================================
+## [4.1] three concurrent sessions
+===================================================================
+ids: 759b390b-6e74-4ee5-b6f9-ec05ef404bc7 863ff8da-b184-4702-a0e4-b70b827f9ca5 42ee8db0-617a-4af2-8df7-890cac3d53d0 rcs=0/0/0
+[OK]   [4.1] three creates (000)
+-- status poll 1: verified_after=0
+[OK]   [4.1] s1 verified
+-- status poll 2: verified_after=0
+[OK]   [4.1] s2 verified
+-- status poll 3: verified_after=0
+[OK]   [4.1] s3 verified
+live: fds=11 rss_kb=6084 comps=9 scopes=3 drs=3
+[OK]   [4.1] three scopes for three live sessions (3)
+-- residue poll: clean_after=0
+[OK]   [4.1] zero scope dirs after all closes (0)
+[OK]   [4.1] zero compositors after all closes (0)
+[OK]   [4.1] zero session runtime dirs after all closes (0)
+[OK]   [4.1] list empty after the burst
+SNAP burst1 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [4.1] manager fds back at baseline+4 after the burst (11 <= 15)
+
+===================================================================
+## [4.2] three concurrent sessions
+===================================================================
+ids: d20a37eb-0900-46f1-8c91-51482f150af7 015ce22b-a7ad-47b2-9a72-abdebb0e9b34 745dc6d2-fd60-4792-b705-5af3224b9077 rcs=0/0/0
+[OK]   [4.2] three creates (000)
+-- status poll 1: verified_after=0
+[OK]   [4.2] s1 verified
+-- status poll 2: verified_after=0
+[OK]   [4.2] s2 verified
+-- status poll 3: verified_after=0
+[OK]   [4.2] s3 verified
+live: fds=11 rss_kb=6084 comps=9 scopes=3 drs=3
+[OK]   [4.2] three scopes for three live sessions (3)
+-- residue poll: clean_after=0
+[OK]   [4.2] zero scope dirs after all closes (0)
+[OK]   [4.2] zero compositors after all closes (0)
+[OK]   [4.2] zero session runtime dirs after all closes (0)
+[OK]   [4.2] list empty after the burst
+SNAP burst2 pid=51 fds=11 threads=14 rss_kb=6084 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [4.2] manager fds back at baseline+4 after the burst (11 <= 15)
+
+===================================================================
+## [4.3] three concurrent sessions
+===================================================================
+ids: 5ac8bce6-4780-4301-bd44-6c93addb9128 50e6062f-b7a4-40ab-a9e6-2acfc2e8130e 5bcdc954-d2a9-4041-8132-6158edbfc1d5 rcs=0/0/0
+[OK]   [4.3] three creates (000)
+-- status poll 1: verified_after=0
+[OK]   [4.3] s1 verified
+-- status poll 2: verified_after=0
+[OK]   [4.3] s2 verified
+-- status poll 3: verified_after=0
+[OK]   [4.3] s3 verified
+live: fds=11 rss_kb=6088 comps=9 scopes=3 drs=3
+[OK]   [4.3] three scopes for three live sessions (3)
+-- residue poll: clean_after=0
+[OK]   [4.3] zero scope dirs after all closes (0)
+[OK]   [4.3] zero compositors after all closes (0)
+[OK]   [4.3] zero session runtime dirs after all closes (0)
+[OK]   [4.3] list empty after the burst
+SNAP burst3 pid=51 fds=11 threads=14 rss_kb=6096 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [4.3] manager fds back at baseline+4 after the burst (11 <= 15)
+
+===================================================================
+## [4.4] three concurrent sessions
+===================================================================
+ids: 156e3928-0b90-4e8c-86b1-7be21d6fdc23 cc2a15ef-61b6-41bf-b084-22dd1c033c03 7462dee1-0ebf-4403-88f1-5adb43ac1796 rcs=0/0/0
+[OK]   [4.4] three creates (000)
+-- status poll 1: verified_after=0
+[OK]   [4.4] s1 verified
+-- status poll 2: verified_after=0
+[OK]   [4.4] s2 verified
+-- status poll 3: verified_after=0
+[OK]   [4.4] s3 verified
+live: fds=11 rss_kb=6096 comps=9 scopes=3 drs=3
+[OK]   [4.4] three scopes for three live sessions (3)
+-- residue poll: clean_after=0
+[OK]   [4.4] zero scope dirs after all closes (0)
+[OK]   [4.4] zero compositors after all closes (0)
+[OK]   [4.4] zero session runtime dirs after all closes (0)
+[OK]   [4.4] list empty after the burst
+SNAP burst4 pid=51 fds=11 threads=14 rss_kb=6096 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [4.4] manager fds back at baseline+4 after the burst (11 <= 15)
+
+===================================================================
+## [4.5] three concurrent sessions
+===================================================================
+ids: c8c6dcfb-51af-44ce-82a0-82f9b87c2d1c e32be616-a2f3-49bc-8715-bc375bc1e405 8a0b1c78-9c72-453d-b5c8-868cefd69fa8 rcs=0/0/0
+[OK]   [4.5] three creates (000)
+-- status poll 1: verified_after=0
+[OK]   [4.5] s1 verified
+-- status poll 2: verified_after=0
+[OK]   [4.5] s2 verified
+-- status poll 3: verified_after=0
+[OK]   [4.5] s3 verified
+live: fds=11 rss_kb=6096 comps=9 scopes=3 drs=3
+[OK]   [4.5] three scopes for three live sessions (3)
+-- residue poll: clean_after=0
+[OK]   [4.5] zero scope dirs after all closes (0)
+[OK]   [4.5] zero compositors after all closes (0)
+[OK]   [4.5] zero session runtime dirs after all closes (0)
+[OK]   [4.5] list empty after the burst
+SNAP burst5 pid=51 fds=11 threads=14 rss_kb=6096 comps=0 scopes=0 drs=0 daiorama=1
+[OK]   [4.5] manager fds back at baseline+4 after the burst (11 <= 15)
+
+===================================================================
+## [5] RSS ceiling (loose) and end-state
+===================================================================
+rss_kb baseline=5696 end=6096 growth_mb=0
+[OK]   [5] manager RSS growth <= 96 MB (0 <= 96)
+end_rc=0 stopped manager (pid 51)
+[OK]   [5] daemon end (rc=0)
+-- compositors: 0
+-- scopes: 0
+-- dr dirs: 0
+-- daiorama procs: 0
+[OK]   [5] no compositors after end (0)
+[OK]   [5] no scope dirs after end (0)
+[OK]   [5] no session runtime dirs after end (0)
+[OK]   [5] no daiorama processes after end (0)
+
+FAILS=0
+RUN-E-DONE
+SCRIPT_RC=0
+RUN-E-ALL-DONE

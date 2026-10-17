@@ -1,0 +1,413 @@
+info: downloading 2 components
+== fmt check
+FMT_RC=0
+== clippy
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded anstream v1.0.0
+  Downloaded itoa v1.0.18
+  Downloaded anstyle v1.0.14
+  Downloaded clap_derive v4.6.7
+  Downloaded quote v1.0.47
+  Downloaded serde v1.0.229
+  Downloaded cfg-if v1.0.5
+  Downloaded utf8parse v0.2.2
+  Downloaded errno v0.3.14
+  Downloaded tokio-macros v2.7.2
+  Downloaded typeid v1.0.3
+  Downloaded is_terminal_polyfill v1.70.2
+  Downloaded pin-project-lite v0.2.17
+  Downloaded strsim v0.11.1
+  Downloaded syn v3.0.9
+  Downloaded anstyle-query v1.1.5
+  Downloaded colorchoice v1.0.5
+  Downloaded heck v0.5.0
+  Downloaded signal-hook-registry v1.4.8
+  Downloaded clap_lex v1.1.1
+  Downloaded zmij v1.0.23
+  Downloaded anstyle-parse v1.0.0
+  Downloaded fastrand v2.5.0
+  Downloaded proc-macro2 v1.0.107
+  Downloaded serde_derive v1.0.229
+  Downloaded tempfile v3.27.0
+  Downloaded getrandom v0.4.3
+  Downloaded bytes v1.12.1
+  Downloaded once_cell v1.21.4
+  Downloaded socket2 v0.6.5
+  Downloaded unicode-ident v1.0.27
+  Downloaded bitflags v2.13.2
+  Downloaded serde_json v1.0.154
+  Downloaded uuid v1.28.0
+  Downloaded serde_core v1.0.229
+  Downloaded memchr v2.8.3
+  Downloaded mio v1.2.4
+  Downloaded ron v0.12.2
+  Downloaded clap_builder v4.6.7
+  Downloaded rustix v1.1.5
+  Downloaded clap v4.6.7
+  Downloaded libc v0.2.190
+  Downloaded tokio v1.53.3
+  Downloaded linux-raw-sys v0.12.1
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling libc v0.2.190
+   Compiling unicode-ident v1.0.27
+   Compiling serde_core v1.0.229
+   Compiling getrandom v0.4.3
+    Checking utf8parse v0.2.2
+   Compiling zmij v1.0.23
+   Compiling serde v1.0.229
+   Compiling typeid v1.0.3
+    Checking cfg-if v1.0.5
+    Checking is_terminal_polyfill v1.70.2
+    Checking colorchoice v1.0.5
+    Checking anstyle-parse v1.0.0
+    Checking anstyle-query v1.1.5
+    Checking anstyle v1.0.14
+   Compiling serde_json v1.0.154
+    Checking once_cell v1.21.4
+   Compiling heck v0.5.0
+    Checking strsim v0.11.1
+   Compiling rustix v1.1.5
+    Checking clap_lex v1.1.1
+    Checking anstream v1.0.0
+    Checking memchr v2.8.3
+    Checking itoa v1.0.18
+    Checking linux-raw-sys v0.12.1
+    Checking pin-project-lite v0.2.17
+    Checking bytes v1.12.1
+    Checking fastrand v2.5.0
+    Checking clap_builder v4.6.7
+   Compiling syn v3.0.9
+    Checking errno v0.3.14
+    Checking socket2 v0.6.5
+    Checking mio v1.2.4
+    Checking signal-hook-registry v1.4.8
+    Checking uuid v1.28.0
+    Checking bitflags v2.13.2
+   Compiling serde_derive v1.0.229
+   Compiling tokio-macros v2.7.2
+   Compiling clap_derive v4.6.7
+    Checking tempfile v3.27.0
+    Checking tokio v1.53.3
+    Checking clap v4.6.7
+    Checking ron v0.12.2
+    Checking daiorama v0.1.0 (/src)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 14.42s
+CLIPPY_RC=0
+== test
+   Compiling unicode-ident v1.0.27
+   Compiling libc v0.2.190
+   Compiling utf8parse v0.2.2
+   Compiling cfg-if v1.0.5
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling colorchoice v1.0.5
+   Compiling anstyle-query v1.1.5
+   Compiling anstyle v1.0.14
+   Compiling serde_core v1.0.229
+   Compiling strsim v0.11.1
+   Compiling clap_lex v1.1.1
+   Compiling once_cell v1.21.4
+   Compiling typeid v1.0.3
+   Compiling zmij v1.0.23
+   Compiling pin-project-lite v0.2.17
+   Compiling anstyle-parse v1.0.0
+   Compiling memchr v2.8.3
+   Compiling proc-macro2 v1.0.107
+   Compiling bytes v1.12.1
+   Compiling linux-raw-sys v0.12.1
+   Compiling itoa v1.0.18
+   Compiling anstream v1.0.0
+   Compiling fastrand v2.5.0
+   Compiling clap_builder v4.6.7
+   Compiling quote v1.0.47
+   Compiling syn v3.0.9
+   Compiling errno v0.3.14
+   Compiling getrandom v0.4.3
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.4
+   Compiling signal-hook-registry v1.4.8
+   Compiling uuid v1.28.0
+   Compiling bitflags v2.13.2
+   Compiling serde_json v1.0.154
+   Compiling rustix v1.1.5
+   Compiling serde_derive v1.0.229
+   Compiling clap_derive v4.6.7
+   Compiling tokio-macros v2.7.2
+   Compiling tokio v1.53.3
+   Compiling tempfile v3.27.0
+   Compiling clap v4.6.7
+   Compiling serde v1.0.229
+   Compiling ron v0.12.2
+   Compiling daiorama v0.1.0 (/src)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.23s
+     Running unittests src/main.rs (target/debug/deps/daiorama-abc6691844a919d8)
+
+running 170 tests
+test cli::doctor::tests::install_rows_resolve_per_system ... ok
+test cli::daemon::tests::end_refusal_names_the_force_escape ... ok
+test cli::doctor::tests::range_check_semantics ... ok
+test cli::doctor::tests::report_renders_wayland_and_containment_edge_shapes ... ok
+test cli::doctor::tests::report_renders_missing_and_out_of_range ... ok
+test cli::doctor::tests::version_token_scanning ... ok
+test cli::doctor::tests::report_renders_the_healthy_shape ... ok
+test cli::serve::tests::session_subtree_resolves_under_the_probes_cgroup_dir ... ok
+test cli::tests::cold_answer_shape_is_pinned ... ok
+test cli::serve::tests::refusal_carries_the_fixture_contract_exactly ... ok
+test cli::serve::tests::instance_id_persists_at_0600 ... ok
+test cli::tests::config_reload_line_names_applied_keys ... ok
+test cli::tests::config_set_line_states_reload_or_restart ... ok
+test cli::serve::tests::enabled_plan_without_a_resolved_subtree_skips_the_cgroupfs ... ok
+test cli::tests::control_arguments_are_typed_per_the_schema ... ok
+test cli::tests::manager_program_defaults_to_this_binary ... ok
+test config::tests::authority_is_client_local_for_client_keys_only ... ok
+test cli::tests::start_failure_reads_the_last_envelope_line ... ok
+test cli::serve::tests::off_mode_proceeds_with_the_notice_and_never_probes ... ok
+test cli::serve::tests::enabled_plan_prepares_the_resolved_subtree_and_arms_the_sweep ... ok
+test config::tests::defaults_match_the_pinned_04_table ... ok
+test cli::tests::renderers_cover_the_pinned_shapes ... ok
+test config::tests::effective_view_lists_every_key_and_each_scope ... ok
+test config::tests::paths_follow_the_08_table ... ok
+test config::tests::config_round_trips_through_ron ... ok
+test config::tests::get_set_round_trip_for_every_key ... ok
+test config::tests::scope_files_validate_names_and_quotas ... ok
+test cli::serve::tests::loser_exits_cleanly_when_a_manager_answers ... ok
+test config::tests::the_pinned_input_category_names_are_registered ... ok
+test config::tests::unknown_keys_are_load_errors_listing_the_valid_names ... ok
+test config::tests::config_files_are_written_0600_and_load_back ... ok
+test config::tests::value_grammar_parses_durations_enums_toggles_and_ints ... ok
+test config::tests::version_is_checked_with_a_migration_message ... ok
+test ipc::tests::addresses_parse_per_the_one_flag_one_meaning_rule ... ok
+test config::tests::starter_files_are_valid_and_commented ... ok
+test config::tests::scope_secrets_are_per_scope_files_at_0600 ... ok
+test ipc::tests::envelopes_carry_the_pinned_04_strings ... ok
+test ipc::tests::codes_round_trip_through_the_wire_form ... ok
+test ipc::tests::error_envelope_shape_is_pinned ... ok
+test ipc::tests::handshake_ranges_follow_the_overlap_rule_and_its_edge_cases ... ok
+test ipc::tests::error_code_enum_is_exhaustive_against_the_frozen_doc ... ok
+test config::tests::token_file_is_0600_and_rotatable ... ok
+test ipc::tests::idempotency_key_bounds_are_enforced ... ok
+test ipc::tests::omitted_min_supported_defaults_to_the_protocol_version ... ok
+test ipc::tests::frames_are_newline_delimited_and_blank_lines_are_skipped ... ok
+test ipc::tests::ensure_runtime_dir_creates_0700_directories ... ok
+test ipc::tests::protocol_versions_parse_strictly ... ok
+test ipc::tests::request_frame_round_trips_with_and_without_optional_fields ... ok
+test ipc::tests::socket_paths_follow_08_including_the_fallback ... ok
+test ipc::tests::response_frame_round_trips_and_rejects_foreign_shapes ... ok
+test config::tests::save_replaces_atomically_and_leaves_no_temp_litter ... ok
+test ipc::tests::unreachable_addresses_present_the_shared_string ... ok
+test manager::tests::bind_refuses_to_steal_a_live_socket ... ok
+test manager::tests::dead_sessions_do_not_count_against_quotas ... ok
+test manager::tests::a_duplicate_handshake_is_refused_then_the_connection_ends ... ok
+test manager::tests::a_non_utf8_line_is_refused_then_the_connection_ends ... ok
+test manager::tests::limits_disabled_notice_is_honest_about_the_cost ... ok
+test manager::tests::a_refused_handshake_ends_the_connection ... ok
+test manager::tests::session_records_serialize_to_the_pinned_05_shape ... ok
+test manager::tests::session_spec_defaults_are_the_pinned_ones ... ok
+test manager::tests::startup_gate_matches_the_containment_classes ... ok
+test manager::tests::state_machine_transitions_carry_the_distinct_codes ... ok
+test manager::tests::tombstone_window_bounds_the_distinct_codes ... ok
+test manager::tests::view_down_is_not_session_dead ... ok
+test manager::tests::listener_serves_handshake_then_dispatches ... ok
+test mcp::listen::tests::a_dribbled_head_dies_at_the_head_deadline ... ok
+test mcp::listen::tests::an_idle_connection_waits_on_the_progress_bound ... ok
+test mcp::listen::tests::content_length_is_one_star_digit ... ok
+test mcp::listen::tests::origin_must_match_the_host_authority ... ok
+test mcp::listen::tests::request_heads_parse_and_reject_non_http ... ok
+test mcp::listen::tests::secrets_compare_exactly_and_bound ... ok
+test mcp::listen::tests::smuggling_head_shapes_are_malformed ... ok
+test mcp::listen::tests::transport_refusals_are_pinned ... ok
+test mcp::server::tests::create_arguments_split_the_frame_level_idempotency_key ... ok
+test mcp::server::tests::declared_revision_reads_the_namespaced_meta_key ... ok
+test mcp::server::tests::discover_answers_the_modern_result_shape ... ok
+test mcp::listen::tests::network_refusals_are_pinned_in_the_fixture_readme ... ok
+test mcp::server::tests::initialize_echoes_a_handshake_revision_and_falls_back_to_the_modern_one ... ok
+test manager::tests::frame_contract_refusals_match_the_fixture_readme ... ok
+test mcp::server::tests::modern_requests_get_the_modern_result_envelope ... ok
+test mcp::server::tests::unknown_tool_name_is_a_bad_request_string ... ok
+test mcp::tests::capabilities_payload_shows_the_always_on_set ... ok
+test mcp::tests::content_blocks_follow_the_content_type_rule ... ok
+test mcp::server::tests::exposed_manifest_is_deny_by_default_plus_the_always_on_set ... ok
+test mcp::tests::json_rpc_types_round_trip ... ok
+test mcp::tests::revision_and_error_code_are_pinned ... ok
+test mcp::tests::input_tool_schemas_pin_their_arguments ... ok
+test mcp::tests::tool_errors_carry_the_shared_envelope_structurally ... ok
+test mcp::tests::unsupported_version_maps_to_version_incompatible_with_both_pairs ... ok
+test mcp::tests::tool_definitions_cover_the_registry_and_always_on_set ... ok
+test runtime::containment::tests::already_delegated_scope_confirms_without_prep ... ok
+test runtime::containment::tests::delegated_scope_path_selects_the_scope_dir ... ok
+test runtime::containment::tests::keeper_prepared_container_reentry_manages_the_namespace_root ... ok
+test runtime::containment::tests::real_box_probe ... ignored, touches the real cgroupfs; run explicitly
+test runtime::containment::tests::keeper_shaped_path_without_the_roots_controllers_stays_the_child ... ok
+test runtime::containment::tests::self_cgroup_parsing ... ok
+test runtime::containment::tests::session_subtree_lives_under_the_manager_cgroup ... ok
+test runtime::containment::tests::missing_hierarchy_is_class_one ... ok
+test runtime::containment::tests::subtree_control_parsing ... ok
+test runtime::containment::tests::unwritable_cgroupfs_is_class_one ... ok
+test runtime::containment::tests::write_error_mapping_matches_the_pinned_wording ... ok
+test runtime::containment::tests::sweep_is_a_noop_without_a_subtree_and_skips_non_scopes ... ok
+test runtime::service::tests::close_kills_then_removes_and_closed_is_final ... ok
+test runtime::service::tests::close_of_a_dead_session_is_allowed ... ok
+test runtime::service::tests::config_get_reads_the_file_and_refuses_client_local_keys ... ok
+test runtime::service::tests::config_reload_applies_clean_keys_and_reports_restart_only_ones ... ok
+test cli::tests::clap_surface_parses_every_pinned_command ... ok
+test runtime::service::tests::config_reload_refuses_an_invalid_or_missing_file_and_applies_nothing ... ok
+test runtime::service::tests::config_reload_reports_token_drift_as_restart_only ... ok
+test runtime::service::tests::config_set_refuses_invalid_values_client_local_and_unknown_keys ... ok
+test runtime::service::tests::create_defaults_apply_when_params_are_absent ... ok
+test runtime::service::tests::config_set_writes_the_file_and_leaves_the_snapshot_until_reload ... ok
+test runtime::service::tests::create_propagates_spawner_refusals_and_leaves_no_record ... ok
+test runtime::service::tests::create_records_the_creation_renderer_mark_the_spawner_reports ... ok
+test runtime::service::tests::create_rejects_malformed_params_with_bad_request ... ok
+test runtime::service::tests::create_returns_the_pinned_05_session_shape ... ok
+test runtime::service::tests::create_passes_the_live_allow_software_flag_to_the_spawner ... ok
+test runtime::service::tests::create_with_view_is_refused_provisionally_and_spawns_nothing ... ok
+test runtime::service::tests::dispatch_refuses_unknown_and_unbuilt_names_by_class ... ok
+test runtime::service::tests::drain_refuses_new_sessions_with_the_pinned_string ... ok
+test runtime::service::tests::drain_remaining_follows_closes_and_stays_active_at_zero ... ok
+test runtime::service::tests::lifecycle_over_a_real_socket ... ok
+test runtime::service::tests::list_pages_with_limit_cursor_and_the_provisional_default ... ok
+test runtime::service::tests::no_parameter_methods_refuse_stray_parameters ... ok
+test runtime::service::tests::per_scope_quota_comes_from_that_scopes_file ... ok
+test runtime::service::tests::real_chain_lifecycle_verbs ... ignored, real chain: needs the L1 image (mutter + Hyprland + render node)
+test runtime::service::tests::rfc3339_rendering_is_exact ... ok
+test runtime::service::tests::scope_carriage_records_the_caller_and_gates_visibility ... ok
+test runtime::service::tests::scope_quota_from_the_scope_file_is_enforced_with_its_numbers ... ok
+test runtime::service::tests::session_status_walks_the_registry_gates ... ok
+test runtime::service::tests::status_and_readiness_read_the_live_registry ... ok
+test cli::serve::tests::lock_is_exclusive_and_released_by_drop ... ok
+test runtime::spawner::tests::containment_defaults_to_off_for_existing_callers ... ok
+test runtime::spawner::tests::containment_on_with_an_absent_subtree_fails_the_spawn_cleanly ... ok
+test runtime::spawner::tests::forker_forks_on_its_own_named_thread ... ok
+test manager::tests::frame_cap_refuses_oversized_frames_and_is_exact_at_the_boundary ... ok
+test runtime::service::tests::a_create_that_queued_past_drain_is_refused_before_it_spawns ... ok
+test runtime::service::tests::concurrent_config_sets_keep_both_keys ... ok
+test runtime::spawner::tests::health_unknown_session_is_none ... ok
+test ipc::tests::tcp_addresses_require_the_token_before_dialing ... ok
+test runtime::spawner::tests::kill_tree_unknown_session_is_session_not_found ... ok
+test cli::serve::tests::startup_sweep_clears_stale_scopes_before_binding ... ok
+test runtime::spawner::tests::pdeathsig_witness ... ignored, witness for real_containment_chain; kills its own process by design
+test runtime::spawner::tests::pep_fails_the_spawn_when_the_scope_join_is_impossible ... ok
+test runtime::spawner::tests::real_containment_chain ... ignored, real cgroupfs + real compositors: run in the privileged L1 container
+test runtime::spawner::tests::real_renderer_gate ... ignored, real compositors: run in the privileged L1 container
+test runtime::spawner::tests::renderer_detection_reads_the_evidence_log_shape ... ok
+test runtime::spawner::tests::renderer_gate_defaults_are_bounded ... ok
+test runtime::spawner::tests::runtime_dir_picker_skips_deep_candidates_and_refuses_when_none_fit ... ok
+test runtime::spawner::tests::scope_path_selection_follows_containment_and_the_id ... ok
+test runtime::service::tests::drain_waits_for_an_in_flight_create_and_counts_it ... ok
+test cli::serve::tests::stale_socket_is_replaced ... ok
+test ipc::tests::read_side_is_frame_capped ... ok
+test runtime::spawner::tests::geometry_readback_accepts_a_matching_report_and_the_conf_opts_out ... ok
+test runtime::spawner::tests::health_reports_degraded_when_the_compositor_goes_silent ... ok
+test runtime::spawner::tests::spawn_allows_a_software_renderer_when_the_override_is_on ... ok
+test strings::tests::answers_and_variants_match_the_doc ... ok
+test strings::tests::every_pinned_04_string_matches_the_frozen_doc ... ok
+test strings::tests::report_line_and_error_form ... ok
+test cli::serve::tests::run_serves_the_whole_stack_and_cleans_up ... ok
+test runtime::spawner::tests::spawn_marks_a_detected_gpu_renderer_verified ... ok
+test config::tests::concurrent_updates_keep_every_key ... ok
+test runtime::spawner::tests::spawn_refuses_a_software_renderer_with_the_pinned_string_and_cleans_up ... ok
+test runtime::spawner::tests::spawn_falls_back_to_a_short_base_when_the_configured_one_is_deep ... ok
+test runtime::spawner::tests::spawn_readiness_and_teardown_with_stubs ... ok
+test runtime::spawner::tests::health_walks_running_to_dead_when_the_child_dies ... ok
+test runtime::spawner::tests::spawn_without_a_renderer_line_stays_unverified ... ok
+test runtime::spawner::tests::geometry_readback_refuses_a_divergent_report_and_cleans_up ... ok
+test runtime::spawner::tests::child_timeout_kills_the_parent_too ... ok
+test runtime::spawner::tests::parent_timeout_is_an_error_and_leaves_nothing ... ok
+
+test result: ok. 165 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 3.28s
+
+     Running tests/daemon.rs (target/debug/deps/daemon-cad87d9c631198d2)
+
+running 4 tests
+test two_racers_report_the_winner ... ok
+test daemon_start_then_end_round_trip ... ok
+test drain_round_trip ... ok
+test config_getset_round_trip ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/doctor.rs (target/debug/deps/doctor-b4c7c4ed4b47752e)
+
+running 2 tests
+test doctor_reports_missing_tools_and_stays_an_answer ... ok
+test doctor_reads_fake_tool_versions_both_human_and_json ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/fixtures.rs (target/debug/deps/fixtures-59c0fae964404f2e)
+
+running 27 tests
+test every_scenario_file_is_wired_into_the_suite ... ok
+test close_unknown ... ok
+test close_closed ... ok
+test config_reload_ok ... ok
+test control_unknown_action ... ok
+test cold_no_manager ... ok
+test handshake_ok ... ok
+test list_paged ... ok
+test handshake_version_mismatch ... ok
+test new_host_busy ... ok
+test compositor_death_no_restart ... ok
+test dead_sessions_separate ... ok
+test new_quota_exceeded ... ok
+test new_refused_software_renderer ... ok
+test session_reaped ... ok
+test new_session_ok ... ok
+test remote_unreachable ... ok
+test session_dead_call ... ok
+test status_instance_json ... ok
+test config_getset_ok ... ok
+test state_transitions ... ok
+test tombstone_expired ... ok
+test view_down_session_running ... ok
+test status_session_json ... ok
+test manager_start_limits_off_mode ... ok
+test manager_start_limits_unavailable ... ok
+test frame_verbs ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/mcp.rs (target/debug/deps/mcp-646925d56c41b4c2)
+
+running 7 tests
+test missing_scope_refuses_to_run ... ok
+test ungranted_tool_is_refused_before_the_manager ... ok
+test list_capabilities_reports_the_live_quota ... ok
+test forwarded_calls_carry_scope_and_origin ... ok
+test list_capabilities_reconnects_after_a_manager_restart ... ok
+test handshakes_and_manifest_are_local ... ok
+test null_id_is_refused_while_notifications_stay_silent ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests/mcp_listen.rs (target/debug/deps/mcp_listen-097e4016afe75e0e)
+
+running 22 tests
+test a_relative_config_root_is_not_written_outside_the_temp_root ... ok
+test media_manager_down_is_502 ... ok
+test media_methods_are_get_only ... ok
+test media_ignores_range_and_answers_the_full_body ... ok
+test a_gate_failure_closes_the_connection ... ok
+test media_passes_the_artifact_through ... ok
+test media_malformed_upstream_is_502 ... ok
+test media_path_shapes_never_reach_the_manager ... ok
+test network_mode_refuses_a_remote_manager ... ok
+test notifications_are_accepted_and_never_execute ... ok
+test media_streams_before_the_upstream_finishes ... ok
+test oversized_bodies_are_refused_and_the_connection_ends ... ok
+test network_gate_requires_token_scope_and_secret ... ok
+test origin_must_match_the_host ... ok
+test media_requires_only_the_instance_token ... ok
+test only_post_mcp_is_served ... ok
+test the_identity_gate_answers_before_the_body_is_parsed ... ok
+test tools_list_is_the_authenticated_scopes_manifest ... ok
+test connections_are_reused_across_requests ... ok
+test each_relayed_call_carries_its_own_scope ... ok
+test capability_read_survives_a_manager_restart_over_listen ... ok
+test connection_cap_closes_the_over_cap_socket ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+TEST_RC=0
+GATE_DONE
