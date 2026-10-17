@@ -1,0 +1,145 @@
+===================================================================
+## merged-tip battery — spec/v1 @ 80ea422   (2026-10-17)
+===================================================================
+Tip: 80ea422 ("p4(endpoint): manager.bind TCP surface — per-call token gate, per-request
+scope gate, media token gate; rotation window live test")
+Delta since the last pass (29064df -> 37ea6f9 -> 0c2e7b4 -> 80ea422): the history rotation fix
+(trim after the new segment exists) and the P4-ENDPOINT slice — a TCP surface beside the unix
+socket with the token/scope/scope-token frame gates, credential bootstrap at start, and the
+rotation window enforceable on the wire (15 files, +1525/-89). The retention slice is in
+flight beside this run, so the tip may move after this evidence binds.
+
+Environment: fresh rust:slim container (dai-mtip80ea422), sources touched before building
+(stale-binary guard), CARGO_TARGET_DIR=/tmp/t. Commands are the standard gate set (README:
+bare rust:slim needs `rustup component add rustfmt clippy` first), then the three live legs:
+dispatch-stall, rate-limit, history.
+
+===================================================================
+## [0] raw run
+===================================================================
+== [1] fmt
+fmt_rc=0
+fmt_check_rc=0
+== [2] clippy
+    Checking pin-project-lite v0.2.17
+    Checking bytes v1.12.1
+    Checking fastrand v2.5.0
+    Checking clap_builder v4.6.7
+   Compiling syn v3.0.9
+    Checking errno v0.3.14
+    Checking socket2 v0.6.5
+    Checking mio v1.2.4
+    Checking signal-hook-registry v1.4.8
+    Checking uuid v1.28.0
+    Checking bitflags v2.13.2
+   Compiling serde_derive v1.0.229
+   Compiling clap_derive v4.6.7
+   Compiling tokio-macros v2.7.2
+    Checking tempfile v3.27.0
+    Checking tokio v1.53.3
+    Checking clap v4.6.7
+    Checking ron v0.12.2
+    Checking daiorama v0.1.0 (/src)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.19s
+clippy_rc=0
+== [3] build
+   Compiling ron v0.12.2
+   Compiling daiorama v0.1.0 (/src)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.84s
+build_rc=0
+== [4] tests
+test result: ok. 232 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 3.62s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.19s
+tests_rc=0
+daiorama 0.1.0
+== [5] dispatch-stall
+binary=daiorama-mtip80ea422 label=mtip80ea422
+status_latency_s=0.00 status=running
+create_elapsed_s=[15.02, 30.04, 40.04, 40.04]
+create_answer={"error": {"code": "internal", "message": "mutter parent did not present its wayland socket in time; mutter.log tail: "}}
+create_answer={"error": {"code": "internal", "message": "mutter parent did not present its wayland socket in time; mutter.log tail: "}}
+VERDICT=PASS fast_call_latency_s=0.00
+stall_rc=0
+== [6] rate-limit
+[OK]   [A1] first control call passes the gate ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [A2] second control call passes (burst 2) ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [A3] third control call is rate_limited ({"error": {"code": "rate_limited", "message": "rate limit exceeded for scope \"operator\"", "hint": "retry after 999 ms"}})
+[OK]   [A4] refusal carries a numeric retry-after hint (hint='retry after 999 ms')
+[OK]   [B1] session_status is exempt from the bucket ({"error": {"code": "session_not_found", "message": "session not found", "hint": "list sessions to find one"}})
+[OK]   [B2] screenshot is exempt from the bucket ({"error": {"code": "session_not_found", "message": "session not found", "hint": "list sessions to find one"}})
+[OK]   [C1] a different session has its own burst ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [D1] a refilled bucket passes again ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [E1] paced call passes after its wait ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [E2] the scope file was re-read per call (pace took effect, no restart) (elapsed=0.500s want ~0.50s)
+[OK]   [F1] first call passes ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [F2] a wait past max_wait_ms refuses ({"error": {"code": "rate_limited", "message": "rate limit exceeded for scope \"operator\"", "hint": "retry after 999 ms"}})
+[OK]   [F3] the refused wait did not park the caller (elapsed=0.001s)
+[OK]   [G1] at least one concurrent call passes the gate (passed=3 refused=3 other=0)
+[OK]   [G2] the queue bound refuses rather than parking the whole flood (passed=3 refused=3 other=0)
+[OK]   [G3] every answer arrives inside the parked wait bound (total=2.004s max_call=2.002s)
+FAILS=0
+rate_rc=0
+VERDICT=PASS
+ratelimit_rc=0
+== [7] history
+[OK]   [A1] a cold history answers an empty page ({"result": {"next_cursor": null, "records": []}})
+[OK]   [B1] six control calls wrote six records (n=6)
+[OK]   [B2] records are newest-first (tools=['key_tap', 'pointer_button_up', 'pointer_button_down', 'pointer_click', 'pointer_scroll', 'pointer_move'])
+[OK]   [B3] every record is a tool.call (events=['tool.call'])
+[OK]   [B4] detail carries the tool name only (no arguments) (details=[{'tool': 'key_tap'}, {'tool': 'pointer_button_up'}])
+[OK]   [B5] scope, origin and session id are carried (scope=operator origin=shell)
+[OK]   [B6] `at` is RFC 3339 UTC (at=2026-10-17T17:07:12Z)
+[OK]   [C1] limit 2 pages the six records as 2+2+2 (sizes=[2, 2, 2])
+[OK]   [C2] the pages concatenate to the full newest-first list (tools=['key_tap', 'pointer_button_up', 'pointer_button_down', 'pointer_click', 'pointer_scroll', 'pointer_move'])
+[OK]   [C3] no record repeats across pages (unique=6)
+[OK]   [C4] the last page has no cursor (cursor=None)
+[OK]   [D1] a garbage cursor is bad_request ({"error": {"code": "bad_request", "message": "invalid cursor", "hint": "check the request against 'daiorama <command> --help'"}})
+[OK]   [D2] a cursor without a session_id is bad_request ({"error": {"code": "bad_request", "message": "a cursor requires a session_id", "hint": "check the request against 'daiorama <command> --help'"}})
+[OK]   [E] hostile id '../../etc' is session_not_found ({"error": {"code": "session_not_found", "message": "session not found", "hint": "list sessions to find one"}})
+[OK]   [E] hostile id 's-1/../../s-2' is session_not_found ({"error": {"code": "session_not_found", "message": "session not found", "hint": "list sessions to find one"}})
+[OK]   [E] hostile id '..' is session_not_found ({"error": {"code": "session_not_found", "message": "session not found", "hint": "list sessions to find one"}})
+[OK]   [E] hostile id 'a/b' is session_not_found ({"error": {"code": "session_not_found", "message": "session not found", "hint": "list sessions to find one"}})
+[OK]   [E2] an unknown valid id is session_not_found ({"error": {"code": "session_not_found", "message": "session not found", "hint": "list sessions to find one"}})
+[OK]   [F1] a cross-session read returns both sessions' records (sessions=['s-hist-1', 's-hist-2'] n=8)
+[OK]   [F2] a cross-session read carries no cursor (null)
+[OK]   [F3] the second session's call is present in the cross-session read (tools=['key_tap', 'pointer_button_up', 'pointer_button_down', 'pointer_click', 'pointer_scroll', 'pointer_move', 'key_up', 'key_down'])
+[NOTE] cross-session ordering sorts on `at`, which is second-granular: records written in the same second tie and keep readdir order. In-session order is file order.
+[OK]   [G1] the live session dir is 0700 (0o700)
+[OK]   [G2] the live segment file is 0600 (0o600)
+[OK]   [H0] the rotating call still passes ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [H1] eight segments after rotation (pinned 8 x 4 MiB budget) (segments=8 files=['seg-0001.log', 'seg-0002.log', 'seg-0003.log', 'seg-0004.log', 'seg-0005.log', 'seg-0006.log', 'seg-0007.log', 'seg-0008.log'] total_bytes=4195309)
+[OK]   [H2] the oldest segment is the one dropped (files=['seg-0001.log', 'seg-0002.log', 'seg-0003.log', 'seg-0004.log', 'seg-0005.log', 'seg-0006.log', 'seg-0007.log', 'seg-0008.log'])
+[NOTE] rotation is exercised live by seeding the newest segment at the budget; the assertion is on the file count under the live root, not on the unit-test helper
+[OK]   [I1] the post-rotation record is readable (first={'at': '2026-10-17T17:07:12Z', 'detail': {'tool': 'pointer_move'}, 'event': 'tool.call', 'origin': 'shell', 'scope': 'operator', 'session_id': 's-rot'})
+FAILS=0
+history_rc=0
+ALLDONE
+
+===================================================================
+## Findings
+===================================================================
+1. Gate green on the merged tip: fmt/clippy clean, **232 (+5i) · 7 · 2 · 27 · 7 · 22 · 6
+   network**, 0 failed. The 6 network tests are the new endpoint slice's own end-to-end suite
+   (CLI over --remote, raw-frame gates, media token, malformed bind, connection cap, progress
+   deadline) — the first time it runs beside every earlier slice in one build.
+2. Dispatch-stall L1 re-run: a plain `status` answers in 0.00 s while four creates sit 15-40 s
+   in dispatch (`create_elapsed_s=[15.02, 30.04, 40.04, 40.04]`). The blocking-pool fix still
+   holds with the endpoint slice in.
+3. Rate-limit live leg: unchanged and PASS, FAILS=0 — reject burst with a numeric retry hint,
+   reads/capture exempt, per-session buckets, per-call scope-file read (pace takes effect with
+   no restart), max_wait_ms refusal not parking the caller, six-way flood bounded by refusals.
+4. History live leg: 27/27 assertions pass, FAILS=0. The rotation defect found on the 29064df
+   pass is fixed on the merged tip: after seeding eight segments with the newest at the budget
+   and appending once, **eight** segments remain (1..8, seg-0000 dropped) at 4.19 MiB, and the
+   post-rotation record is readable. Ordering, tool-name-only detail, 2+2+2 cursors, hostile
+   ids, cross-session read and 0700/0600 modes all hold.
+5. No new findings. The endpoint slice is exercised at the contract level by its gate suite;
+   its live raw-socket behaviour was separately driven during the #63 cross-verify.
+
+VERDICT: merged tip gated GREEN on 80ea422 (gates + dispatch-stall + rate-limit + history live
+leg); no new defect; the history rotation fix is live-verified on the merged tree.
