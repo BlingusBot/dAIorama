@@ -25,35 +25,33 @@ authorization, and a headless agent clicks the same session it screenshots.
 
 Verified in the L1 image (`strings /usr/bin/Hyprland`): both managers are compiled in — `zwlr_virtual_pointer_manager_v1` and `zwp_virtual_keyboard_manager_v1` — so the compositor side exists today; nothing in this option depends on a newer Hyprland.
 
-One lazily-opened `wayland-client` connection per session (opened on first input call, closed on
-session end), bound to the session's own `WAYLAND_DISPLAY` / `XDG_RUNTIME_DIR` — the same env the
-manager already owns. No child process per event, so no per-keystroke fork and no argv injection
-surface.
+One `wayland-client` connection **per call**, opened against the session's own `wayland-<n>`
+socket in its runtime dir — stateless, so nothing to pool, drop or leak across sessions. No child
+process per event, so no per-keystroke fork and no argv injection surface; the rate limit bounds
+the connect cost. (A per-session pooled connection is a later optimization, not a v1 need.)
 
 - **Pointer:** `zwlr_virtual_pointer_manager_v1` → `motion_absolute(time, x, y, x_extent,
   y_extent)` for `pointer_move`; `button`; `axis` (wheel lines); `frame` to commit a batch.
-  Extents are the session output size (the screenshot space), read from the compositor at session
-  creation; a resolution change mid-session is out of scope for v1 (documented, and `screenshot`
-  remains the truth for coordinates).
-- **Keyboard:** `zwp_virtual_keyboard_manager_v1` → upload the compositor's keymap once, then send
-  evdev keycodes with `key(state, keycode, time)`. `key_down`/`key_up` are direct; `key_tap` is
-  down+up; `type_text` maps each character to an xkb keysym (`xkb_utf32_to_keysym`), applies
-  level/shift modifiers where the keysym sits on a shifted level, and taps it.
+  `pointer_move` is in **screenshot pixels**; the compositor's absolute space is logical, so the
+  call converts by the session scale (`x_logical = x / scale`) and passes logical extents. Both
+  resolution and scale come from the session record; a resolution change mid-session is out of
+  scope for v1 (documented, and `screenshot` remains the truth for coordinates).
+- **Keyboard:** `zwp_virtual_keyboard_manager_v1` → upload a **built-in US keymap** (the v1
+  contract: one fixed layout, stated), then send evdev keycodes with `key(state, keycode, time)`.
+  `key_down`/`key_up` are direct; `key_tap` is down+up; `type_text` maps each character through
+  the built-in table, applying shift where the character sits on the shifted level, and taps it.
 - **Keys:** `key_tap`/`key_down`/`key_up` accept xkb keysym names (`Return`, `a`, `Shift_L`,
-  `F5`) and resolve through the session keymap; an unknown name is `bad_request` naming the key,
-  never a silent no-op.
-- **Limits:** `type_text` is Latin-capable text, not an IME: characters with no keysym mapping
-  are refused with `bad_request` naming the offset; no clipboard, no compose/IME, no dead keys in
-  v1. Documented in 05 when this lands.
-- **Capability detection:** if the compositor lacks either protocol, `session` creation records
-  an input capability flag and the input methods answer a pinned refusal — **not** a crash and
-  **not** a silent drop. The code and exact string are an open decision below (05's canonical
-  error set is closed; I would reuse `internal` with a fixed message rather than add a code).
+  `F5`) resolved against the built-in US table; an unknown name or a character with no US keymap
+  entry is `bad_request` naming the key/offset, never a silent no-op. No `libxkbcommon` at
+  runtime; the table is data in the binary.
+- **Capability detection:** if the compositor lacks either protocol, the input methods answer
+  the canonical `internal` code with a fixed message naming the missing interface — no silent
+  drop, no new error code (05's set is closed).
 
-Dependencies: `wayland-client` + `xkbcommon` (Rust crates), build-time protocol generation from
-vendored XML (`wayland-scanner`). Static-binary posture: `wayland-sys` can link or `dlopen`;
-whether the release keeps the static claim with a dynamic libwayland is an open item, not a
-blocker for the first landing.
+Dependencies, pinned exactly: `wayland-client` (pure-Rust backend, no `use_system_lib`),
+`wayland-protocols` (client + unstable), `wayland-protocols-wlr` (client); protocol codegen with
+`wayland-scanner` at build time only. No libwayland C dependency at link time — the static-binary
+posture stays.
 
 ## Option B — argv-configured input commands (rejected)
 
@@ -74,16 +72,16 @@ event and still fails `pointer_move`'s contract — rejected on the contract, no
    still screenshots.
 4. Rate leg: the tenth rapid `pointer_move` in a tight bucket answers `rate_exceeded` (`pace`
    mode), and audit carries `tool.call` with no arguments.
-5. Geometry leg: a session at 1280×720 and one at 1920×1080 both land the pointer on the target
-   pixel (extents, not a hardcoded size).
+5. Geometry leg: sessions at 1280×720 and 1920×1080 both land the pointer on the target pixel
+   (extents, not a hardcoded size), plus one **scaled** session (`scale = 2`) where a screenshot
+   pixel maps to a logical coordinate.
 
 ## Open decisions
 
 1. **A vs B** — A recommended; B rejected on `pointer_move` as above.
-2. **Missing-protocol error shape** — reuse `internal` with a fixed message (my preference) vs a
-   new canonical code (05 change).
-3. **Static-link posture** — dynamic libwayland vs `dlopen`; decide when the dependency lands,
-   record in 11 if the static claim changes.
-4. **Geometry source** — compositor output at session creation; resize during a session is out of
+2. **Missing-protocol message** — the exact fixed string (code is `internal`, pinned).
+3. **Geometry source** — compositor output at session creation; resize during a session is out of
    scope in v1 and stated.
-5. **Keysym breadth** — Latin-1 + named keysyms in v1; full Unicode text is a later slice.
+4. **Keysym breadth** — US keymap in v1 (letters, digits, punctuation, named keys, modifiers);
+   other layouts are a later slice and would be a config or per-session keymap, not silent
+   layout detection.
