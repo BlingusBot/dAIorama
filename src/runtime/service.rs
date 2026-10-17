@@ -359,9 +359,9 @@ impl RuntimeService {
         let mut registry = self.registry();
         let _ = registry.close(&id)?;
         drop(registry);
-        // 08: the persisted media directory follows the session's life — closing a session
-        // takes its audit artifacts with it (the URL side died at the fetch).
-        crate::media::drop_session_dir(&self.paths, &id);
+        // 08: persisted media keeps the *same retention as history* — 7 days from session end
+        // (04). Closing a session therefore leaves `<data>/media/<session>/` in place; the
+        // shared retention sweep removes it with the session's history, not before.
         Ok(json!({ "id": id, "state": "closed" }))
     }
 
@@ -1178,6 +1178,13 @@ mod tests {
         let value = create_ok(&service, None);
         let id = value["id"].as_str().unwrap().to_string();
 
+        // 08: an audit artifact persisted before the close must still be there afterwards —
+        // retention follows the history window, not the close.
+        let artifact_dir = service.paths.media_dir().join(&id);
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let artifact = artifact_dir.join("0123456789abcdef0123456789abcdef");
+        std::fs::write(&artifact, b"kept-for-retention").unwrap();
+
         let closed = result(
             &service,
             methods::CLOSE_SESSION,
@@ -1188,6 +1195,11 @@ mod tests {
         assert_eq!(
             spawner.killed.lock().unwrap().as_slice(),
             std::slice::from_ref(&id)
+        );
+
+        assert!(
+            artifact.exists(),
+            "08: closing a session keeps its persisted media for the retention window"
         );
 
         // Second close: the distinct code, not a silent success.
@@ -1217,6 +1229,13 @@ mod tests {
         let id = value["id"].as_str().unwrap().to_string();
         service.registry().reap(&id).unwrap();
 
+        // 08: an audit artifact persisted before the close must still be there afterwards —
+        // retention follows the history window, not the close.
+        let artifact_dir = service.paths.media_dir().join(&id);
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let artifact = artifact_dir.join("0123456789abcdef0123456789abcdef");
+        std::fs::write(&artifact, b"kept-for-retention").unwrap();
+
         let closed = result(
             &service,
             methods::CLOSE_SESSION,
@@ -1224,6 +1243,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(closed["state"], "closed");
+        assert!(
+            artifact.exists(),
+            "08: a dead session's persisted media keeps its retention window too"
+        );
     }
 
     #[test]

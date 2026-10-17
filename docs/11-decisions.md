@@ -658,19 +658,22 @@ already records that a byte-at-a-time client is allowed).
 
 ## Media store — memory-only lifetime, claim-on-open, session-scoped persistence
 
-The manager keeps media entries in memory only: `mint()` (in-process, `pub(crate)`, no RPC and
-no CLI — A8's "no public mint surface") returns a 32-hex UUID id; a fetch claims the id **on
+The manager keeps media entries in memory only: `mint()` — crate-only (a private `mod media`;
+`pub` inside it, with no RPC method and no CLI route — A8's "no public mint surface") — returns
+a 32-hex UUID id; a fetch claims the id **on
 open** (first handle wins; a truncated transfer still consumes it, and later fetches answer the
 same `404 media_expired` as an expired or unknown id); `media.ttl` is read live at fetch/mint
 with a lazy sweep on access; a manager restart drops every entry. `audit.store_clips` writes the
 same already-captured bytes to `<data>/media/<session>/<id>` (0600, per-session 128 MiB cap,
-oldest-first eviction per 08), and session close removes that directory — persistence neither
-resurrects the URL nor survives the session.
+oldest-first eviction per 08). The persisted directory keeps **08's retention window — the same
+as history, seven days from session end (04)**; closing a session leaves it in place, and the
+shared retention sweep removes it with the session's history. Persistence never resurrects the
+URL, and never shortens history's retention.
 
 *Rationale:* the URL is a capability (A8), not a resource id; claim-on-open removes the replay
 window a complete-transfer claim leaves, and the in-process mint keeps every minting caller on
-the runtime side. Session-scoped layout gives 08's per-session cap an owner and lets the existing
-session lifecycle bound retention.
+the runtime side. Session-scoped layout gives 08's per-session cap an owner and lets 08's
+retention window — the one history already uses — bound the artifacts too.
 *Rejected:* a persisted URL registry (a restart would resurrect capabilities); claim-on-complete
 (a truncated transfer would leave the id fetchable); a manager-level media cap (08's unit is the
 session).
