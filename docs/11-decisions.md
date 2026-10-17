@@ -792,7 +792,9 @@ oldest dropped. Retention is **not**: `close`/death write a durable `<session>/.
 media) seven days later — it never infers "ended when" from mtimes. `list_history` follows
 **session** visibility — own scope by default, operator-wide, a stranger's id is
 `session_not_found`; its cursor is opaque and session-scoped (cross-session paging is not
-offered; ask per session).
+offered; ask per session). Session ids are opaque slugs and are validated before any path join —
+a `/`, `..` or non-slug id is the same `session_not_found` as an unknown one, never a filesystem
+walk.
 
 *Rationale:* the record format and the read surface are one owner; deletion policy is another,
 and a timestamp sidecar is the only interface between them. Control arguments stay out of the

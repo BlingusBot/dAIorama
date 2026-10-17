@@ -3232,6 +3232,32 @@ mod tests {
         assert!(!page.to_string().contains("\"x\""), "no control arguments");
     }
 
+    /// Hostile ids and garbage cursors answer the same non-leak class as any unknown id.
+    #[test]
+    fn history_refuses_hostile_ids_and_garbage_cursors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), CoreConfig::default());
+        for hostile in ["../../etc", "s-1/../../s-2", ".."] {
+            let error = result(
+                &service,
+                methods::LIST_HISTORY,
+                Some(json!({ "session_id": hostile })),
+            )
+            .unwrap_err();
+            assert_eq!(error.code, ErrorCode::SessionNotFound, "{hostile:?}");
+        }
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        let error = result(
+            &service,
+            methods::LIST_HISTORY,
+            Some(json!({ "session_id": id, "cursor": "!!!not-base64!!!" })),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::BadRequest);
+        assert_eq!(error.message, "invalid cursor");
+    }
+
     /// View transitions are history too.
     #[test]
     fn view_start_and_stop_are_recorded() {
