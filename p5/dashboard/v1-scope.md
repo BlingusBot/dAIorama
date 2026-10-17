@@ -7,7 +7,8 @@ the artifact exists (marked **Q**); everything else follows from 03/04/05/09/10.
 
 ## What v1 shows
 
-One page, three panes, all pull-only (B10):
+One page, three panes, **control-plane read-only** (B10 reads; the one interactive affordance
+is Open view, below):
 
 1. **Managers** — one row per connection (D3): name, address, `readiness` (state, mode,
    versions, sessions running/dead, drain), last-seen + error when unreachable. A manager is
@@ -20,19 +21,26 @@ One page, three panes, all pull-only (B10):
    same read surface as the CLI). A history record is rendered with scope/origin/cause; bytes
    and counts only — the log has no arguments or media ids by construction (06).
 
-No writes in v1: no create, close, drain, config, screenshot or capture. A dashboard that can
-kill a desktop is a different authorization conversation.
+**Control-plane reads only**: no create, close, drain, config, screenshot or capture — a
+dashboard that can kill a desktop is a different authorization conversation. The one exception
+to "read-only" is Open view, and it is deliberately named as such: **RFB is input, not
+observation**, the front has no read-only mode, and the hand-off runs under the session's own
+view gate (07), not the dashboard's scope.
 
 ## Opening a view
 
 The only action v1 offers is **Open view**: `get_view` for a session, then the browser is
 handed the front URL the manager returned (address + credential). The credential remains the
 view's own bootstrap capability (07); the dashboard does not mint a second auth path and does
-not store the credential. Stopping a view stays a CLI action (`view stop`) in v1.
+not store the credential. The dashboard never proxies the RFB stream — the browser connects to
+the front directly — so the interaction is a window the operator already has via `view`, and
+the call itself still travels under the `dashboard` scope. Stopping a view stays a CLI action
+(`view stop`) in v1.
 
 **Q1 — include Open view in v1?** It makes the dashboard operationally useful (the thing an
 operator actually wants) at the cost of one extra call and a URL hand-off. Recommendation:
-**yes**, with the credential shown only in the link the browser follows.
+**yes**, with the credential shown only in the link the browser follows — and named as an
+interactive affordance rather than described as another read.
 
 ## Server shape
 
@@ -49,8 +57,9 @@ The browser cannot speak the manager frame protocol, so the module ships a small
 **Q2 — bind policy.** 04 defines no dashboard port and no dashboard auth. Recommendation:
 default `127.0.0.1:8760`, and **refuse a non-loopback bind in v1** with a pinned message
 (`dashboard serve is loopback-only in v1; use SSH forwarding`), because the server holds every
-connection token and the UI has no user authentication. Remote humans use SSH forwarding, the
-same rule as the dashboard module's loopback shape in 07's table.
+connection token and the UI has no user authentication. It is an operator-local UI: its only
+control surface is a window the operator already has via `view`. Remote humans use SSH
+forwarding, the same rule as the dashboard module's loopback shape in 07's table.
 
 ## Deferred to a later slice (not v1)
 
