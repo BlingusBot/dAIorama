@@ -240,11 +240,11 @@ async def drill_refusal_visibility(url, env):
     """A credential refusal must reach the client: fast, and carrying its code text."""
     cases = {
         "no token": ({"Daiorama-Scope": SCOPE, "Daiorama-Scope-Token": env.secret},
-                     ("token_required", "scope_auth_required", "scope_unknown")),
+                     ("token required",)),
         "bad token": ({**env.headers(), "Daiorama-Token": "not-a-real-token"},
-                      ("token_required", "scope_auth_required", "scope_unknown")),
+                      ("token required",)),
         "bad scope secret": ({**env.headers(), "Daiorama-Scope-Token": "nope"},
-                             ("token_required", "scope_auth_required", "scope_unknown")),
+                             ("requires its scope secret",)),
         # Control: a 403 refusal (origin) of the same envelope family, with good credentials.
         # It answers a non-200 status, so the client reads the body instead of waiting for an id.
         "control: origin mismatch (403)": ({**env.headers(), "Origin": "http://evil.example"},
@@ -269,6 +269,54 @@ async def drill_refusal_visibility(url, env):
         )
 
 
+def drill_idless_statuses(env):
+    """One raw leg per id-less status: 403 gate, 400 parse, 413 declared size."""
+    host = f"127.0.0.1:{env.port}"
+    good = {"Host": host, **env.headers()}
+    cases = [
+        ("gate refusal answers 403", {"Host": host, "Content-Type": "application/json"},
+         b'{"jsonrpc":"2.0","id":7,"method":"server/discover"}', "403", "token_required"),
+        ("parse error answers 400", {**good, "Content-Type": "application/json"},
+         b"{not json", "400", "parse error"),
+    ]
+    print("\n--- id-less refusals: one leg per status ---")
+    for label, headers, body, status, needle in cases:
+        raw = env.raw("/mcp", headers, body)
+        head, _, payload = raw.partition("\r\n\r\n")
+        ok = (
+            head.startswith(f"HTTP/1.1 {status}")
+            and needle in payload
+            and "connection: close" in head.lower()
+        )
+        check(label, ok, head.splitlines()[0] if head else "?")
+    # Declared-size leg: env.raw() derives Content-Length from the body, so this head is
+    # written by hand (a declared body past the cap, none of it sent).
+    sock = socket.create_connection(("127.0.0.1", env.port), timeout=5.0)
+    head_lines = f"Host: {host}\r\n" + "".join(
+        f"{name}: {value}\r\n" for name, value in env.headers().items()
+    )
+    sock.sendall(
+        (
+            f"POST /mcp HTTP/1.1\r\n{head_lines}"
+            f"Content-Length: {8 * 1024 * 1024 + 1}\r\nConnection: close\r\n\r\n"
+        ).encode()
+    )
+    data = b""
+    while True:
+        chunk = sock.recv(65536)
+        if not chunk:
+            break
+        data += chunk
+    sock.close()
+    head, _, payload = data.partition(b"\r\n\r\n")
+    ok = (
+        head.startswith(b"HTTP/1.1 413")
+        and b"request frame must be at most" in payload
+        and b"connection: close" in head.lower()
+    )
+    check("declared body over cap answers 413", ok, head.split(b"\r\n", 1)[0].decode("latin-1", "replace"))
+
+
 async def main_async(args):
     env = Env(args.bin, args.port)
     url = f"http://127.0.0.1:{args.port}/mcp"
@@ -288,6 +336,7 @@ async def main_async(args):
                                 "Content-Type": "application/json"}, body))
         print()
         await drill_refusal_visibility(url, env)
+        drill_idless_statuses(env)
     finally:
         bridge_log = os.path.join(env.root, "bridge.log")
         env.stop()

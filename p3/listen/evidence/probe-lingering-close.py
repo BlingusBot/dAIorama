@@ -167,7 +167,7 @@ def main():
         for size in (256 * 1024, 1024 * 1024, 4 * 1024 * 1024):
             head = head_of("POST", "/mcp", [f"Host: {host}", f"Daiorama-Token: {token}"], size)
             status, payload, code, sender = probe(size, port, head)
-            ok = ("200" in status) and (len(payload) > 0) and (code in ("token_required",
+            ok = ("200" in status or "403" in status) and (len(payload) > 0) and (code in ("token_required",
                                                                        "scope_auth_required"))
             if size == 4 * 1024 * 1024:
                 print(f"[{'OK' if ok else 'FAIL'}]   4 MiB burst :: {status!r} "

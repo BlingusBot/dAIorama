@@ -121,10 +121,13 @@ Why it matters: the wrong/rotated token is the most common harness misconfigurat
 presents as a 15 s hang ending in `Request 'initialize' timed out` — indistinguishable from a
 dead or overloaded server, with the actionable `token_required` hint discarded.
 
-Proposal (contract change — `05` §bridge and `11` pin `HTTP 200` for gate failures): identity
-gate refusals (`token_required`, `scope_auth_required`, `scope_unknown`, `scope_has_no_secret`)
-answer **`403`** with the *same* envelope body and `Connection: close`, keeping the
-"never an OAuth challenge" rule (401 is the OAuth trigger; 403 is not). The control row shows
-the client then reads the envelope in 0.0 s. Non-gate refusals keep their current statuses.
+Adopted (05 §bridge, 11): an id-less refusal answers its HTTP status with the same envelope and
+`Connection: close` — `403` for the identity gate (`token_required`, `scope_auth_required`,
+`scope_unknown`), `400` for a body parse error, `413` for a declared body over
+`MAX_FRAME_BYTES`. `401` is never used (the OAuth-discovery trigger); the 200 envelope stays for
+refusals that can name the request id. The media endpoint follows the same rule (`403` +
+`token_required`).
 
-`FAILS=3` is F1 and only F1 — the authenticated dogfood legs are green.
+After the fix, this probe is `FAILS=0`: all three credential refusals reach the SDK in **0.0 s**
+with their message text, and the three raw legs show `403` / `400` / `413` with the envelope and
+`Connection: close`.

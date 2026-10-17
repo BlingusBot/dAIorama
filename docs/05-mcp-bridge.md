@@ -79,8 +79,14 @@ endpoint, `POST /mcp`; bodies are `Content-Length`-delimited and bounded by `MAX
 exactly like a stdio frame (over-cap: `bad_request`, connection ends). `Host` is required and
 an `Origin` (when present) must name the same authority as `Host`. Each request carries its
 own credentials (`Daiorama-Token`, `Daiorama-Scope`, `Daiorama-Scope-Token`); the gates run in
-that order before dispatch. Gate failures are MCP-level errors — HTTP 200 with a JSON-RPC error
-whose `data` is the canonical envelope — never an OAuth challenge. A notification that passes
+that order before dispatch. **MCP-level errors ride the 200 envelope only when the request id is
+known.** A refusal that cannot name the id — the head-stage identity gate, a body parse error, a
+declared-size refusal — answers its HTTP status with the same envelope and `Connection: close`:
+`403` for identity-gate refusals (`token_required`, `scope_auth_required`, `scope_unknown`),
+`400` for parse errors, `413` for a declared body over `MAX_FRAME_BYTES`. A request/response
+client matches by id, so a 200 with `"id": null` is unmatchable and presents as a server hang;
+the non-200 status is what makes the refusal visible. `401` is never used — it triggers OAuth
+discovery. A notification that passes
 the gate executes nothing and answers `202` with an empty body. The head is strict where a
 fronting proxy is strict: more than one `Host`, an empty `Host`, whitespace between a field name
 and its colon, a repeated `Content-Length`, or a value that is not `1*DIGIT` are all

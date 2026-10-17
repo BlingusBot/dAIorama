@@ -1,6 +1,6 @@
-bin: ./target/debug/daiorama
-url: http://127.0.0.1:58609/mcp
-manager pid: 147027 bridge pid: 147054
+bin: /tmp/t/debug/daiorama
+url: http://127.0.0.1:18780/mcp
+manager pid: 5386 bridge pid: 5413
 [OK]   SDK connected (discover/initialize negotiated) :: protocol='2026-07-28' server='daiorama'
 [OK]   tools/list validates :: 5 tools: close_session, create_session, list_capabilities, list_sessions, session_status…
 [OK]   list_sessions is advertised :: present
@@ -10,12 +10,12 @@ manager pid: 147027 bridge pid: 147054
 [OK]   two concurrent SDK clients on one bridge both answer :: {"sessions": []} / {"sessions": []}
 
 --- raw shape: gate refusal, no token ---
-HTTP/1.1 200 OK
+HTTP/1.1 403 Forbidden
 Content-Type: application/json
 Content-Length: 408
 Connection: close
 
-{"error":{"code":-32600,"data":{"code":"token_required","hint":"run 'daiorama token show' on the manager host and set DAIORAMA_TOKEN","message":"token required for 127.0.0.1:58609: set DAIORAMA_TOKEN (value from 'daiorama token show' on the manager host)."},"message":"token required for 127.0.0.1:58609: set DAIORAMA_TOKEN (value from 'daiorama token show' on the manager host)."},"id":null,"jsonrpc":"2.0"}
+{"error":{"code":-32600,"data":{"code":"token_required","hint":"run 'daiorama token show' on the manager host and set DAIORAMA_TOKEN","message":"token required for 127.0.0.1:18780: set DAIORAMA_TOKEN (value from 'daiorama token show' on the manager host)."},"message":"token required for 127.0.0.1:18780: set DAIORAMA_TOKEN (value from 'daiorama token show' on the manager host)."},"id":null,"jsonrpc":"2.0"}
 
 --- raw shape: wrong path (a non-200 refusal of the same family) ---
 HTTP/1.1 404 Not Found
@@ -25,16 +25,21 @@ Connection: close
 
 {"error":{"code":-32600,"data":{"code":"bad_request","hint":"check the request against 'daiorama <command> --help'","message":"network bridge serves POST /mcp only"},"message":"network bridge serves POST /mcp only"},"id":null,"jsonrpc":"2.0"}
 
-[FAIL] refusal (no token) reaches the client with its code :: 15.0s: unhandled errors in a TaskGroup (1 sub-exception) | unhandled errors in a TaskGroup (1 sub-exception) | Request 'initialize' timed out
-[FAIL] refusal (bad token) reaches the client with its code :: 15.0s: unhandled errors in a TaskGroup (1 sub-exception) | unhandled errors in a TaskGroup (1 sub-exception) | Request 'initialize' timed out
-[FAIL] refusal (bad scope secret) reaches the client with its code :: 15.0s: unhandled errors in a TaskGroup (1 sub-exception) | unhandled errors in a TaskGroup (1 sub-exception) | Request 'initialize' timed out
+[OK]   refusal (no token) reaches the client with its code :: 0.0s: unhandled errors in a TaskGroup (1 sub-exception) | unhandled errors in a TaskGroup (1 sub-exception) | token required for 127.0.0.1:18780: set DAIORAMA_TOKEN (value from 'daiorama token show' on the manager host).
+[OK]   refusal (bad token) reaches the client with its code :: 0.0s: unhandled errors in a TaskGroup (1 sub-exception) | unhandled errors in a TaskGroup (1 sub-exception) | token required for 127.0.0.1:18780: set DAIORAMA_TOKEN (value from 'daiorama token show' on the manager host).
+[OK]   refusal (bad scope secret) reaches the client with its code :: 0.0s: unhandled errors in a TaskGroup (1 sub-exception) | unhandled errors in a TaskGroup (1 sub-exception) | scope "operator" requires its scope secret (Daiorama-Scope-Token header)
 [OK]   refusal (control: origin mismatch (403)) reaches the client with its code :: 0.0s: unhandled errors in a TaskGroup (1 sub-exception) | unhandled errors in a TaskGroup (1 sub-exception) | origin not allowed: "http://evil.example"
+
+--- id-less refusals: one leg per status ---
+[OK]   gate refusal answers 403 :: HTTP/1.1 403 Forbidden
+[OK]   parse error answers 400 :: HTTP/1.1 400 Bad Request
+[OK]   declared body over cap answers 413 :: HTTP/1.1 413 Payload Too Large
 
 --- bridge stderr (tail) ---
 wrote <tmp>/data/daiorama/default/token (mode 0600); 'daiorama token show' prints the value
 wrote <tmp>/data/daiorama/default/scope-tokens/agent1 (scope secret, mode 0600)
 wrote <tmp>/data/daiorama/default/scope-tokens/agent2 (scope secret, mode 0600)
-listening on 127.0.0.1:58609
+listening on 127.0.0.1:18780
 [OK]   no token/secret material in bridge stderr
 
-FAILS=3
+FAILS=0
