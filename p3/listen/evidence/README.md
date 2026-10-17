@@ -87,3 +87,44 @@ All refusal classes, 4 MiB body in flight (`delivered` = the refusal's JSON body
 | 400 invalid Content-Length | 0 | 232 |
 
 Delivered: **0/9 before, 9/9 after**.
+
+## probe-sdk-http.txt — the listener under a real MCP client SDK (dogfood)
+
+Every probe above speaks raw HTTP/1.1 by hand, so none of them can see what an actual harness
+sees. `probe-sdk-http.py` points the published Python client (`mcp==2.3.0`, `mode='auto'` —
+discover first, then the initialize handshake) at a live `daiorama mcp --listen` and drives the
+calls a harness makes, with two SDK clients on two scopes sharing one bridge.
+
+    mcpvenv/bin/python p3/listen/evidence/probe-sdk-http.py --bin target/debug/daiorama
+
+Green: the SDK connects (`protocol='2026-07-28'`, `server='daiorama'`), `tools/list` validates
+(5 tools), `tools/call list_sessions` and `list_capabilities` relay, two concurrent scoped
+clients both answer, and no credential material reaches bridge stderr.
+
+### F1 — a credential refusal is invisible to a real client
+
+| Refusal | Status / body on the wire | What the SDK reports |
+|---|---|---|
+| no token | `200`, envelope `token_required`, **`"id": null`** | **15.0 s**, `Request 'initialize' timed out` |
+| bad token | same | **15.0 s**, `Request 'initialize' timed out` |
+| bad scope secret | same | **15.0 s**, `Request 'initialize' timed out` |
+| control: origin mismatch | `403`, envelope `origin not allowed` | **0.0 s**, `origin not allowed: "http://evil.example"` |
+
+The gate runs on the head alone (11 §"The identity gate answers before the body is read"), so it
+has no request id to echo: it answers `200` with a JSON-RPC error whose `id` is `null`. A raw
+socket reads the envelope and is happy; a real client matches responses by id, cannot match
+`null`, and waits for its own read timeout — the `token_required` text never reaches it. The
+control line is the shape that works: a non-200 status makes the client read the body, so the
+same envelope arrives instantly.
+
+Why it matters: the wrong/rotated token is the most common harness misconfiguration, and it
+presents as a 15 s hang ending in `Request 'initialize' timed out` — indistinguishable from a
+dead or overloaded server, with the actionable `token_required` hint discarded.
+
+Proposal (contract change — `05` §bridge and `11` pin `HTTP 200` for gate failures): identity
+gate refusals (`token_required`, `scope_auth_required`, `scope_unknown`, `scope_has_no_secret`)
+answer **`403`** with the *same* envelope body and `Connection: close`, keeping the
+"never an OAuth challenge" rule (401 is the OAuth trigger; 403 is not). The control row shows
+the client then reads the envelope in 0.0 s. Non-gate refusals keep their current statuses.
+
+`FAILS=3` is F1 and only F1 — the authenticated dogfood legs are green.
