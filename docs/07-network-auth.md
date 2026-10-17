@@ -13,7 +13,7 @@ the view-port gate had no enforcer).
 | MCP bridge, network mode | loopback (`127.0.0.1:8757`) | instance token **and** per-request scope auth (below) |
 | view front (noVNC + proxy to wayvnc) | loopback | per-view credential derived from the instance token (HMAC, below), enforced by the front itself |
 | dashboard | loopback | **v1 refuses non-loopback binds** (remote humans use SSH forwarding or an overlay network); its manager connections carry per-connection tokens |
-| media endpoint (`/media/<id>`) | on the manager surface; the bridge relays `/media/*` pass-through for network-bridge calls | the 128-bit opaque id **is** the credential (capability URL); ids never logged |
+| media endpoint (`/media/<id>`) | on the manager surface; the bridge relays `/media/*` pass-through for network-bridge calls (instance token only at the listener; scope headers are not part of a media fetch) | the 128-bit opaque id **is** the credential (capability URL); ids never logged |
 | unix socket | filesystem permissions only | — (stays tokenless, ever) |
 
 ## The exposure rule (one, everywhere)

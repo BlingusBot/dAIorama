@@ -131,6 +131,12 @@ pub const MISSING_HOST: &str = "missing Host header";
 /// The HTTP body is length-delimited exactly like a stdio frame.
 pub const CHUNKED_UNSUPPORTED: &str = "chunked request bodies are not supported";
 
+/// 05 A8: `/media/<id>` is a fetch, not an RPC — GET only.
+pub const MEDIA_GET_ONLY: &str = "media fetches are GET only";
+/// 05 A8: the manager's media answer had no `Content-Length` (or was chunked): the bridge
+/// refuses to guess where the body ends rather than reinterpret the framing.
+pub const MEDIA_UPSTREAM_MALFORMED: &str = "media upstream answered without a Content-Length";
+
 /// 05 §The bridge: HTTP transport refusals, pinned so a harness sees stable text.
 pub const HEAD_TOO_LARGE: &str = "request head too large";
 pub const MALFORMED_HTTP_REQUEST: &str = "malformed HTTP request";

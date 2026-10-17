@@ -84,6 +84,10 @@ impl Bridge {
         self.root.path().join("data/daiorama/default").join(name)
     }
 
+    fn root(&self) -> &std::path::Path {
+        self.root.path()
+    }
+
     fn token(&self) -> String {
         std::fs::read_to_string(self.data_path("token"))
             .unwrap()
@@ -870,4 +874,387 @@ async fn connection_cap_closes_the_over_cap_socket() {
         Err(_) => panic!("an over-cap socket stayed open"),
     }
     drop(held);
+}
+
+// ---------------------------------------------------------------------------
+// Media pass-through (05 A8): `GET /media/<32 lowercase hex>`
+// ---------------------------------------------------------------------------
+
+use std::collections::VecDeque;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::net::UnixListener;
+
+/// One canned manager media answer.
+struct Canned {
+    status: u16,
+    content_type: Option<&'static str>,
+    /// `None` → answer without a `Content-Length` (the malformed-upstream shape).
+    length: Option<usize>,
+    transfer_encoding: bool,
+    body: Vec<u8>,
+}
+
+fn canned_ok(body: &[u8]) -> Canned {
+    Canned {
+        status: 200,
+        content_type: Some("application/octet-stream"),
+        length: Some(body.len()),
+        transfer_encoding: false,
+        body: body.to_vec(),
+    }
+}
+
+/// A fake manager that speaks the media surface over the instance's unix socket: read the
+/// request head, answer with the next canned response, count the connections it got.
+fn start_fake_media(
+    root: &std::path::Path,
+    answers: Vec<Canned>,
+) -> (Arc<AtomicUsize>, tokio::task::JoinHandle<()>) {
+    let socket = root.join("runtime/daiorama/default/manager.sock");
+    std::fs::create_dir_all(socket.parent().unwrap()).unwrap();
+    let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let listener = UnixListener::from_std(listener).unwrap();
+    let count = Arc::new(AtomicUsize::new(0));
+    let requests = Arc::clone(&count);
+    let answers = Arc::new(std::sync::Mutex::new(VecDeque::from(answers)));
+    let handle = tokio::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                return;
+            };
+            requests.fetch_add(1, Ordering::SeqCst);
+            let answer = answers.lock().unwrap().pop_front();
+            tokio::spawn(async move {
+                let mut head = Vec::new();
+                let mut byte = [0u8; 1];
+                while !head.ends_with(b"\r\n\r\n") {
+                    if stream.read(&mut byte).await.unwrap_or(0) == 0 {
+                        return;
+                    }
+                    head.push(byte[0]);
+                }
+                let Some(answer) = answer else {
+                    let _ = stream
+                        .write_all(b"HTTP/1.1 500 Oops\r\nContent-Length: 0\r\n\r\n")
+                        .await;
+                    return;
+                };
+                let mut response = format!("HTTP/1.1 {} Reason\r\n", answer.status);
+                if let Some(content_type) = answer.content_type {
+                    response.push_str(&format!("Content-Type: {content_type}\r\n"));
+                }
+                if let Some(length) = answer.length {
+                    response.push_str(&format!("Content-Length: {length}\r\n"));
+                }
+                if answer.transfer_encoding {
+                    response.push_str("Transfer-Encoding: chunked\r\n");
+                }
+                response.push_str("Connection: close\r\n\r\n");
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.write_all(&answer.body).await;
+            });
+        }
+    });
+    (count, handle)
+}
+
+const MEDIA_ID: &str = "0123456789abcdef0123456789abcdef";
+
+#[tokio::test]
+async fn media_passes_the_artifact_through() {
+    let bridge = Bridge::start().await;
+    let body = [0u8, 1, 2, 0x7f, 0x80, 0xfe, 0xff, b'h', b'i'].to_vec();
+    let (_count, _handle) = start_fake_media(bridge.root(), vec![canned_ok(&body)]);
+    let host = format!("127.0.0.1:{}", bridge.port);
+    let token = bridge.token();
+    let mut conn = bridge.connection().await;
+    let (status, headers, payload) = conn
+        .request(
+            "GET",
+            &format!("/media/{MEDIA_ID}"),
+            &[("Host", &host), ("Daiorama-Token", &token)],
+            "",
+        )
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        headers.get("content-type").map(String::as_str),
+        Some("application/octet-stream")
+    );
+    assert_eq!(
+        headers
+            .get("content-length")
+            .and_then(|value| value.parse::<usize>().ok()),
+        Some(body.len())
+    );
+    assert_eq!(payload, body, "the artifact bytes are relayed unchanged");
+}
+
+#[tokio::test]
+async fn media_requires_only_the_instance_token() {
+    let bridge = Bridge::start().await;
+    let (count, _handle) = start_fake_media(bridge.root(), vec![canned_ok(b"x")]);
+    let host = format!("127.0.0.1:{}", bridge.port);
+    let token = bridge.token();
+
+    // No token: 401 with the canonical envelope, and the manager is never asked.
+    let mut conn = bridge.connection().await;
+    let (status, _, payload) = conn
+        .request("GET", &format!("/media/{MEDIA_ID}"), &[("Host", &host)], "")
+        .await;
+    assert_eq!(status, 401);
+    let envelope: Value = serde_json::from_slice(&payload).unwrap();
+    assert_eq!(envelope["code"], "token_required");
+    assert_eq!(count.load(Ordering::SeqCst), 0);
+
+    // Wrong token is the same refusal.
+    let mut conn = bridge.connection().await;
+    let (status, _, _) = conn
+        .request(
+            "GET",
+            &format!("/media/{MEDIA_ID}"),
+            &[("Host", &host), ("Daiorama-Token", "wrong")],
+            "",
+        )
+        .await;
+    assert_eq!(status, 401);
+
+    // The token alone is enough: no scope headers are part of a media fetch.
+    let mut conn = bridge.connection().await;
+    let (status, _, payload) = conn
+        .request(
+            "GET",
+            &format!("/media/{MEDIA_ID}"),
+            &[("Host", &host), ("Daiorama-Token", &token)],
+            "",
+        )
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(payload, b"x");
+}
+
+#[tokio::test]
+async fn media_path_shapes_never_reach_the_manager() {
+    let bridge = Bridge::start().await;
+    let (count, _handle) = start_fake_media(bridge.root(), Vec::new());
+    let host = format!("127.0.0.1:{}", bridge.port);
+    let token = bridge.token();
+    let long = "0123456789abcdef0123456789abcdef0"; // 33
+    let short = "0123456789abcdef0123456789abcde"; // 31
+    let upper = "0123456789ABCDEF0123456789ABCDEF";
+    let non_hex = "0123456789abcdef0123456789abcdeg";
+    let traversal = "/media/../../token";
+    let deep = "/media/0123456789abcdef0123456789abcdef/extra";
+    let shapes = [
+        "/media".to_string(),
+        "/media/".to_string(),
+        format!("/media/{long}"),
+        format!("/media/{short}"),
+        format!("/media/{upper}"),
+        format!("/media/{non_hex}"),
+        traversal.to_string(),
+        deep.to_string(),
+    ];
+    for shape in shapes {
+        let mut conn = bridge.connection().await;
+        let (status, _, payload) = conn
+            .request(
+                "GET",
+                &shape,
+                &[("Host", &host), ("Daiorama-Token", &token)],
+                "",
+            )
+            .await;
+        let envelope: Value = serde_json::from_slice(&payload).unwrap();
+        if status != 404 || envelope["code"] != "media_expired" {
+            panic!(
+                "non-capability shape answered {} with {}",
+                status,
+                String::from_utf8_lossy(&payload)
+            );
+        }
+    }
+    assert_eq!(
+        count.load(Ordering::SeqCst),
+        0,
+        "path shapes never become upstream requests"
+    );
+}
+
+#[tokio::test]
+async fn media_methods_are_get_only() {
+    let bridge = Bridge::start().await;
+    let (count, _handle) = start_fake_media(bridge.root(), Vec::new());
+    let host = format!("127.0.0.1:{}", bridge.port);
+    let token = bridge.token();
+    for method in ["POST", "PUT", "DELETE", "HEAD"] {
+        let mut conn = bridge.connection().await;
+        let (status, headers, payload) = conn
+            .request(
+                method,
+                &format!("/media/{MEDIA_ID}"),
+                &[("Host", &host), ("Daiorama-Token", &token)],
+                "",
+            )
+            .await;
+        assert_eq!(status, 405, "media is GET only");
+        assert_eq!(headers.get("allow").map(String::as_str), Some("GET"));
+        let envelope: Value = serde_json::from_slice(&payload).unwrap();
+        assert_eq!(envelope["message"], "media fetches are GET only");
+    }
+    assert_eq!(count.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn media_malformed_upstream_is_502() {
+    let bridge = Bridge::start().await;
+    let missing_length = Canned {
+        status: 200,
+        content_type: Some("application/octet-stream"),
+        length: None,
+        transfer_encoding: false,
+        body: b"whatever".to_vec(),
+    };
+    let chunked = Canned {
+        status: 200,
+        content_type: Some("application/octet-stream"),
+        length: Some(8),
+        transfer_encoding: true,
+        body: b"8\r\nwhatever\r\n0\r\n\r\n".to_vec(),
+    };
+    let (_count, _handle) = start_fake_media(bridge.root(), vec![missing_length, chunked]);
+    let host = format!("127.0.0.1:{}", bridge.port);
+    let token = bridge.token();
+    for _ in 0..2 {
+        let mut conn = bridge.connection().await;
+        let (status, _, payload) = conn
+            .request(
+                "GET",
+                &format!("/media/{MEDIA_ID}"),
+                &[("Host", &host), ("Daiorama-Token", &token)],
+                "",
+            )
+            .await;
+        assert_eq!(status, 502);
+        let envelope: Value = serde_json::from_slice(&payload).unwrap();
+        assert_eq!(envelope["code"], "internal");
+        assert_eq!(
+            envelope["message"],
+            "media upstream answered without a Content-Length"
+        );
+    }
+}
+
+#[tokio::test]
+async fn media_manager_down_is_502() {
+    let bridge = Bridge::start().await;
+    let host = format!("127.0.0.1:{}", bridge.port);
+    let token = bridge.token();
+    let mut conn = bridge.connection().await;
+    let (status, _, payload) = conn
+        .request(
+            "GET",
+            &format!("/media/{MEDIA_ID}"),
+            &[("Host", &host), ("Daiorama-Token", &token)],
+            "",
+        )
+        .await;
+    assert_eq!(status, 502);
+    let envelope: Value = serde_json::from_slice(&payload).unwrap();
+    assert_eq!(envelope["code"], "manager_unreachable");
+}
+
+#[tokio::test]
+async fn media_ignores_range_and_answers_the_full_body() {
+    let bridge = Bridge::start().await;
+    let body: Vec<u8> = (0..=255u8).collect();
+    let (_count, _handle) = start_fake_media(bridge.root(), vec![canned_ok(&body)]);
+    let host = format!("127.0.0.1:{}", bridge.port);
+    let token = bridge.token();
+    let mut conn = bridge.connection().await;
+    let (status, _, payload) = conn
+        .request(
+            "GET",
+            &format!("/media/{MEDIA_ID}"),
+            &[
+                ("Host", &host),
+                ("Daiorama-Token", &token),
+                ("Range", "bytes=0-1"),
+            ],
+            "",
+        )
+        .await;
+    assert_eq!(status, 200, "Range is not supported: the full body answers");
+    assert_eq!(payload, body);
+}
+
+/// The relay streams: a client receives the first bytes while the manager is still holding the
+/// rest of the body. The fake answers the head plus half the body, then waits for the test to
+/// confirm it read those bytes before writing the rest — buffering would deadlock here.
+#[tokio::test]
+async fn media_streams_before_the_upstream_finishes() {
+    let bridge = Bridge::start().await;
+    let socket = bridge.root().join("runtime/daiorama/default/manager.sock");
+    std::fs::create_dir_all(socket.parent().unwrap()).unwrap();
+    let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let listener = UnixListener::from_std(listener).unwrap();
+    let release = Arc::new(tokio::sync::Notify::new());
+    let release_fake = Arc::clone(&release);
+    tokio::spawn(async move {
+        let Ok((mut stream, _)) = listener.accept().await else {
+            return;
+        };
+        let mut head = Vec::new();
+        let mut byte = [0u8; 1];
+        while !head.ends_with(b"\r\n\r\n") {
+            if stream.read(&mut byte).await.unwrap_or(0) == 0 {
+                return;
+            }
+            head.push(byte[0]);
+        }
+        let first = vec![b'a'; 1024];
+        let second = vec![b'b'; 1024];
+        let response = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 2048\r\n\r\n";
+        stream.write_all(response.as_bytes()).await.unwrap();
+        stream.write_all(&first).await.unwrap();
+        release_fake.notified().await;
+        stream.write_all(&second).await.unwrap();
+    });
+    let host = format!("127.0.0.1:{}", bridge.port);
+    let token = bridge.token();
+    let mut conn = bridge.connection().await;
+    let request = format!(
+        "GET /media/{MEDIA_ID} HTTP/1.1\r\nHost: {host}\r\nDaiorama-Token: {token}\r\n\r\n"
+    );
+    conn.reader
+        .get_mut()
+        .write_all(request.as_bytes())
+        .await
+        .unwrap();
+    let mut head = Vec::new();
+    let mut line = Vec::new();
+    loop {
+        line.clear();
+        conn.reader.read_until(b'\n', &mut line).await.unwrap();
+        head.extend_from_slice(&line);
+        if line.iter().all(|byte| *byte == b'\r' || *byte == b'\n') {
+            break;
+        }
+    }
+    let mut first = vec![0u8; 1024];
+    tokio::time::timeout(Duration::from_secs(3), conn.reader.read_exact(&mut first))
+        .await
+        .expect("the first body bytes arrive before the upstream finishes")
+        .unwrap();
+    assert_eq!(first, vec![b'a'; 1024]);
+    release.notify_one();
+    let mut second = vec![0u8; 1024];
+    tokio::time::timeout(Duration::from_secs(3), conn.reader.read_exact(&mut second))
+        .await
+        .expect("the rest of the body follows")
+        .unwrap();
+    assert_eq!(second, vec![b'b'; 1024]);
 }
