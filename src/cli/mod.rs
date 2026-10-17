@@ -647,7 +647,7 @@ impl App {
                     Ok(Answer::from_lines(Vec::new()))
                 }
             },
-            Command::Dashboard(_) => Err(ErrorEnvelope::not_implemented()),
+            Command::Dashboard(args) => self.cmd_dashboard(args.action),
         }
     }
 
@@ -1318,6 +1318,62 @@ impl App {
     }
 
     // -- token ------------------------------------------------------------
+
+    /// 04/09: the dashboard is a separate module artifact; the core CLI only locates and
+    /// execs it (never a compile-time feature, never dashboard-aware code). A missing module
+    /// is the pinned refusal; a version skew is refused before exec.
+    fn cmd_dashboard(&self, args: DashboardAction) -> Result<Answer, ErrorEnvelope> {
+        use std::os::unix::process::CommandExt;
+        let DashboardAction::Install { .. } = &args else {
+            let paths = self.paths();
+            let version = crate::config::active_dashboard_module(&paths)
+                .ok_or_else(ErrorEnvelope::module_not_installed)?;
+            if version != crate::ipc::BINARY_VERSION {
+                return Err(ErrorEnvelope::bad_request(format!(
+                    "dashboard module {version} does not match this dashboard ({}); run 'daiorama dashboard install --version {}'",
+                    crate::ipc::BINARY_VERSION,
+                    crate::ipc::BINARY_VERSION
+                )));
+            }
+            let binary = paths
+                .modules_dir()
+                .join("daiorama-dashboard")
+                .join(&version)
+                .join("daiorama-dashboard");
+            let mut command = std::process::Command::new(&binary);
+            match args {
+                DashboardAction::Serve => {
+                    command.arg("serve");
+                }
+                DashboardAction::Connect { address } => {
+                    command.args(["connect", &address]);
+                }
+                DashboardAction::Connections(list) => match list.action {
+                    ConnectionsAction::List => {
+                        command.arg("connections");
+                    }
+                    ConnectionsAction::Remove { name } => {
+                        command.args(["remove", &name]);
+                    }
+                },
+                DashboardAction::Token(token) => match token.action {
+                    TokenConnectionAction::Set { connection } => {
+                        command.args(["token", "set", &connection]);
+                    }
+                    TokenConnectionAction::Remove { connection } => {
+                        command.args(["token", "remove", &connection]);
+                    }
+                },
+                DashboardAction::Install { .. } => unreachable!("handled above"),
+            }
+            let error = command.exec();
+            return Err(ErrorEnvelope::internal(format!(
+                "cannot exec {}: {error}",
+                binary.display()
+            )));
+        };
+        Err(ErrorEnvelope::not_implemented())
+    }
 
     async fn cmd_token(&self, args: TokenArgs) -> Result<Answer, ErrorEnvelope> {
         if self.remote.is_some() {

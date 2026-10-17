@@ -17,10 +17,10 @@ daiorama-dashboard — optional dashboard module
 USAGE:
   daiorama-dashboard serve [--bind 127.0.0.1:8760] [--ui <dir>] [--config <file>]
   daiorama-dashboard connections [--config <file>]
-  daiorama-dashboard connect <name> <address> [--config <file>]
+  daiorama-dashboard connect <address> [--config <file>]
   daiorama-dashboard remove <name> [--config <file>]
-  daiorama-dashboard token set <name> [--config <file>]        (value on stdin)
-  daiorama-dashboard scope-token set <name> [--config <file>]  (value on stdin)
+  daiorama-dashboard token set|remove <connection> [--config <file>]        (set reads stdin)
+  daiorama-dashboard scope-token set|remove <connection> [--config <file>]  (set reads stdin)
 ";
 
 #[tokio::main]

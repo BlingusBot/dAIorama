@@ -100,9 +100,9 @@ Nothing here requires a manager change beyond D1 (`versions.dashboard_module`) a
 ## Implementation status (2026-10-17)
 
 The module scaffold exists: `dashboard/` is a workspace member (`daiorama-dashboard` binary,
-plain `ui/` assets), with the D3 store, the loopback server and the read API above. It is not
-yet wired to any installer (D5 is packaging's), and the dashboard CLI verbs under `daiorama`
-still refuse — the module runs standalone until that wrapper lands.
+plain `ui/` assets), with the D3 store, the loopback server and the read API above. The core
+CLI's `dashboard serve|connect|connections|token` verbs locate the active module (D1) and exec
+it; `dashboard install` remains packaging's (D5).
 
 Verified so far: unit + end-to-end tests (fake manager over the real frame protocol: readiness,
 sessions, history, view, traversal refused, tokens absent from every response body, non-loopback
