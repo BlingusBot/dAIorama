@@ -1,0 +1,27 @@
+Channel probe — which surface carries the browser's own rendered-GL string?
+
+Environment: L1 image (debian sid, Hyprland 0.56.2, chromium from sid), render node
+passed through, `dbus-run-session`, mutter headless parent → Hyprland nested → headless
+output HEADLESS-T1. Probe page: `p1/l1/webgl-test.html` (WebGL2 context,
+`WEBGL_debug_renderer_info`, the string written into `document.title`).
+
+Leg A — Chromium's stderr, as a "logging channel":
+
+  chromium --ozone-platform=wayland --no-sandbox --disable-dev-shm-usage \
+    --user-data-dir=/tmp/chrome --window-size=1200,700 \
+    --enable-logging=stderr --v=1 file:///tmp/webgl-test.html
+
+  grep -inE 'gl_renderer|unmasked|ANGLE|dai-webgl|CONSOLE' /tmp/chromium.log
+  -> no matches; log lines: 2333
+
+  --v=2:                    2480 lines, no matches
+  --vmodule='*gl*=3,*gpu*=3': 2301 lines, no matches
+
+Leg B — the compositor's client list, same browser process:
+
+  hyprctl clients | grep -i title
+  -> title: dai-webgl:RENDERER: ANGLE (Mesa, NV117, OpenGL ES 3.2) | VENDOR: Google Inc. (Mesa) | VERSION: WebGL 2.0 (OpenGL ES 3.0 Chromium) - Chromium
+
+Conclusion: Chromium's stderr does not carry the unmasked renderer at any verbosity
+tried; the window title does, verbatim, with no automation protocol involved. The
+launcher therefore reads the title through the compositor's IPC.
