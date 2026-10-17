@@ -1,0 +1,43 @@
+{
+  "name": "dai-r4-c",
+  "image": "<replace: privileged L1 image with /dev/dri access>",
+  "restart_policy": "no",
+  "privileged": true,
+  "devices": [
+    {
+      "path": "/dev/dri/renderD128",
+      "type": "c",
+      "major": 226,
+      "minor": 128,
+      "fileMode": 438,
+      "permissions": "rwm"
+    }
+  ],
+  "mounts": [
+    {
+      "type": "bind",
+      "source": "<replace: this branch's worktree>",
+      "destination": "/src",
+      "options": [
+        "rbind",
+        "rw",
+        "z"
+      ]
+    },
+    {
+      "type": "bind",
+      "source": "<replace: artifacts dir holding the daiorama binary + run output>",
+      "destination": "/out",
+      "options": [
+        "rbind",
+        "rw",
+        "z"
+      ]
+    }
+  ],
+  "command": [
+    "bash",
+    "-c",
+    "exec > /out/hardening-r4-c.txt 2>&1; export BIN=/out/hardening/daiorama XDG_CONFIG_HOME=/tmp/hc XDG_DATA_HOME=/tmp/hd XDG_RUNTIME_DIR=/tmp/hr; mkdir -p /tmp/hc /tmp/hd /tmp/hr; dbus-run-session -- bash /src/p2/hardening/run-c.sh; echo SCRIPT_RC=$?; echo RUN-ALL-DONE"
+  ]
+}

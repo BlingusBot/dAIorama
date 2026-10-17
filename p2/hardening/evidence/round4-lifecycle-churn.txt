@@ -1,0 +1,269 @@
+
+==================================================================
+## [0] pre-state (fresh container)
+==================================================================
+uid=0(root) gid=0(root) groups=0(root)
+binary: -rwxr-xr-x. 1 root root 41394744 Oct 17 03:07 /out/hardening/daiorama
+daiorama 0.1.0
+protocol 0.1.0 (min 0.1.0)
+version_rc=0
+nsroot subtree_control: 
+subtree listing: ls: cannot access '/sys/fs/cgroup/daiorama-sessions': No such file or directory
+-- compositors:
+(no mutter/Hyprland processes)
+[OK]   [0] fresh container: no compositors (0)
+-- scopes:
+(no session subtree at /sys/fs/cgroup/daiorama-sessions)
+[OK]   [0] fresh container: no scope dirs (0)
+
+==================================================================
+## [1] daemon start (cold)
+==================================================================
+started manager (mode=background, pid=72) socket=/tmp/hr/daiorama/default/manager.sock
+start_rc=0
+[OK]   [1] cold start (rc=0)
+manager_pid=72
+-- status:
+status_rc=0
+state: running
+mode: background
+pid: 72
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 0 running, 0 dead
+drain: inactive
+instance_id: 8cab6298-50c4-40cb-beaa-14e731af530d
+[OK]   [1] manager running
+[OK]   [1] zero sessions on the cold start
+-- nsroot subtree_control now: cpu memory pids
+[OK]   [1] controllers delegated to the session subtree
+-- keeper procs: 7
+-- scopes:
+(subtree present, no scope dirs)
+
+==================================================================
+## [2] three real sessions
+==================================================================
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=148 comm="Hyprland --i-am-really-stupid" label="unconfined_u:unconfined_r:spc_t:s0")
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+new1_rc=0 id=bc0bd8eb-a7c5-494d-83c8-1f4bae319841
+new2_rc=0 id=3f70fc54-8d5f-4092-9a05-b73d910c3671
+new3_rc=0 id=697039be-f714-44bf-b1cc-f3ae39c9b345
+[OK]   [2] new1 (rc=0)
+[OK]   [2] new2 (rc=0)
+[OK]   [2] new3 (rc=0)
+-- list:
+list_rc=0
+ID  STATE  BACKEND  SCOPE  ORIGIN  IDLE-SINCE
+3f70fc54-8d5f-4092-9a05-b73d910c3671  running  headless  operator  shell  2026-10-17T03:07:16Z
+697039be-f714-44bf-b1cc-f3ae39c9b345  running  headless  operator  shell  2026-10-17T03:07:17Z
+bc0bd8eb-a7c5-494d-83c8-1f4bae319841  running  headless  operator  shell  2026-10-17T03:07:16Z
+[OK]   [2] list shows 3 running (3)
+-- status bc0bd8eb-a7c5-494d-83c8-1f4bae319841:
+rc=0
+id: bc0bd8eb-a7c5-494d-83c8-1f4bae319841
+label: 
+state: running
+backend: headless
+resolution: 1920x1080
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-17T03:07:16Z
+view: none
+renderer: verified
+instance_id: 8cab6298-50c4-40cb-beaa-14e731af530d
+[OK]   [2] bc0bd8eb-a7c5-494d-83c8-1f4bae319841 state running
+[OK]   [2] bc0bd8eb-a7c5-494d-83c8-1f4bae319841 renderer verified
+-- status 3f70fc54-8d5f-4092-9a05-b73d910c3671:
+rc=0
+id: 3f70fc54-8d5f-4092-9a05-b73d910c3671
+label: 
+state: running
+backend: headless
+resolution: 1920x1080
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-17T03:07:16Z
+view: none
+renderer: verified
+instance_id: 8cab6298-50c4-40cb-beaa-14e731af530d
+[OK]   [2] 3f70fc54-8d5f-4092-9a05-b73d910c3671 state running
+[OK]   [2] 3f70fc54-8d5f-4092-9a05-b73d910c3671 renderer verified
+-- status 697039be-f714-44bf-b1cc-f3ae39c9b345:
+rc=0
+id: 697039be-f714-44bf-b1cc-f3ae39c9b345
+label: 
+state: running
+backend: headless
+resolution: 1920x1080
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-17T03:07:17Z
+view: none
+renderer: verified
+instance_id: 8cab6298-50c4-40cb-beaa-14e731af530d
+[OK]   [2] 697039be-f714-44bf-b1cc-f3ae39c9b345 state running
+[OK]   [2] 697039be-f714-44bf-b1cc-f3ae39c9b345 renderer verified
+-- raw Renderer lines from session instance logs:
+/tmp/dr-3f70fc54/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792206436_2087319153/hyprland.log :: DEBUG ]: Renderer: NV117
+/tmp/dr-697039be/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792206437_1285760736/hyprland.log :: DEBUG ]: Renderer: NV117
+/tmp/dr-bc0bd8eb/hypr/efb50993780079460b0cbed1363e2166a2de1d9f_1792206435_576308105/hyprland.log :: DEBUG ]: Renderer: NV117
+[OK]   [2] hardware renderer string in the session logs (3 >= 3)
+-- scopes:
+scope 3f70fc54: procs=[191 202 204 217 218 ]
+scope 697039be: procs=[243 258 260 272 347 349 ]
+scope bc0bd8eb: procs=[137 148 150 168 ]
+[OK]   [2] one scope per session (3)
+-- compositors:
+proc 137: mutter :: mutter --wayland --no-x11 --headless --virtual-monitor 1920x1080 --wayland-display=wayland-m 
+proc 148: Hyprland :: Hyprland --i-am-really-stupid 
+proc 150: Hyprland :: Hyprland --i-am-really-stupid 
+proc 191: mutter :: mutter --wayland --no-x11 --headless --virtual-monitor 1920x1080 --wayland-display=wayland-m 
+proc 202: Hyprland :: Hyprland --i-am-really-stupid 
+proc 204: Hyprland :: Hyprland --i-am-really-stupid 
+proc 243: mutter :: mutter --wayland --no-x11 --headless --virtual-monitor 1920x1080 --wayland-display=wayland-m 
+proc 258: Hyprland :: Hyprland --i-am-really-stupid 
+proc 260: Hyprland :: Hyprland --i-am-really-stupid 
+[OK]   [2] compositors up for 3 sessions (9 >= 3)
+
+==================================================================
+## [3] close one session (bc0bd8eb-a7c5-494d-83c8-1f4bae319841)
+==================================================================
+close_rc=0 closed session bc0bd8eb-a7c5-494d-83c8-1f4bae319841
+[OK]   [3] close rc (rc=0)
+[OK]   [3] close reported
+-- list after close:
+ID  STATE  BACKEND  SCOPE  ORIGIN  IDLE-SINCE
+3f70fc54-8d5f-4092-9a05-b73d910c3671  running  headless  operator  shell  2026-10-17T03:07:16Z
+697039be-f714-44bf-b1cc-f3ae39c9b345  running  headless  operator  shell  2026-10-17T03:07:17Z
+[OK]   [3] list shows 2 running (2)
+-- scopes after close:
+scope 3f70fc54: procs=[191 202 204 217 218 ]
+scope 697039be: procs=[243 258 260 272 ]
+[OK]   [3] closed session's scope is gone (2)
+
+==================================================================
+## [4] SIGKILL the manager mid-session (pid 72)
+==================================================================
+kill_rc=0
+[OK]   [4] SIGKILL fired (rc=0)
+-- socket file after kill: srwxr-xr-x. 1 root root 0 Oct 17 03:07 /tmp/hr/daiorama/default/manager.sock
+-- compositors after kill:
+proc 204: Hyprland :: Hyprland --i-am-really-stupid 
+proc 260: Hyprland :: Hyprland --i-am-really-stupid 
+-- scopes after kill:
+scope 3f70fc54: procs=[204 ]
+scope 697039be: procs=[260 ]
+[OK]   [4] orphaned compositor(s) survive the SIGKILL (the sweep's job) (2 >= 1)
+[OK]   [4] orphaned scope dirs remain (2)
+
+==================================================================
+## [5] daemon start again — the startup sweep must reap
+==================================================================
+started manager (mode=background, pid=653) socket=/tmp/hr/daiorama/default/manager.sock
+restart_rc=0
+[OK]   [5] restart (rc=0)
+manager_pid=653
+-- manager cgroup: 0::/keeper 
+-- nsroot subtree_control now: cpu memory pids
+-- daemon.log (tail 40):
+startup sweep: 0 stale session scope(s) reaped
+started manager (mode=background, pid=72) socket=/tmp/hr/daiorama/default/manager.sock
+startup sweep: 2 stale session scope(s) reaped
+started manager (mode=background, pid=653) socket=/tmp/hr/daiorama/default/manager.sock
+-- startup sweep lines:
+1:startup sweep: 0 stale session scope(s) reaped
+3:startup sweep: 2 stale session scope(s) reaped
+[OK]   [5] sweep reaped both orphaned scopes
+-- compositors after restart:
+(no mutter/Hyprland processes)
+[OK]   [5] no compositors after the sweep (0)
+-- scopes after restart:
+(subtree present, no scope dirs)
+[OK]   [5] no scope dirs after the sweep (0)
+-- status:
+status_rc=0
+state: running
+mode: background
+pid: 653
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 0 running, 0 dead
+drain: inactive
+instance_id: 8cab6298-50c4-40cb-beaa-14e731af530d
+[OK]   [5] recovered manager: zero sessions
+-- list:
+list_rc=0
+no sessions
+[OK]   [5] list empty after the sweep
+
+==================================================================
+## [5b] a new session after the restart (recovered manager is fully functional)
+==================================================================
+new4_rc=0 id=93ff65cd-28d1-4a8c-983d-979bc7aaa69b
+[OK]   [5b] new after restart (rc=0)
+-- status 93ff65cd-28d1-4a8c-983d-979bc7aaa69b:
+rc=0
+id: 93ff65cd-28d1-4a8c-983d-979bc7aaa69b
+label: 
+state: running
+backend: headless
+resolution: 1920x1080
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-17T03:07:21Z
+view: none
+renderer: verified
+instance_id: 8cab6298-50c4-40cb-beaa-14e731af530d
+[OK]   [5b] recovered-session renderer verified
+-- close 93ff65cd-28d1-4a8c-983d-979bc7aaa69b:
+close4_rc=0 closed session 93ff65cd-28d1-4a8c-983d-979bc7aaa69b
+[OK]   [5b] close after restart (rc=0)
+-- list after post-restart close:
+no sessions
+[OK]   [5b] list empty after close
+-- scopes after post-restart close:
+(subtree present, no scope dirs)
+[OK]   [5b] scope dirs clean after close (0)
+
+==================================================================
+## [6] end + post-state
+==================================================================
+end_rc=0 stopped manager (pid 653)
+[OK]   [6] daemon end (rc=0)
+-- compositors final:
+(no mutter/Hyprland processes)
+[OK]   [6] no compositors after end (0)
+-- scopes final:
+(subtree present, no scope dirs)
+[OK]   [6] no scope dirs after end (0)
+-- session runtime dirs left: /tmp/dr-3f70fc54 /tmp/dr-697039be 
+
+==================================================================
+## [6b] doctor in the keeper-prepared container (re-entry, after the fix)
+==================================================================
+-- this shell's cgroup: 0::/keeper 
+daiorama doctor — environment check
+tools:
+  hyprland: 0.56.2 (/usr/bin/Hyprland)
+  wayvnc: 0.10.1 (/usr/bin/wayvnc)
+wayland:
+  WAYLAND_DISPLAY: unset (nested backend unavailable; headless unaffected)
+  XDG_RUNTIME_DIR: /tmp/hr (writable)
+containment:
+  ok — keeper-prepared container re-entered: namespace root already carries cpu memory pids
+[OK]   [6b] doctor (rc=0)
+[OK]   [6b] keeper re-entry recognized (not a refusal)
+
+FAILS=0
+RUN-A-DONE
+SCRIPT_RC=0
+RUN-ALL-DONE
