@@ -89,7 +89,19 @@ pub fn spawn_wayvnc(
     })?;
     // wayvnc 0.10 has no port argv: the manager writes a per-view config and appends `-C`.
     let config_path = env.rt_dir.join(format!("wayvnc-{port}.conf"));
-    if let Err(err) = std::fs::write(&config_path, format!("address=127.0.0.1\nport={port}\n")) {
+    // 0600 like every other instance file: no secret in it today, but a future wayvnc
+    // option may add one, and uniform modes age better than a surprise.
+    let write_conf = (|| {
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&config_path)?;
+        file.write_all(format!("address=127.0.0.1\nport={port}\n").as_bytes())
+    })();
+    if let Err(err) = write_conf {
         return Err(ErrorEnvelope::view_unavailable(
             session_id,
             &format!("view config: {err}"),
@@ -935,6 +947,27 @@ mod tests {
         assert!(head.starts_with("HTTP/1.1 101"), "{head}");
         let _ = stream.shutdown(std::net::Shutdown::Both);
         front.stop();
+    }
+
+    #[test]
+    fn the_wayvnc_conf_is_written_0600() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let env = CaptureEnv {
+            rt_dir: dir.path().to_path_buf(),
+            wayland_display: "wayland-1".to_string(),
+            signature: "sig".to_string(),
+        };
+        let mut child = spawn_wayvnc("s", &["/bin/true".to_string()], &env, 5999).unwrap();
+        let _ = child.wait();
+        let conf = dir.path().join("wayvnc-5999.conf");
+        let mode = std::fs::metadata(&conf).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "conf mode");
+        assert!(
+            std::fs::read_to_string(&conf)
+                .unwrap()
+                .contains("port=5999")
+        );
     }
 
     #[test]
