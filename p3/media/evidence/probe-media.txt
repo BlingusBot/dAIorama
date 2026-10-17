@@ -1,0 +1,22 @@
+bin=daiorama port=18775
+[PASS] manager down -> 502 manager_unreachable :: 'HTTP/1.1 502 Bad Gateway' body=b'{"code":"manager_unreachable","message":"manager unreachable'
+[PASS] 200 pass-through is binary-safe :: 'HTTP/1.1 200 OK' bytes=1024
+[PASS] no token -> 401 token_required :: 'HTTP/1.1 401 Unauthorized' body=b'{"code":"token_required","message":"token required'
+[PASS] wrong token -> 401 :: 'HTTP/1.1 401 Unauthorized'
+[PASS] POST /media -> 405 + Allow: GET :: 'HTTP/1.1 405 Method Not Allowed' allow=GET
+[PASS] path-shape matrix -> 404 media_expired, manager untouched :: 8 shapes, upstream calls +0
+[PASS] upstream 404 passes through with its body :: 'HTTP/1.1 404 Not Found' body=b'{"code": "media_expired", "message": "media link e'
+[PASS] malformed upstream (no Content-Length) -> 502 internal :: 'HTTP/1.1 502 Bad Gateway'
+[PASS] malformed upstream (chunked upstream) -> 502 internal :: 'HTTP/1.1 502 Bad Gateway'
+[PASS] Range ignored -> full 200 body :: 'HTTP/1.1 200 OK' bytes=1024
+[PASS] fetch-once: second GET is media_expired :: first='HTTP/1.1 200 OK' second='HTTP/1.1 404 Not Found'
+[PASS] streams before the upstream finishes :: first=0.00s total=0.50s bytes=4096
+[PASS] ids absent from bridge stderr :: leaks=[]
+
+upstream requests seen: 8
+   GET /media/<id> HTTP/1.1
+   GET /media/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb HTTP/1.1
+   GET /media/cccccccccccccccccccccccccccccccc HTTP/1.1
+   GET /media/dddddddddddddddddddddddddddddddd HTTP/1.1
+
+FAILS=0

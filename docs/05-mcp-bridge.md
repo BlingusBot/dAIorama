@@ -87,6 +87,17 @@ and its colon, a repeated `Content-Length`, or a value that is not `1*DIGIT` are
 `bad_request` and the connection ends (11). The refusal strings are pinned in
 `fixtures/README.md`'s network contract.
 
+**Media pass-through (`GET /media/<id>`).** The listener also serves the manager's media
+surface: `GET /media/<32 lowercase hex>` is relayed to the manager and streamed back
+unchunked. The 128-bit id is the capability (A8); this listener's gate is the **instance
+token only** — the `/mcp` scope headers are not part of a media fetch (the asymmetry is
+pinned here and in `fixtures/README.md`). Any other `/media` shape is `404` +
+`media_expired` **at the bridge**, never an upstream request; any method other than GET is
+`405` + `Allow: GET`; `Range` is not supported (a ranged request receives the full body).
+An upstream answer without `Content-Length`, or one that is chunked, is `502` +
+`media upstream answered without a Content-Length` — the bridge does not guess where a body
+ends. The request target is never logged (A8).
+
 ## Scope and origin carriage on the RPC
 
 Every manager request may carry two additive frame fields beside
