@@ -8,6 +8,7 @@
 
 mod cli;
 mod config;
+mod crypto;
 mod ipc;
 mod manager;
 mod mcp;

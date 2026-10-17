@@ -20,10 +20,10 @@ are read-when-on pointers)._
   (`p3/bridge/*` → `spec/v1 @ d7fe685`).
 - **Repo target:** fork workflow (`EstherOS/dAIorama`); upstream
   `ygypt/dAIorama` takes our PRs post-sign-off.
-- **Last green:** capture tree — 193 (+5 ignored) unit · 4 daemon ·
+- **Last green:** views tree — 205 (+5 ignored) unit · 4 daemon ·
   2 doctor · 27 fixtures · 7 mcp · 22 mcp_listen, fmt/clippy clean; live leg on a
-  real session (screenshot image block → clip resource link → `media fetch`,
-  10 bytes, second fetch `media_expired`) in `p3/capture/evidence/`.
+  real session with real wayvnc (page 200/403, WS upgrade → `RFB 003.008`,
+  stop closes the front and the process, generation moves) in `p4/views/evidence/`.
 - **Next:** P4 (views front + network/auth lifecycle); the capture tools,
   `/media/<id>` relay and the manager store have all landed (`src/runtime/capture.rs`,
   `p3/media/`, `src/media/`).

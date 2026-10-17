@@ -331,6 +331,10 @@ pub struct SessionRecord {
     pub renderer: RendererMark,
     #[serde(skip)]
     pub cause: Option<Cause>,
+    /// Monotonic view generation (06 B2): increments on every successful view start and is
+    /// kept across stops, so an address cached before a stop/death is detectable as stale.
+    #[serde(skip)]
+    pub view_generation: u64,
 }
 
 /// 05 instance status: `{state, mode, pid, socket, versions, sessions, drain, instance_id}`.
@@ -427,6 +431,22 @@ impl Registry {
 
     pub fn get_mut(&mut self, id: &str) -> Option<&mut SessionRecord> {
         self.sessions.get_mut(id)
+    }
+
+    /// The session's view generation (06 B2); 0 before any view start.
+    pub fn view_generation(&self, id: &str) -> u64 {
+        self.sessions
+            .get(id)
+            .map(|record| record.view_generation)
+            .unwrap_or(0)
+    }
+
+    /// Record a view transition: view state is registry state (06 B2).
+    pub fn set_view(&mut self, id: &str, view: Option<ViewRecord>, generation: u64) {
+        if let Some(record) = self.sessions.get_mut(id) {
+            record.view = view;
+            record.view_generation = generation;
+        }
     }
 
     /// Insertion-ordered session list (BTreeMap key order: stable across runs).
@@ -1210,6 +1230,7 @@ mod tests {
             instance_id: "11111111-1111-4111-8111-111111111111".to_string(),
             renderer: RendererMark::Verified,
             cause: None,
+            view_generation: 0,
         }
     }
 

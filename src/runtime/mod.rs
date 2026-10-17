@@ -19,3 +19,4 @@ pub mod capture;
 pub mod containment;
 pub mod service;
 pub mod spawner;
+pub mod views;

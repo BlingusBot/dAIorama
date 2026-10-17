@@ -39,7 +39,7 @@ use crate::ipc::{
 use crate::manager::{
     Backend, DrainState, Handler, InstanceMode, InstanceState, InstanceStatus, OPERATOR_SCOPE,
     Origin, Registry, Resolution, SessionRecord, SessionSpawner, SessionSpec, SessionState,
-    VersionInfo,
+    VersionInfo, ViewRecord, ViewState,
 };
 
 /// `list_sessions` page size when the caller sends no `limit` (provisional; additive).
@@ -78,6 +78,8 @@ pub struct RuntimeService {
     /// Serializes creates end to end (quota → spawn → insert) so two racing creates can
     /// never both pass the quota check.
     create_lock: Mutex<()>,
+    /// Live views: wayvnc + the manager-owned front (06 B2, 07).
+    views: Arc<crate::runtime::views::ViewManager>,
 }
 
 impl RuntimeService {
@@ -97,6 +99,7 @@ impl RuntimeService {
             token_at_start: options.token_at_start,
             draining: AtomicBool::new(false),
             create_lock: Mutex::new(()),
+            views: Arc::new(crate::runtime::views::ViewManager::default()),
         }
     }
 
@@ -261,6 +264,7 @@ impl RuntimeService {
             origin,
             idle_since: utc_now_rfc3339(),
             view: None,
+            view_generation: 0,
             instance_id,
             // The creation-time mark the spawner detected (06 D6): `verified` / `software`
             // (override on) / `unverified` (not detectable — never guessed).
@@ -369,7 +373,99 @@ impl RuntimeService {
         // 08: persisted media keeps the *same retention as history* — 7 days from session end
         // (04). Closing a session therefore leaves `<data>/media/<session>/` in place; the
         // shared retention sweep removes it with the session's history, not before.
+        // A view never outlives its session (06 B2: explicit kill-on-session-close).
+        self.views.stop(&id);
         Ok(json!({ "id": id, "state": "closed" }))
+    }
+
+    // -----------------------------------------------------------------------
+    // Views (06 B2, 07)
+    // -----------------------------------------------------------------------
+
+    /// The instance token the view credential derives from (07 A5): the one adopted at start,
+    /// the file, or — for a loopback-only instance that never needed one — a fresh generated
+    /// token written 0600 (the same rule as a first non-loopback bind).
+    fn instance_token(&self) -> Result<String, ErrorEnvelope> {
+        if let Some(token) = &self.token_at_start {
+            return Ok(token.clone());
+        }
+        if let Some(token) = crate::config::read_token(&self.paths)? {
+            return Ok(token);
+        }
+        let token = crate::config::generate_token();
+        crate::config::write_token(&self.paths, &token)?;
+        Ok(token)
+    }
+
+    /// `get_view` (05): idempotent — a running view answers the same address and generation;
+    /// otherwise one start under the registry lock. The credential is minted here and never
+    /// stored in the session record (07: status/detail never echo it).
+    fn get_view(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
+        let (id, _record) = self.capture_target(scope, params, &["session_id"])?;
+        let config = self.config.read().expect("config lock").clone();
+        let token = self.instance_token()?;
+        if let Some((front_port, _vnc_port, generation)) = self.views.running(&id) {
+            return Ok(view_answer(
+                &id,
+                front_port,
+                generation,
+                &token,
+                config.view.advertise_base.as_deref(),
+            ));
+        }
+        let env = self
+            .spawner
+            .capture_env(&id)
+            .ok_or_else(ErrorEnvelope::session_dead)?;
+        let generation = self.registry().view_generation(&id) + 1;
+        let credential = crate::runtime::views::view_credential(&token, &id, generation);
+        let started = self.views.start(
+            &id,
+            generation,
+            &credential,
+            &env,
+            crate::runtime::views::ViewLaunch {
+                argv: &config.view.wayvnc_command,
+                port_base: config.view.port_base,
+                assets: &self.paths.novnc_dir(),
+            },
+        )?;
+        {
+            let mut registry = self.registry();
+            registry.set_view(
+                &id,
+                Some(ViewRecord {
+                    state: ViewState::Running,
+                    // The public base only: the credential rides the get_view answer, never
+                    // the session object (07).
+                    address: Some(crate::runtime::views::view_base(
+                        config.view.advertise_base.as_deref(),
+                        started.front_port,
+                    )),
+                    front_port: started.front_port,
+                    vnc_port: started.vnc_port,
+                    generation: started.generation,
+                }),
+                started.generation,
+            );
+        }
+        Ok(view_answer(
+            &id,
+            started.front_port,
+            started.generation,
+            &token,
+            config.view.advertise_base.as_deref(),
+        ))
+    }
+
+    /// `stop_view` (05): stops only the view; the session is untouched. Idempotent.
+    fn stop_view(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
+        let (id, _record) = self.capture_target(scope, params, &["session_id"])?;
+        self.views.stop(&id);
+        let mut registry = self.registry();
+        let generation = registry.view_generation(&id);
+        registry.set_view(&id, None, generation);
+        Ok(json!({ "session_id": id, "state": "stopped" }))
     }
 
     // -----------------------------------------------------------------------
@@ -649,10 +745,9 @@ impl Handler for RuntimeService {
             methods::CLIP_VIDEO => self.clip_video(scope, params),
             // Pinned-surface names this build does not implement yet: the views/query methods
             // and the control tools land later (PLAN.md) — a valid call, an absent build.
-            methods::GET_VIEW
-            | methods::STOP_VIEW
-            | methods::LIST_HISTORY
-            | methods::DAEMON_END => Err(ErrorEnvelope::not_implemented()),
+            methods::GET_VIEW => self.get_view(scope, params),
+            methods::STOP_VIEW => self.stop_view(scope, params),
+            methods::LIST_HISTORY | methods::DAEMON_END => Err(ErrorEnvelope::not_implemented()),
             name if is_known_tool_name(name) => Err(ErrorEnvelope::not_implemented()),
             // Anything else is a name the protocol does not define: a client-side refusal.
             // Dispatch-level — the connection continues (P2 hardening; fixtures/README).
@@ -677,6 +772,25 @@ fn params_object(params: Option<&Value>) -> Result<Map<String, Value>, ErrorEnve
             "params must be an object or null, got {other}"
         ))),
     }
+}
+
+/// The `get_view` answer (05): the front URL carrying the 07 credential as a query parameter,
+/// plus the credential as its own field. Both are request-scoped; neither is ever recorded.
+fn view_answer(
+    session_id: &str,
+    front_port: u16,
+    generation: u64,
+    token: &str,
+    advertise_base: Option<&str>,
+) -> Value {
+    let credential = crate::runtime::views::view_credential(token, session_id, generation);
+    let base = crate::runtime::views::view_base(advertise_base, front_port);
+    json!({
+        "session_id": session_id,
+        "address": format!("{base}/?credential={credential}"),
+        "credential": credential,
+        "generation": generation,
+    })
 }
 
 /// A method whose pinned surface takes no parameters: `null`, absent and `{}` are all "no
@@ -1432,8 +1546,6 @@ mod tests {
 
         // Unbuilt, but pinned: the views/query methods, daemon_end, and the control tools.
         for method in [
-            methods::GET_VIEW,
-            methods::STOP_VIEW,
             methods::LIST_HISTORY,
             methods::DAEMON_END,
             "pointer_move",
@@ -1551,12 +1663,12 @@ mod tests {
         assert_eq!(err.code, ErrorCode::BadRequest);
         assert_eq!(err.message, crate::strings::unknown_method("frobnicate"));
 
+        // A closed session has no view to start: the tombstone code, not a stale stub.
         let err = client
             .request(methods::GET_VIEW, Some(json!({ "session_id": id })), None)
             .await
             .unwrap_err();
-        assert_eq!(err.code, ErrorCode::Internal);
-        assert_eq!(err.message, crate::strings::NOT_IMPLEMENTED_MESSAGE);
+        assert_eq!(err.code, ErrorCode::SessionClosed);
 
         // The same connection still answers after both refusals.
         let value = client
@@ -2476,5 +2588,172 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err.code, ErrorCode::SessionDead);
+    }
+
+    /// A fake wayvnc: a shell script that starts a TCP listener on the port the manager
+    /// appends (and answers with the RFB banner). Skips the test when python3 is absent.
+    fn fake_wayvnc(dir: &std::path::Path) -> Option<Vec<String>> {
+        if std::process::Command::new("python3")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
+            eprintln!("skip: python3 not available for the fake wayvnc");
+            return None;
+        }
+        let script = dir.join("fake-wayvnc.sh");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\nPORT=$(sed -n 's/^port=//p' \"$2\")\nexec python3 -c 'import socket,sys\ns=socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\ns.bind((\"127.0.0.1\", int(sys.argv[1]))); s.listen(4)\nwhile True:\n    c,_=s.accept(); c.sendall(b\"RFB 003.008\\n\"); c.close()' \"$PORT\"\n",
+        )
+        .unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        Some(vec!["/bin/sh".to_string(), script.display().to_string()])
+    }
+
+    #[test]
+    fn get_view_is_idempotent_and_keeps_the_credential_out_of_status() {
+        let tmp = tempfile::tempdir().unwrap();
+        let Some(wayvnc) = fake_wayvnc(tmp.path()) else {
+            return;
+        };
+        let mut config = CoreConfig::default();
+        config.view.wayvnc_command = wayvnc;
+        config.view.port_base = crate::runtime::views::allocate_front_port(18080).unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), config);
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+
+        let first = result(
+            &service,
+            methods::GET_VIEW,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        let credential = first["credential"].as_str().unwrap().to_string();
+        assert_eq!(credential.len(), 64);
+        assert!(
+            first["address"]
+                .as_str()
+                .unwrap()
+                .starts_with("http://127.0.0.1:")
+        );
+        assert!(
+            first["address"]
+                .as_str()
+                .unwrap()
+                .contains(&format!("credential={credential}"))
+        );
+        assert_eq!(first["generation"], 1);
+
+        // Session status carries the view state but never the credential.
+        let status = result(
+            &service,
+            methods::SESSION_STATUS,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        assert_eq!(status["view"]["state"], "running");
+        assert_eq!(status["view"]["generation"], 1);
+        assert!(
+            !status["view"]
+                .get("address")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .contains("credential")
+        );
+        assert!(!status.to_string().contains(&credential));
+
+        // Idempotent: same generation, same credential, same address.
+        let second = result(
+            &service,
+            methods::GET_VIEW,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        assert_eq!(second["generation"], 1);
+        assert_eq!(second["credential"], first["credential"]);
+        assert_eq!(second["address"], first["address"]);
+        service.views.stop(&id);
+    }
+
+    #[test]
+    fn stop_view_stops_only_the_view_and_a_restart_moves_the_generation() {
+        let tmp = tempfile::tempdir().unwrap();
+        let Some(wayvnc) = fake_wayvnc(tmp.path()) else {
+            return;
+        };
+        let mut config = CoreConfig::default();
+        config.view.wayvnc_command = wayvnc;
+        config.view.port_base = crate::runtime::views::allocate_front_port(18120).unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), config);
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+
+        let first = result(
+            &service,
+            methods::GET_VIEW,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        let stopped = result(
+            &service,
+            methods::STOP_VIEW,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        assert_eq!(stopped["state"], "stopped");
+        assert!(service.views.running(&id).is_none(), "process stopped");
+
+        // The session is untouched; a new get_view starts generation 2.
+        let status = result(
+            &service,
+            methods::SESSION_STATUS,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        assert_eq!(status["state"], "running");
+        assert_eq!(status["view"], Value::Null);
+        let second = result(
+            &service,
+            methods::GET_VIEW,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        assert_eq!(second["generation"], 2);
+        assert_ne!(second["credential"], first["credential"]);
+        service.views.stop(&id);
+    }
+
+    #[test]
+    fn closing_a_session_stops_its_view() {
+        let tmp = tempfile::tempdir().unwrap();
+        let Some(wayvnc) = fake_wayvnc(tmp.path()) else {
+            return;
+        };
+        let mut config = CoreConfig::default();
+        config.view.wayvnc_command = wayvnc;
+        config.view.port_base = crate::runtime::views::allocate_front_port(18160).unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), config);
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        result(
+            &service,
+            methods::GET_VIEW,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        assert!(service.views.running(&id).is_some());
+        result(
+            &service,
+            methods::CLOSE_SESSION,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        assert!(
+            service.views.running(&id).is_none(),
+            "view never outlives its session"
+        );
     }
 }

@@ -120,6 +120,11 @@ impl Paths {
         self.data_dir.join("media")
     }
 
+    /// `<data-root>/novnc/` — the front's asset tree (07; packaging ships it in P5).
+    pub fn novnc_dir(&self) -> PathBuf {
+        self.data_dir.join("novnc")
+    }
+
     /// `<data-root>/modules/`
     pub fn modules_dir(&self) -> PathBuf {
         self.data_dir.join("modules")
@@ -342,6 +347,13 @@ pub struct ViewConfig {
     pub port_base: u16,
     #[serde(default)]
     pub advertise_base: Option<String>,
+    /// argv for wayvnc (05 §Views); the manager appends `127.0.0.1 <port>`.
+    #[serde(default = "default_wayvnc_command")]
+    pub wayvnc_command: Vec<String>,
+}
+
+fn default_wayvnc_command() -> Vec<String> {
+    vec!["wayvnc".to_string()]
 }
 
 impl Default for ViewConfig {
@@ -349,6 +361,7 @@ impl Default for ViewConfig {
         Self {
             port_base: 6080,
             advertise_base: None,
+            wayvnc_command: default_wayvnc_command(),
         }
     }
 }
@@ -621,6 +634,11 @@ impl CoreConfig {
                     "{name} must be a non-empty argv array"
                 )));
             }
+        }
+        if self.view.wayvnc_command.is_empty() {
+            return Err(ErrorEnvelope::bad_request(
+                "view.wayvnc_command must be a non-empty argv array",
+            ));
         }
         if self.capture.timeout_s == 0 {
             return Err(ErrorEnvelope::bad_request(

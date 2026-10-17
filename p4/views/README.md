@@ -22,7 +22,8 @@ implemented once** — no second path invented on the front.
 ## wayvnc
 
 `view.wayvnc_command` (argv array, default `["wayvnc"]`) — the manager appends
-`127.0.0.1 <vnc_port>`; no shell, no password (the front is the gate; loopback wayvnc is local
+`-C <generated conf>` (wayvnc 0.10 has no port argv; the conf pins `address=127.0.0.1` and
+`port=<vnc_port>`); no shell, no password (the front is the gate; loopback wayvnc is local
 trust, same as the socket). The command is config so a test can substitute a fake. Nothing
 about the view credential ever reaches wayvnc, its argv, or its environment.
 

@@ -697,3 +697,27 @@ for harnesses, and claim-on-open is unchanged — the CLI is just another fetche
 *Rejected:* shell strings with parameter interpolation (an MCP parameter must never reach a
 shell); inlining video (no MCP video content type — 05); a `file://` link (a path is not a
 capability and leaks layout); a total-response downscale (silent loss of pixels).
+
+## Views — in-process front, 07 credential, bounded relay
+
+`get_view`/`stop_view` own one wayvnc per session (argv from `view.wayvnc_command`, session
+Wayland env, PDEATHSIG) and one manager-owned front on its own loopback port. wayvnc 0.10 takes
+no port argv, so the manager writes a per-view config (`address=127.0.0.1`, `port=<vnc_port>`)
+and appends `-C <path>` — the argv pin becomes "the manager appends one generated config path",
+still with no shell and no other interpolation.
+The front is in-process: the strict head parser, the noVNC asset tree, and a WebSocket↔RFB relay
+with explicit bounds (32 connections, 10 s per write, 64 KiB chunks) — no websockify dependency,
+and no second surface on that port. The 07 credential
+(`HMAC-SHA256(instance_token, "view:"||session_id||":"||generation)`) gates every request —
+page, assets, upgrade — via query, `X-Daiorama-View` header, or the HttpOnly `SameSite=Strict`
+cookie set only from an already-gated page load; `Origin` is required on the upgrade; every
+response carries `Referrer-Policy: no-referrer`; the credential never appears in logs, history,
+stderr, or the session object (status returns the base address and generation only). A missing
+asset tree is `view_unavailable`, never a partial page.
+
+*Rationale:* the credential is one rule with one verifier, so the front must be the only thing
+speaking on its port; bounds and the strict parser come from the MCP listener's lessons. An
+in-process front also keeps the gate in the same process that mints the credential.
+*Rejected:* shipping websockify (a second process, second version, second auth story); a
+vendored minimal page (JS supply-chain and review cost for a stopgap); accepting an upgrade
+without `Origin` (a browser always sends it; scripts use the header).
