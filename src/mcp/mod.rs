@@ -145,7 +145,8 @@ pub enum ContentBlock {
 }
 
 /// A tool-execution result: `isError: true` carries the shared envelope in
-/// `structuredContent` (05 §Pinned read shapes).
+/// `structuredContent` (05 §Pinned read shapes). `content` is always on the wire — empty when
+/// there is nothing to say — because client SDKs validate the field as required.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ToolResult {
     #[serde(
@@ -154,7 +155,7 @@ pub struct ToolResult {
         skip_serializing_if = "std::ops::Not::not"
     )]
     pub is_error: bool,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub content: Vec<ContentBlock>,
     #[serde(
         rename = "structuredContent",
@@ -485,6 +486,7 @@ mod tests {
 
         let ok = serde_json::to_value(ToolResult::ok(json!({"sessions": []}))).unwrap();
         assert!(ok.get("isError").is_none(), "success omits isError");
+        assert_eq!(ok["content"], json!([]), "content is required on the wire");
         assert_eq!(ok["structuredContent"]["sessions"], json!([]));
     }
 

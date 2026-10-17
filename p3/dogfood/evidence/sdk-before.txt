@@ -1,0 +1,76 @@
+
+==================================================================
+## [0] setup (fresh container)
+==================================================================
+uid=0(root) gid=0(root) groups=0(root)
+binary: -rwxr-xr-x. 1 root root 44467040 Oct 17 07:09 /out/hardening/daiorama-p3-before
+daiorama 0.1.0
+protocol 0.1.0 (min 0.1.0)
+wrote /tmp/hc/daiorama/default/config.ron
+wrote /tmp/hc/daiorama/default/scopes/operator.ron
+next: 'daiorama doctor' for the environment check, then 'daiorama new'
+config_setup_rc=0
+scope file: (sessions: (max: Some(2), visibility: own),
+ grant: (categories: ["input"]))
+sdk mcp== 2.3.0
+
+==================================================================
+## [1] daemon start (cold)
+==================================================================
+started manager (mode=background, pid=52) socket=/tmp/hr/daiorama/default/manager.sock
+start_rc=0
+status_rc=0
+state: running
+mode: background
+pid: 52
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 0 running, 0 dead
+drain: inactive
+instance_id: 94b9632c-11d4-43c0-ae30-f394d265895c
+
+==================================================================
+## [2] raw handshake probes (what the SDK sends first)
+==================================================================
+== SDK drill: daiorama mcp via mcp==2.3.0 (scope=agent, bin=/out/hardening/daiorama-p3-before)
+=== server/discover (modern probe): rc=0
+  out: {"id":1,"jsonrpc":"2.0","result":{"capabilities":{"tools":{"listChanged":false}},"protocolVersion":"2026-07-28","serverInfo":{"name":"daiorama","version":"0.1.0"}}}
+=== initialize (handshake-era request): rc=0
+  out: {"id":2,"jsonrpc":"2.0","result":{"capabilities":{"tools":{"listChanged":false}},"instructions":"dAIorama desktop sessions. Call list_capabilities to see this scope's tools.","protocolVersion":"2026-07-28","serverInfo":{"name":"daiorama","version":"0.1.0"}}}
+raw_rc=0
+
+==================================================================
+## [3] official SDK client drill (mode=auto, the harness default)
+==================================================================
+== SDK drill: daiorama mcp via mcp==2.3.0 (scope=agent, bin=/out/hardening/daiorama-p3-before)
+[FAIL] harness connect + drill completed :: RuntimeError: Unsupported protocol version from the server: 2026-07-28
+       drill wall time: 0.07s
+[OK]   bridge exits cleanly on client close :: 0.07s
+FAILS=1
+sdk_rc=1
+[FAIL] SDK drill exited clean: got '1' want '0'
+
+==================================================================
+## [4] leak check after the SDK closed its bridge
+==================================================================
+-- mutter/Hyprland processes:
+(none)
+[OK]   no compositor processes left (0)
+-- session scopes:
+[OK]   no live session scopes left (0)
+-- runtime dirs: 0 dr-* dirs
+
+==================================================================
+## [5] daemon end + post-state
+==================================================================
+stopped manager (pid 52)
+end_rc=0
+-- daemon.log tail (15):
+startup sweep: 0 stale session scope(s) reaped
+started manager (mode=background, pid=52) socket=/tmp/hr/daiorama/default/manager.sock
+
+FAILS=1
+SCRIPT_RC=1
+RUN-ALL-DONE

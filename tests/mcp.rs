@@ -216,8 +216,19 @@ async fn handshakes_and_manifest_are_local() {
         json!({"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {}}),
     )
     .await;
-    assert_eq!(discover["result"]["protocolVersion"], "2026-07-28");
-    assert_eq!(discover["result"]["serverInfo"]["name"], "daiorama");
+    assert_eq!(
+        discover["result"]["supportedVersions"],
+        json!(["2026-07-28"]),
+        "discover answers the modern result shape a 2026-07-28 client validates"
+    );
+    assert!(
+        discover["result"].get("protocolVersion").is_none(),
+        "discover is not the initialize shape"
+    );
+    assert_eq!(
+        discover["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
+        "daiorama"
+    );
 
     let initialize = send(
         &mut stdin,
@@ -225,7 +236,19 @@ async fn handshakes_and_manifest_are_local() {
         json!({"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}}),
     )
     .await;
-    assert_eq!(initialize["result"]["protocolVersion"], "2026-07-28");
+    assert_eq!(
+        initialize["result"]["protocolVersion"], "2025-06-18",
+        "a handshake-era client is answered with the revision it named"
+    );
+    assert_eq!(initialize["result"]["serverInfo"]["name"], "daiorama");
+
+    let modern = send(
+        &mut stdin,
+        &mut lines,
+        json!({"jsonrpc": "2.0", "id": 4, "method": "initialize", "params": {"protocolVersion": "2026-07-28"}}),
+    )
+    .await;
+    assert_eq!(modern["result"]["protocolVersion"], "2026-07-28");
 
     let listing = send(
         &mut stdin,
@@ -233,6 +256,44 @@ async fn handshakes_and_manifest_are_local() {
         json!({"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {}}),
     )
     .await;
+    assert!(
+        listing["result"].get("resultType").is_none(),
+        "a handshake-era request keeps the pre-2026 result shape"
+    );
+
+    let modern_listing = send(
+        &mut stdin,
+        &mut lines,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "tools/list",
+            "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"}}
+        }),
+    )
+    .await;
+    assert_eq!(modern_listing["result"]["resultType"], "complete");
+    assert_eq!(modern_listing["result"]["ttlMs"], 0);
+    assert_eq!(modern_listing["result"]["cacheScope"], "private");
+
+    // The 2026-07-28 declaration key is namespaced; an unsupported revision is -32022 with
+    // both pairs — the same refusal for the un-namespaced key an older caller sends.
+    for meta in [
+        json!({"io.modelcontextprotocol/protocolVersion": "2025-06-18"}),
+        json!({"protocolVersion": "2025-06-18"}),
+    ] {
+        let stale = send(
+            &mut stdin,
+            &mut lines,
+            json!({"jsonrpc": "2.0", "id": 6, "method": "tools/list", "params": {"_meta": meta}}),
+        )
+        .await;
+        assert_eq!(
+            stale["error"]["code"], -32022,
+            "unsupported revision: {stale}"
+        );
+        assert_eq!(stale["error"]["data"]["code"], "version_incompatible");
+    }
     let names: Vec<&str> = listing["result"]["tools"]
         .as_array()
         .unwrap()
@@ -287,6 +348,11 @@ async fn forwarded_calls_carry_scope_and_origin() {
     )
     .await;
     assert_eq!(response["result"]["structuredContent"]["id"], "s-new");
+    assert_eq!(
+        response["result"]["content"],
+        json!([]),
+        "every tool result carries content (a client SDK validates it as required)"
+    );
 
     let frames = harness.frames();
     let handshake = frames

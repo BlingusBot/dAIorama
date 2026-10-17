@@ -32,7 +32,8 @@ every harness config points at (pinned).
   needs re-syncing — session state structurally cannot be lost unless the
   manager itself died (03).
 - **MCP revision (pinned):** the bridge implements MCP revision 2026-07-28
-  (per-request `_meta` version declaration; `server/discover`) and the legacy
+  (per-request `_meta["io.modelcontextprotocol/protocolVersion"]` declaration;
+  `server/discover`) and the legacy
   `initialize` negotiation for earlier revisions; on stdio it probes with
   `server/discover` first. `UnsupportedProtocolVersionError` (-32022) maps to
   `version_incompatible` with both pairs in the message.
@@ -40,18 +41,30 @@ every harness config points at (pinned).
 **Stdio conformance surface (P3 W1).** The bridge answers the handshake paths and the
 manifest locally, and relays everything else:
 
-- `server/discover` and `initialize` answer
-  `{protocolVersion: "2026-07-28", capabilities: {tools: {listChanged: false}},
-  serverInfo: {name: "daiorama", version: <binary version>}}`. Neither authorizes
+- `server/discover` answers the modern result shape
+  `{supportedVersions: ["2026-07-28"], capabilities: {tools: {listChanged: false}},
+  instructions: <one line>}`, with the identity on the display-only
+  `_meta["io.modelcontextprotocol/serverInfo"]` stamp. `initialize` (the handshake-era
+  path) answers `{protocolVersion: <the revision the client named when it is a
+  handshake revision (2024-11-05 · 2025-03-26 · 2025-06-18 · 2025-11-25), else
+  "2026-07-28">, capabilities: {tools: {listChanged: false}}, serverInfo: {name:
+  "daiorama", version: <binary version>}, instructions: <one line>}` — a server names a
+  version it supports, and the tool surface is revision-stable. Neither authorizes
   anything.
 - `tools/list` answers `{tools: [{name, description, inputSchema}]}` — exactly the
   caller scope's exposed manifest (the always-on set plus grants), never the whole
-  registry.
+  registry. A 2026-07-28 request gets the modern result envelope on every answer:
+  `resultType: "complete"` on each result, plus `ttlMs: 0` (never stale — a config
+  reload is visible on the next call) and `cacheScope: "private"` on the cacheable
+  list result. A modern client validates these as required fields; a handshake-era
+  request keeps the pre-2026 shape.
 - `tools/call` gates the name first: a name outside the registry is `bad_request`
   (`unknown tool "<name>"`); a known name the scope does not hold is
   `tool_not_granted`; a granted name is relayed to the manager. Tool failures are
   MCP tool-execution results (`isError: true`, envelope in `structuredContent`);
-  JSON-RPC errors are reserved for malformed MCP requests.
+  JSON-RPC errors are reserved for malformed MCP requests. Every result carries
+  `content` (an empty list when there is nothing to say) — client SDKs validate the
+  field as required.
 - `list_capabilities` is answered from the scope file plus the manager's own
   filtered listing: `{tools, categories, always_on, quotas: {sessions: {max,
   live}}, audit}`, paginated over `tools` with `next_cursor` (cursor/limit per

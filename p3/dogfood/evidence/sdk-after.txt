@@ -1,0 +1,102 @@
+
+==================================================================
+## [0] setup (fresh container)
+==================================================================
+uid=0(root) gid=0(root) groups=0(root)
+binary: -rwxr-xr-x. 1 root root 44482152 Oct 17 07:16 /out/hardening/daiorama-p3
+daiorama 0.1.0
+protocol 0.1.0 (min 0.1.0)
+wrote /tmp/hc/daiorama/default/config.ron
+wrote /tmp/hc/daiorama/default/scopes/operator.ron
+next: 'daiorama doctor' for the environment check, then 'daiorama new'
+config_setup_rc=0
+scope file: (sessions: (max: Some(2), visibility: own),
+ grant: (categories: ["input"]))
+sdk mcp== 2.3.0
+
+==================================================================
+## [1] daemon start (cold)
+==================================================================
+started manager (mode=background, pid=52) socket=/tmp/hr/daiorama/default/manager.sock
+start_rc=0
+status_rc=0
+state: running
+mode: background
+pid: 52
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 0 running, 0 dead
+drain: inactive
+instance_id: 4da946fb-0ee8-40e6-a65a-fa9c1bac856e
+
+==================================================================
+## [2] raw handshake probes (what the SDK sends first)
+==================================================================
+== SDK drill: daiorama mcp via mcp==2.3.0 (scope=agent, bin=/out/hardening/daiorama-p3)
+=== server/discover (modern probe): rc=0
+  out: {"id":1,"jsonrpc":"2.0","result":{"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"daiorama","version":"0.1.0"}},"capabilities":{"tools":{"listChanged":false}},"instructions":"dAIorama desktop sessions. Call list_capabilities to see this scope's tools.","resultType":"complete","supportedVersions":["2026-07-28"]}}
+=== initialize (handshake-era request): rc=0
+  out: {"id":2,"jsonrpc":"2.0","result":{"capabilities":{"tools":{"listChanged":false}},"instructions":"dAIorama desktop sessions. Call list_capabilities to see this scope's tools.","protocolVersion":"2025-11-25","serverInfo":{"name":"daiorama","version":"0.1.0"}}}
+raw_rc=0
+
+==================================================================
+## [3] official SDK client drill (mode=auto, the harness default)
+==================================================================
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=134 comm="Hyprland --i-am-really-stupid" label="unconfined_u:unconfined_r:spc_t:s0")
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+== SDK drill: daiorama mcp via mcp==2.3.0 (scope=agent, bin=/out/hardening/daiorama-p3)
+[OK]   connect (SDK auto negotiation) :: protocol_version=2026-07-28 via modern
+[OK]   negotiated revision is the pinned one :: 2026-07-28
+       tools: close_session, create_session, key_down, key_tap, key_up, list_capabilities, list_sessions, pointer_button_down, pointer_button_up, pointer_click, pointer_move, pointer_scroll, session_status, type_text
+[OK]   always-on tool exposed: create_session
+[OK]   always-on tool exposed: close_session
+[OK]   always-on tool exposed: list_sessions
+[OK]   always-on tool exposed: session_status
+[OK]   always-on tool exposed: list_capabilities
+[OK]   input grant expands the manifest
+[OK]   deny-by-default holds (screenshot not granted)
+       create_session -> {"backend": "headless", "id": "8aa09e3e-5474-4bc3-9198-5cded55818c8", "idle_since": "2026-10-17T07:19:57Z", "instance_id": "4da946fb-0ee8-40e6-a65a-fa9c1bac856e", "label": "", "origin": "mcp", "renderer": "verified", "resolution": "1024x768", "scale": 1.0, "scope": "agent", "state": "running", "view": null}
+[OK]   create_session is a tool result, not an error
+[OK]   create_session returns an id :: 8aa09e3e-5474-4bc3-9198-5cded55818c8
+[OK]   created record carries the caller scope :: agent
+[OK]   created record carries origin=mcp :: mcp
+[OK]   renderer mark is verified :: verified
+[OK]   list_sessions sees the created session :: ['8aa09e3e-5474-4bc3-9198-5cded55818c8']
+[OK]   session_status answers running :: running
+[OK]   list_capabilities reports live=1 :: {"live": 1, "max": 2}
+[OK]   three overlapping calls each answer correctly
+[OK]   deny-by-default tool refuses as a tool error :: tool_not_granted
+[OK]   refusal carries tool_not_granted :: tool_not_granted
+[OK]   unknown tool refuses as a tool error :: bad_request
+[OK]   close_session succeeds
+[OK]   close_session removed it from the listing :: []
+       drill wall time: 0.81s
+[OK]   bridge exits cleanly on client close :: 0.81s
+FAILS=0
+sdk_rc=0
+[OK]   SDK drill exited clean (0)
+
+==================================================================
+## [4] leak check after the SDK closed its bridge
+==================================================================
+-- mutter/Hyprland processes:
+(none)
+[OK]   no compositor processes left (0)
+-- session scopes:
+[OK]   no live session scopes left (0)
+-- runtime dirs: 0 dr-* dirs
+
+==================================================================
+## [5] daemon end + post-state
+==================================================================
+stopped manager (pid 52)
+end_rc=0
+-- daemon.log tail (15):
+startup sweep: 0 stale session scope(s) reaped
+started manager (mode=background, pid=52) socket=/tmp/hr/daiorama/default/manager.sock
+
+FAILS=0
+SCRIPT_RC=0
+RUN-ALL-DONE
