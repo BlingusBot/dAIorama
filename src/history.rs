@@ -100,10 +100,13 @@ impl History {
         // 0700: session ids are directory names, so the listing is the thing to hide even
         // though every file is 0600.
         let _ = std::fs::set_permissions(&entry.dir, std::fs::Permissions::from_mode(0o700));
-        if entry.bytes >= SEGMENT_BYTES {
+        // Rotation is decided here, but the trim runs after the new segment exists: dropping
+        // "while there are already more than SEGMENTS" would leave the file this append is
+        // about to create as a ninth segment (36 MiB against the pinned 8 x 4 MiB budget).
+        let rotated = entry.bytes >= SEGMENT_BYTES;
+        if rotated {
             entry.segment += 1;
             entry.bytes = 0;
-            rotate(&entry.dir);
         }
         let path = entry.dir.join(format!("seg-{:04}.log", entry.segment));
         let mut line = serde_json::to_string(record).expect("records serialize");
@@ -119,6 +122,9 @@ impl History {
         file.flush()
             .map_err(|err| ErrorEnvelope::internal(format!("history {}: {err}", path.display())))?;
         entry.bytes += line.len() as u64;
+        if rotated {
+            rotate(&entry.dir);
+        }
         Ok(())
     }
 
@@ -444,6 +450,50 @@ mod tests {
         let left = segment_paths(&session_dir);
         assert_eq!(left.len(), SEGMENTS);
         assert!(!session_dir.join("seg-0000.log").exists(), "oldest dropped");
+    }
+
+    /// The append path, not the helper: a full newest segment must rotate *and* leave the
+    /// pinned count. A trim that runs before the new file exists settles at nine segments
+    /// (36 MiB) while the budget is eight (32 MiB).
+    #[test]
+    fn rotation_through_append_keeps_the_pinned_segment_count() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = History::new(&paths(dir.path()));
+        let session_dir = dir.path().join("daiorama/default/history/s-1");
+        std::fs::create_dir_all(&session_dir).unwrap();
+        for index in 0..SEGMENTS {
+            let line = serde_json::to_string(&record("s-1", "tool.call", "2026-10-17T00:00:00Z"))
+                .unwrap()
+                + "\n";
+            std::fs::write(session_dir.join(format!("seg-{index:04}.log")), line).unwrap();
+        }
+        // Put the newest segment at the budget so the next append has to rotate.
+        let newest = session_dir.join(format!("seg-{:04}.log", SEGMENTS - 1));
+        let pad = (SEGMENT_BYTES as usize - std::fs::metadata(&newest).unwrap().len() as usize) + 1;
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&newest)
+            .unwrap();
+        file.write_all(&vec![b'x'; pad]).unwrap();
+
+        history
+            .append(&record("s-1", "tool.call", "2026-10-17T00:00:09Z"))
+            .unwrap();
+
+        let left = segment_paths(&session_dir);
+        assert_eq!(
+            left.len(),
+            SEGMENTS,
+            "a ninth segment means the pinned 8 x 4 MiB budget is exceeded"
+        );
+        assert!(
+            !session_dir.join("seg-0000.log").exists(),
+            "the oldest segment is the one dropped"
+        );
+        assert!(
+            session_dir.join(format!("seg-{SEGMENTS:04}.log")).exists(),
+            "the record landed in the new segment"
+        );
     }
 
     #[test]
