@@ -943,11 +943,22 @@ impl SessionSpawner for LinuxSpawner {
         let session = sessions.get(session_id)?;
         // The compositor's Wayland socket lives in its own runtime dir; the name is allocated
         // by the compositor (`wayland-0`, `wayland-1`, …), so discover it rather than assume.
-        let display = std::fs::read_dir(&session.rt_dir)
+        let mut displays: Vec<String> = std::fs::read_dir(&session.rt_dir)
             .ok()?
             .flatten()
             .filter_map(|entry| entry.file_name().into_string().ok())
-            .find(|name| name.starts_with("wayland-") && !name.ends_with(".lock"))?;
+            .filter(|name| {
+                name.starts_with("wayland-") && !name.ends_with(".lock") && name != PARENT_SOCKET
+            })
+            .collect();
+        // The nested compositor's own socket is the capture target, never mutter's parent
+        // display (`wayland-m`); `wayland-1` is Hyprland's by convention, else the first.
+        displays.sort();
+        let display = displays
+            .iter()
+            .find(|name| name.as_str() == "wayland-1")
+            .cloned()
+            .or_else(|| displays.first().cloned())?;
         Some(CaptureEnv {
             rt_dir: session.rt_dir.clone(),
             wayland_display: display,

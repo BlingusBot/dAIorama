@@ -298,6 +298,15 @@ request target is never logged.
   `http://<Host>/media/<id>`, stdio builds `daiorama://media/<id>` and names
   `daiorama media fetch <id> --out <path>` (claim-on-open applies to both).
 
+### Views (05/07)
+
+- The front serves only the noVNC asset tree and `/websockify`; a missing tree is `503` +
+  `view_unavailable` with `view assets not installed (expected <data>/novnc)`.
+- Every front response carries `Referrer-Policy: no-referrer`; the `Origin` header is required
+  on the WebSocket upgrade; the 07 credential is accepted as a query parameter,
+  `X-Daiorama-View` header, or the `HttpOnly; SameSite=Strict` cookie, and never appears in
+  logs or the session object.
+
 ### Media store and endpoint (manager side)
 
 The manager serves the same `GET /media/<32 lowercase hex>` on its own socket, distinguished

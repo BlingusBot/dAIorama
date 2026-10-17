@@ -318,6 +318,10 @@ pub fn takes_no_parameters(found: &str) -> String {
     format!("unknown parameter {found:?}; this method takes no parameters")
 }
 
+/// The front's pinned message when the noVNC asset tree is absent (05/07): packaging ships it
+/// in P5, and a missing tree is refused rather than served as a blank page.
+pub const VIEW_ASSETS_MISSING: &str = "view assets not installed (expected <data>/novnc)";
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,0 +1,12 @@
+bin=daiorama tree=this branch image=dai-l1:dev (privileged, Hyprland, wayvnc 0.10.1)
+view: {"generation": 1}
+page with credential: 200 40 cookie: True
+page without credential: 403
+upgrade: HTTP/1.1 101 Switching Protocols
+banner payload: b'\x82\x0cRFB 003.008\n'
+stop rc: 0 view stopped 
+front closed after stop: ok
+wayvnc processes left: 0
+second generation: 2
+LIVE VIEWS OK
+LIVE_RC=0
