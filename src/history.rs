@@ -81,6 +81,9 @@ impl History {
         std::fs::create_dir_all(&entry.dir).map_err(|err| {
             ErrorEnvelope::internal(format!("history dir {}: {err}", entry.dir.display()))
         })?;
+        // 0700: session ids are directory names, so the listing is the thing to hide even
+        // though every file is 0600.
+        let _ = std::fs::set_permissions(&entry.dir, std::fs::Permissions::from_mode(0o700));
         if entry.bytes >= SEGMENT_BYTES {
             entry.segment += 1;
             entry.bytes = 0;
@@ -110,6 +113,7 @@ impl History {
         if std::fs::create_dir_all(&dir).is_err() {
             return;
         }
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
         let body = format!(
             "{}\tscope={}\torigin={}\tcause={}\n",
             crate::runtime::service::utc_now_rfc3339(),
@@ -118,12 +122,18 @@ impl History {
             cause
         );
         let path = dir.join(".ended");
-        let _ = std::fs::write(&path, body);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-        }
+        // Created 0600 — no write-then-chmod window (the wayvnc-conf class).
+        let written = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&path)
+            .and_then(|mut file| file.write_all(body.as_bytes()));
+        let _ = written;
+        // A pre-existing marker from an older build could still be 0644; creation is 0600,
+        // this only repairs the leftover.
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     }
 
     /// The session's recorded scope (the first record's), for reads whose session is no longer
@@ -320,8 +330,8 @@ fn base64_decode(text: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
-// `mode(0o600)` for File::open options: bring the trait in at module scope.
-use std::os::unix::fs::OpenOptionsExt;
+// `mode(0o600)` / `from_mode(0o700)` for the history files and dirs.
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
 #[cfg(test)]
 mod tests {
@@ -360,6 +370,15 @@ mod tests {
         assert_eq!(
             std::fs::metadata(&file).unwrap().permissions().mode() & 0o777,
             0o600
+        );
+        assert_eq!(
+            std::fs::metadata(dir.path().join("daiorama/default/history/s-1"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700,
+            "the session dir hides its name"
         );
     }
 
