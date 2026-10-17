@@ -910,9 +910,13 @@ async fn serve_connection(
         // media fetch (a request line whose target path is `/media...`) or JSON-RPC frames.
         // Every other line stays on the frame path, whose pinned refusals keep their answers.
         let mut words = line.split_whitespace();
-        let _method = words.next();
+        let method = words.next().unwrap_or_default();
         let target = words.next().unwrap_or_default();
-        if target.starts_with("/media") {
+        let http_method = matches!(
+            method,
+            "GET" | "POST" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "PATCH" | "TRACE" | "CONNECT"
+        );
+        if http_method && target.starts_with("/media") {
             return serve_media_http(&mut reader, line, &media).await;
         }
         let request: Request = match serde_json::from_str(line) {
