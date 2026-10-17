@@ -358,6 +358,10 @@ impl RuntimeService {
         }
         let mut registry = self.registry();
         let _ = registry.close(&id)?;
+        drop(registry);
+        // 08: the persisted media directory follows the session's life — closing a session
+        // takes its audit artifacts with it (the URL side died at the fetch).
+        crate::media::drop_session_dir(&self.paths, &id);
         Ok(json!({ "id": id, "state": "closed" }))
     }
 
@@ -1319,7 +1323,13 @@ mod tests {
         let service = Arc::new(make_service(tmp.path(), Arc::new(TestSpawner::default())));
         let handler: Arc<dyn Handler> = service;
         let listener = Listener::bind(&socket).await.unwrap();
-        let serving = tokio::spawn(listener.serve(handler));
+        let serving = tokio::spawn(listener.serve(
+            handler,
+            Arc::new(crate::media::MediaStore::with_ttl(
+                tmp.path().to_path_buf(),
+                crate::media::DEFAULT_TTL,
+            )),
+        ));
 
         let address = Address::Unix(socket.clone());
         let mut client = Client::connect(&address, StdDuration::from_secs(2), None)
@@ -1946,7 +1956,13 @@ mod tests {
         let service = Arc::new(make_service_with(tmp.path(), spawner));
         let handler: Arc<dyn Handler> = service;
         let listener = Listener::bind(&socket).await.expect("bind");
-        let serving = tokio::spawn(listener.serve(handler));
+        let serving = tokio::spawn(listener.serve(
+            handler,
+            Arc::new(crate::media::MediaStore::with_ttl(
+                tmp.path().to_path_buf(),
+                crate::media::DEFAULT_TTL,
+            )),
+        ));
 
         let mut client = Client::connect(
             &Address::Unix(socket.clone()),

@@ -76,6 +76,8 @@ pub struct ServeDeps {
 /// The prepared, not-yet-bound manager: the startup decision already made.
 pub struct Prepared {
     pub handler: Arc<dyn Handler>,
+    /// The manager-side media store (05 A8): serves `GET /media/<id>` on the socket.
+    pub media: Arc<crate::media::MediaStore>,
     pub socket: PathBuf,
     pub mode: InstanceMode,
     /// The recorded-downgrade notice when `limits.mode = off` (06); `None` otherwise.
@@ -182,6 +184,7 @@ pub fn prepare(deps: &ServeDeps) -> Result<Prepared, ErrorEnvelope> {
         Arc::clone(&deps.spawner),
     );
     Ok(Prepared {
+        media: Arc::new(crate::media::MediaStore::for_instance(&deps.paths)),
         handler: Arc::new(service),
         socket,
         mode,
@@ -389,7 +392,7 @@ pub async fn run_until(
     }
 
     tokio::select! {
-        _ = listener.serve(prepared.handler) => {}
+        _ = listener.serve(prepared.handler, prepared.media) => {}
         _ = shutdown => {}
     }
     let _ = std::fs::remove_file(&prepared.socket);

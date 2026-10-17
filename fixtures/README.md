@@ -285,6 +285,17 @@ request target is never logged.
 - A client that accepts no bytes for 10 s is cut off mid-stream; a slow reader that keeps
   taking bytes is not (the bound is per write, not a total-transfer deadline).
 
+### Media store and endpoint (manager side)
+
+The manager serves the same `GET /media/<32 lowercase hex>` on its own socket, distinguished
+from JSON-RPC frames by the first line (an HTTP request line) and answering one fetch per
+connection with `Connection: close`. Unknown, expired and consumed ids are a single `404` +
+`media_expired`; a non-GET is `405` + `Allow: GET`; a declared body is `400`
+(`media fetches carry no body`); an over-cap head keeps `request head too large`. The store is memory-only for
+the URL lifetime — a manager restart drops every id — and `audit.store_clips` persists the same
+artifact at `<data>/media/<session>/<id>` (0600, per-session cap, oldest-first eviction), never
+resurrecting the URL.
+
 ## Spawner parameters
 
 What the fixtures pin is the **frame** contract: `create_session` carries the requested

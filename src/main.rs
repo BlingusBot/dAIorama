@@ -11,6 +11,7 @@ mod config;
 mod ipc;
 mod manager;
 mod mcp;
+mod media;
 mod runtime;
 mod strings;
 
