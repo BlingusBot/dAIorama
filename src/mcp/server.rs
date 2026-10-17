@@ -260,16 +260,9 @@ impl Bridge {
         }
 
         let (params, idempotency_key) = split_create_arguments(name, arguments);
-        let result = {
-            let client = self.client().await?;
-            client.request(name, params, idempotency_key).await
-        };
-        match result {
+        match self.relay(name, params, idempotency_key).await {
             Ok(value) => Ok(serde_json::to_value(ToolResult::ok(value)).expect("tool result")),
             Err(envelope) => {
-                if envelope.code == ErrorCode::ManagerUnreachable {
-                    self.client = None;
-                }
                 Ok(serde_json::to_value(ToolResult::tool_error(&envelope)).expect("tool result"))
             }
         }
@@ -332,11 +325,7 @@ impl Bridge {
 
     /// Live sessions in the caller's scope, from the manager's own filtered listing.
     async fn scope_live_count(&mut self) -> Result<u32, ErrorEnvelope> {
-        let result = {
-            let client = self.client().await?;
-            client.request("list_sessions", None, None).await
-        };
-        let listing = result.map_err(|envelope| {
+        let listing = self.relay_read("list_sessions").await.map_err(|envelope| {
             if envelope.code == ErrorCode::ManagerUnreachable {
                 ErrorEnvelope::no_manager_running()
             } else {
@@ -355,6 +344,39 @@ impl Bridge {
                     .count() as u32
             })
             .unwrap_or(0))
+    }
+
+    /// One relayed request over the cached manager link. A transport failure means the link
+    /// died with the manager it talked to (a crash or a restart between calls): evict it so the
+    /// next call reconnects, and surface the reachability envelope for this call.
+    async fn relay(
+        &mut self,
+        method: &str,
+        params: Option<Value>,
+        idempotency_key: Option<String>,
+    ) -> Result<Value, ErrorEnvelope> {
+        let result = {
+            let client = self.client().await?;
+            client.request(method, params, idempotency_key).await
+        };
+        if matches!(&result, Err(envelope) if envelope.code == ErrorCode::ManagerUnreachable) {
+            self.client = None;
+        }
+        result
+    }
+
+    /// A relayed read. Unlike a tool call it is safe to replay, so a cached link that turned
+    /// out dead is replaced once and the read retried: a harness polling this call across a
+    /// manager restart sees an answer, not a stale-connection error. A manager that is
+    /// genuinely down is not retried (there was no cached link to evict).
+    async fn relay_read(&mut self, method: &str) -> Result<Value, ErrorEnvelope> {
+        let had_link = self.client.is_some();
+        match self.relay(method, None, None).await {
+            Err(envelope) if had_link && envelope.code == ErrorCode::ManagerUnreachable => {
+                self.relay(method, None, None).await
+            }
+            other => other,
+        }
     }
 
     /// The manager connection, connected and handshaken on first use. Transport failures are
