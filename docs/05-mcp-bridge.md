@@ -259,7 +259,7 @@ MCP tool errors carry this envelope 1:1; **codes are a versioned API surface**
 - Session: `session_not_found`, `session_reaped`, `session_closed`, `session_dead`
   (reaped ≠ closed ≠ dead — distinct codes, distinct states, 06)
 - Identity: `no_session_specified`, `scope_unknown`, `scope_auth_required`, `scope_required`, `token_required`, `no_manager_running`
-- Permissions/limits: `tool_not_granted`, `quota_exceeded` (message carries scope + global numbers), `rate_limited` (hint `retry after <ms> ms` — B9; control-class calls only, per session, `pace` or `reject` per `limits.rate`), `draining`
+- Permissions/limits: `tool_not_granted`, `quota_exceeded` (message carries scope + global numbers), `rate_limited` (hint `retry after <ms> ms` — B9; control-class calls only, per session, paced or rejected per `limits.rate`), `draining`
 - Creation: `renderer_refused`, `backend_busy` (host exclusivity, 03), `limits_unavailable` (containment preconditions, 06 — fails manager start)
 - Protocol: `version_incompatible` (message carries both version pairs), `bad_request`, `internal`
 - Views/media/capture: `view_unavailable`, `media_expired`, `capture_failed` (a capture command failed or produced nothing usable; message carries the command and reason)
