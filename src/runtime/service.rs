@@ -769,6 +769,123 @@ impl RuntimeService {
         Ok((id, record.to_json()))
     }
 
+    // -----------------------------------------------------------------------
+    // Input (05, nine control tools)
+    // -----------------------------------------------------------------------
+
+    /// Resolve `{session_id, ...}` to a running session plus its input target. Visibility and
+    /// tombstone rules are `capture_target`'s, so input cannot reach a session the caller could
+    /// not screenshot.
+    fn input_target(
+        &self,
+        scope: &str,
+        params: Option<&Value>,
+        allowed: &[&str],
+    ) -> Result<(crate::runtime::input::Target, Map<String, Value>), ErrorEnvelope> {
+        let (_id, record) = self.capture_target(scope, params, allowed)?;
+        let id = record
+            .get("id")
+            .and_then(Value::as_str)
+            .expect("session record carries id")
+            .to_string();
+        let env = self
+            .spawner
+            .capture_env(&id)
+            .ok_or_else(ErrorEnvelope::session_dead)?;
+        let resolution = record
+            .get("resolution")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let scale = record.get("scale").and_then(Value::as_f64).unwrap_or(1.0);
+        let target =
+            crate::runtime::input::target(&env, resolution, scale).map_err(|err| err.envelope())?;
+        let map = params_object(params)?;
+        Ok((target, map))
+    }
+
+    fn pointer_move(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
+        let (target, map) = self.input_target(scope, params, &["session_id", "x", "y"])?;
+        let x = number_field(&map, "x")?;
+        let y = number_field(&map, "y")?;
+        let width = target.width as f64 * target.scale;
+        let height = target.height as f64 * target.scale;
+        if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 || x >= width || y >= height {
+            return Err(ErrorEnvelope::bad_request(format!(
+                "pointer_move ({x}, {y}) is outside the session output ({width}x{height} screenshot pixels)"
+            )));
+        }
+        crate::runtime::input::pointer_move(&target, x, y).map_err(|err| err.envelope())?;
+        Ok(json!({}))
+    }
+
+    fn pointer_button(
+        &self,
+        scope: &str,
+        params: Option<&Value>,
+        down: bool,
+    ) -> Result<Value, ErrorEnvelope> {
+        let (target, map) = self.input_target(scope, params, &["session_id", "button"])?;
+        let button = button_field(&map)?;
+        crate::runtime::input::pointer_button(&target, button, down)
+            .map_err(|err| err.envelope())?;
+        Ok(json!({}))
+    }
+
+    fn pointer_click(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
+        let (target, map) = self.input_target(scope, params, &["session_id", "button"])?;
+        let button = button_field(&map)?;
+        crate::runtime::input::pointer_click(&target, button).map_err(|err| err.envelope())?;
+        Ok(json!({}))
+    }
+
+    fn pointer_scroll(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
+        let (target, map) = self.input_target(scope, params, &["session_id", "dx", "dy"])?;
+        let dx = number_field(&map, "dx")?;
+        let dy = number_field(&map, "dy")?;
+        if !dx.is_finite() || !dy.is_finite() {
+            return Err(ErrorEnvelope::bad_request(
+                "dx and dy must be finite numbers",
+            ));
+        }
+        crate::runtime::input::pointer_scroll(&target, dx, dy).map_err(|err| err.envelope())?;
+        Ok(json!({}))
+    }
+
+    fn key_event(
+        &self,
+        scope: &str,
+        params: Option<&Value>,
+        action: KeyAction,
+    ) -> Result<Value, ErrorEnvelope> {
+        let (target, map) = self.input_target(scope, params, &["session_id", "key"])?;
+        let key = string_field(&map, "key")?
+            .ok_or_else(|| ErrorEnvelope::bad_request("key is required"))?;
+        match action {
+            KeyAction::Tap => crate::runtime::input::key_tap(&target, &key),
+            KeyAction::Down => {
+                crate::runtime::input::key(&target, &key, crate::runtime::input::KeyState::Pressed)
+            }
+            KeyAction::Up => {
+                crate::runtime::input::key(&target, &key, crate::runtime::input::KeyState::Released)
+            }
+        }
+        .map_err(|err| err.envelope())?;
+        Ok(json!({}))
+    }
+
+    fn type_text(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
+        let (target, map) = self.input_target(scope, params, &["session_id", "text"])?;
+        let text = string_field(&map, "text")?
+            .ok_or_else(|| ErrorEnvelope::bad_request("text is required"))?;
+        if text.chars().count() > 1024 {
+            return Err(ErrorEnvelope::bad_request(
+                "text is limited to 1024 characters per call",
+            ));
+        }
+        crate::runtime::input::type_text(&target, &text).map_err(|err| err.envelope())?;
+        Ok(json!({}))
+    }
+
     /// `screenshot` -> an image payload the bridge turns into an MCP `image` block. The raw
     /// PNG is size-checked **before** base64 (05 §Capture: the frame bound cannot be blown by
     /// a big capture).
@@ -1124,6 +1241,16 @@ impl Handler for RuntimeService {
             methods::STOP_VIEW => self.stop_view(scope, params),
             methods::LIST_HISTORY => self.list_history(scope, params),
             methods::DAEMON_END => Err(ErrorEnvelope::not_implemented()),
+            // Input (05, nine control tools; P5-INPUT-TOOLS): in-binary virtual input.
+            "pointer_move" => self.pointer_move(scope, params),
+            "pointer_click" => self.pointer_click(scope, params),
+            "pointer_button_down" => self.pointer_button(scope, params, true),
+            "pointer_button_up" => self.pointer_button(scope, params, false),
+            "pointer_scroll" => self.pointer_scroll(scope, params),
+            "key_tap" => self.key_event(scope, params, KeyAction::Tap),
+            "key_down" => self.key_event(scope, params, KeyAction::Down),
+            "key_up" => self.key_event(scope, params, KeyAction::Up),
+            "type_text" => self.type_text(scope, params),
             name if is_known_tool_name(name) => Err(ErrorEnvelope::not_implemented()),
             // Anything else is a name the protocol does not define: a client-side refusal.
             // Dispatch-level — the connection continues (P2 hardening; fixtures/README).
@@ -1210,6 +1337,29 @@ fn no_params(params: Option<&Value>) -> Result<(), ErrorEnvelope> {
             crate::strings::takes_no_parameters(key),
         )),
     }
+}
+
+/// Which half of a key event a control call asks for.
+enum KeyAction {
+    Tap,
+    Down,
+    Up,
+}
+
+fn button_field(map: &Map<String, Value>) -> Result<crate::runtime::input::Button, ErrorEnvelope> {
+    let name = string_field(map, "button")?
+        .ok_or_else(|| ErrorEnvelope::bad_request("button is required"))?;
+    crate::runtime::input::Button::parse(&name).ok_or_else(|| {
+        ErrorEnvelope::bad_request(format!(
+            "button must be left, right or middle; got {name:?}"
+        ))
+    })
+}
+
+fn number_field(map: &Map<String, Value>, key: &str) -> Result<f64, ErrorEnvelope> {
+    map.get(key)
+        .and_then(Value::as_f64)
+        .ok_or_else(|| ErrorEnvelope::bad_request(format!("{key} must be a number")))
 }
 
 fn unknown_params(map: &Map<String, Value>, valid: &[&str]) -> Result<(), ErrorEnvelope> {
@@ -2074,7 +2224,7 @@ mod tests {
         let service = make_service(tmp.path(), Arc::new(TestSpawner::default()));
 
         // Unbuilt, but pinned: the views/query methods, daemon_end, and the control tools.
-        for method in [methods::DAEMON_END, "pointer_move", "list_capabilities"] {
+        for method in [methods::DAEMON_END, "list_capabilities", "clip_audio"] {
             let err = result(&service, method, None).unwrap_err();
             assert_eq!(err.code, ErrorCode::Internal, "{method}");
             assert_eq!(
@@ -2990,6 +3140,79 @@ mod tests {
             None,
         );
         (service, spawner)
+    }
+
+    /// 05 §Input: the nine control tools are live; their pinned surface is validated before any
+    /// compositor connection, and a session without a socket fails at the connection with an
+    /// internal naming the missing socket — never `not_implemented`.
+    #[test]
+    fn input_tools_validate_their_surface_before_connecting() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), CoreConfig::default());
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        let call = |method: &str, params: Value| result(&service, method, Some(params));
+
+        let err = call("pointer_move", json!({ "session_id": id, "x": -1, "y": 0 })).unwrap_err();
+        assert_eq!(err.code, ErrorCode::BadRequest);
+        assert!(
+            err.message.contains("outside the session output"),
+            "{}",
+            err.message
+        );
+
+        let err = call(
+            "pointer_move",
+            json!({ "session_id": id, "x": 1, "y": 1, "z": 2 }),
+        )
+        .unwrap_err();
+        assert_eq!(err.code, ErrorCode::BadRequest);
+        assert!(err.message.contains("unknown parameter"), "{}", err.message);
+
+        let err = call("pointer_move", json!({ "session_id": id, "x": 1 })).unwrap_err();
+        assert_eq!(err.code, ErrorCode::BadRequest);
+        assert!(
+            err.message.contains("y must be a number"),
+            "{}",
+            err.message
+        );
+
+        let err = call(
+            "pointer_click",
+            json!({ "session_id": id, "button": "side" }),
+        )
+        .unwrap_err();
+        assert_eq!(err.code, ErrorCode::BadRequest);
+        assert!(
+            err.message.contains("left, right or middle"),
+            "{}",
+            err.message
+        );
+
+        let err = call("key_tap", json!({ "session_id": id, "key": "NotAKey" })).unwrap_err();
+        assert_eq!(err.code, ErrorCode::BadRequest);
+        assert!(err.message.contains("unknown key"), "{}", err.message);
+
+        let err = call(
+            "type_text",
+            json!({ "session_id": id, "text": "caf\u{e9}" }),
+        )
+        .unwrap_err();
+        assert_eq!(err.code, ErrorCode::BadRequest);
+        assert!(err.message.contains("byte 3"), "{}", err.message);
+
+        // Past validation, the missing session socket is what refuses — an internal naming it.
+        let err = call("pointer_move", json!({ "session_id": id, "x": 1, "y": 1 })).unwrap_err();
+        assert_eq!(err.code, ErrorCode::Internal);
+        assert!(err.message.contains("socket"), "{}", err.message);
+
+        // A stranger's id is the same refusal every read gives.
+        let err = call(
+            "pointer_move",
+            json!({ "session_id": "s-nope", "x": 1, "y": 1 }),
+        )
+        .unwrap_err();
+        assert_eq!(err.code, ErrorCode::SessionNotFound);
     }
 
     /// 05 §Capture: `screenshot` answers the typed image payload; the base64 is the file's

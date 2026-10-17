@@ -194,6 +194,18 @@ lines; positive x scrolls right, positive y scrolls down), `key_tap {key}`,
 `key_down {key}`, `key_up {key}` (xkb keysym names; chords are modifier
 key_down/key_up around the tap), `type_text {text}`.
 
+**Input implementation (P5, in-binary virtual input):** all nine answer `{}` on success. The
+manager speaks the session compositor's `zwlr_virtual_pointer_v1` /
+`zwp_virtual_keyboard_v1` directly over the session socket — no per-event subprocess. Coordinates
+are screenshot pixels (the manager divides by the session scale for the compositor's logical
+space); a point outside the output is `bad_request`. `key` names are xkb keysym names resolved
+against a built-in **US** keymap; an unknown name is `bad_request` naming it. `type_text` types
+through the same US table (newline and tab included), is capped at 1024 characters per call, and
+a character outside the table is `bad_request` naming its byte offset — text is never silently
+dropped. A compositor without either protocol answers `internal` with a message naming the
+missing interface. Input does not require an open view: `get_view` is observation, not
+authorization.
+
 **Starter essential set to build first:** window management, input, screen
 capture (non-optional — it closes the observe-then-act loop), query, program
 launch. Decorations, animation curves, monitor arrangement, dynamic
