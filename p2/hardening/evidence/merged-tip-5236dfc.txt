@@ -1,0 +1,59 @@
+===================================================================
+## merged-tip battery — spec/v1 @ 5236dfc   (2026-10-17)
+===================================================================
+Tip: 5236dfc  ("run dispatch off the reactor so a slow call cannot stall the manager")
+Base at fix review: 41a4240 (parent 7172318); merged tip parent c61feea (views).
+Patch identity: `git range-diff 7172318..41a4240 c61feea..5236dfc` -> 1: 41a4240 = 1: 5236dfc.
+The rebase carried the reviewed patch unchanged; the merged tree additionally holds c61feea.
+
+Environment: fresh rust:slim container, sources touched before building (stale-binary guard),
+CARGO_TARGET_DIR=/tmp/t. Commands are the standard gate set (README: bare rust:slim needs
+`rustup component add rustfmt clippy` first).
+
+===================================================================
+## [1] format + lint + build
+===================================================================
+fmt_rc=0
+fmt_check_rc=0
+clippy_rc=0            # cargo clippy --all-targets --locked -- -D warnings
+build_rc=0             # cargo build --locked
+
+===================================================================
+## [2] test battery
+===================================================================
+test result: ok. 207 passed; 0 failed; 5 ignored   # unit
+test result: ok. 4 passed; 0 failed                # daemon
+test result: ok. 2 passed; 0 failed                # doctor
+test result: ok. 27 passed; 0 failed               # fixtures
+test result: ok. 7 passed; 0 failed                # mcp
+test result: ok. 22 passed; 0 failed               # mcp_listen
+tests_rc=0
+Counts: 207 (+5i) · 4 · 2 · 27 · 7 · 22 — 205 from the views merge plus 2 dispatch tests.
+
+===================================================================
+## [3] dispatch-stall L1 leg on the merged tip
+===================================================================
+p2/hardening/run-dispatch-stall.sh <binary> merged5236dfc
+# fake compositor that never becomes ready => every create_session is a full-length
+# blocked dispatch; four of them, then a plain `status` on a fifth connection is timed.
+
+binary=daiorama-merged label=merged5236dfc
+status_latency_s=0.00 status=running
+create_elapsed_s=[15.02, 30.04, 40.04, 40.04]
+create_answer={"error": {"code": "internal", "message": "mutter parent did not present its wayland socket in time; mutter.log tail: "}}
+create_answer={"error": {"code": "internal", "message": "mutter parent did not present its wayland socket in time; mutter.log tail: "}}
+VERDICT=PASS fast_call_latency_s=0.00
+stall_rc=0
+
+Notes:
+- The status call answered in 0.00 s while four creates sat 15-40 s inside dispatch; the
+  pre-fix signature for this probe is ~15 s (the peer's receipt recorded 14.53 s before,
+  0.00 s after, on 41a4240).
+- The create answers are the expected parent-ready timeout refusals, not a failure of the leg:
+  the fake compositor never presents its socket.
+- The create timings show the four creates serializing (15/30/40/40) rather than finishing
+  together; that is the create-path serialization the probe exercises, not a regression this
+  leg measures. Recorded as observed.
+- This leg closes the one declared gap in the #54 cross-verify (the verifier read the code and
+  ran the in-process starvation regression, but not this L1 script). Both gates and the L1 leg
+  now hold on the merged tip rather than only on the pre-merge head.
