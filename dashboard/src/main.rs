@@ -6,7 +6,7 @@ mod client;
 mod server;
 mod store;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use store::Connections;
@@ -107,19 +107,16 @@ async fn run(args: &[String]) -> Result<(), String> {
             Ok(())
         }
         "connect" => {
-            let name = command_args.first().ok_or("connect needs a name")?;
-            let address = command_args.get(1).ok_or("connect needs an address")?;
-            if !valid_name(name) {
-                return Err("connection names are [A-Za-z0-9._-]{1,64}".into());
-            }
+            // 04 grammar: `dashboard connect <address>` — the address is the default label.
+            let address = command_args.first().ok_or("connect needs an address")?;
             if !valid_address(address) {
                 return Err("address must be host:port".into());
             }
             let mut store = Connections::load(&config)?;
-            match store.find_mut(name) {
+            match store.find_mut(address) {
                 Some(connection) => connection.address = address.clone(),
                 None => store.connections.push(store::Connection {
-                    name: name.clone(),
+                    name: address.clone(),
                     address: address.clone(),
                     token: String::new(),
                     scope_token: String::new(),
@@ -127,7 +124,7 @@ async fn run(args: &[String]) -> Result<(), String> {
             }
             store.save(&config)?;
             println!(
-                "connection {name:?} -> {address} (tokens: see 'token set' / 'scope-token set')"
+                "connection {address} added (tokens: 'token set {address}', 'scope-token set {address}')"
             );
             Ok(())
         }
@@ -151,23 +148,42 @@ async fn run(args: &[String]) -> Result<(), String> {
             } else {
                 "scope_token"
             };
-            if command_args.first().map(String::as_str) != Some("set") {
-                return Err(format!("{command} takes `set <name>`\n{USAGE}"));
-            }
-            let name = command_args.get(1).ok_or("name is required")?;
+            let verb = command_args.first().map(String::as_str).unwrap_or_default();
+            let name = command_args.get(1).ok_or("connection is required")?;
             let mut store = Connections::load(&config)?;
-            let secret = store::read_secret()?;
-            let connection = store
-                .find_mut(name)
-                .ok_or_else(|| format!("unknown connection {name:?}; run 'connect' first"))?;
-            if field == "token" {
-                connection.token = secret;
-            } else {
-                connection.scope_token = secret;
+            match verb {
+                "set" => {
+                    let secret = store::read_secret()?;
+                    let connection = store.find_mut(name).ok_or_else(|| {
+                        format!("unknown connection {name:?}; run 'connect <address>' first")
+                    })?;
+                    if field == "token" {
+                        connection.token = secret;
+                    } else {
+                        connection.scope_token = secret;
+                    }
+                    store.save(&config)?;
+                    // Value never printed, matching the manager token rule (07).
+                    println!("{field} updated for {name} (0600)");
+                }
+                "remove" => {
+                    let connection = store.find_mut(name).ok_or_else(|| {
+                        format!("unknown connection {name:?}; run 'connect <address>' first")
+                    })?;
+                    if field == "token" {
+                        connection.token.clear();
+                    } else {
+                        connection.scope_token.clear();
+                    }
+                    store.save(&config)?;
+                    println!("{field} removed for {name}");
+                }
+                other => {
+                    return Err(format!(
+                        "{command} takes `set|remove <connection>`, got {other:?}\n{USAGE}"
+                    ));
+                }
             }
-            store.save(&config)?;
-            // Value never printed, matching the manager token rule (07).
-            println!("{field} updated for {name:?} (0600)");
             Ok(())
         }
         "--help" | "-h" | "help" => {
@@ -206,20 +222,9 @@ fn default_ui_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-fn valid_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 64
-        && name.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_' || byte == b'.'
-        })
-}
-
 fn valid_address(address: &str) -> bool {
     match address.rsplit_once(':') {
         Some((host, port)) => !host.is_empty() && port.parse::<u16>().is_ok(),
         None => false,
     }
 }
-
-#[allow(dead_code)]
-fn _path(_: &Path) {}
