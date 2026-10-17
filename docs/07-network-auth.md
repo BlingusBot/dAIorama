@@ -150,17 +150,20 @@ talking to a foreign, compatible **manager** is the stated feature. Guards:
   claims (including `operator`) — a deliberate trust decision, not a side
   effect; shared instances point clients at TCP instead (10).
 
-## Rate limiting (B9 — mechanism adopted at P0; numbers verify in build)
+## Rate limiting (B9 — mechanism adopted at P0; numbers verified in the build, P4)
 
 A session driven at inhuman control-call rates is itself a detection signal —
 it cuts against the reason the project exists. Mechanism (adopted at the P0
 reconcile; numbers verify in the build): a per-session token bucket over
 **control-class** calls (input class; reads exempt), configured per scope:
-`limits.rate { per_sec = 20, burst = 40, mode = pace | reject }`. Default
-`pace` delays excess calls to the bucket rate in arrival order (input cadence
-stays human-plausible); `reject` fails `rate_limited` with `hint:
-retry_after_ms`. The counter lives in the manager, keyed by session. Pacing is
-also the natural place for future input-cadence shaping.
+`limits.rate { per_sec = 20, burst = 40, mode = pace | reject, max_wait_ms = 30000,
+max_queued = 64 }`. Default `pace` delays excess calls to the bucket rate in arrival order
+(input cadence stays human-plausible); `reject` fails `rate_limited` with `hint: retry after
+<ms> ms`. Pacing is bounded on both axes: a wait beyond `max_wait_ms`, or a call arriving while
+`max_queued` are already parked, is refused instead of queued — a flood degrades to refusals,
+never to a parked army. The counter lives in the manager, keyed by session. Pacing is also the
+natural place for future input-cadence shaping. Capture is exempt from the bucket but serialized
+(one at a time per session).
 
 ## Posture statement (repeated here on purpose)
 

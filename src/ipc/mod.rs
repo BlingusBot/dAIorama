@@ -441,6 +441,15 @@ impl ErrorEnvelope {
         .with_hint(strings::HINT_BACK_OFF)
     }
 
+    /// B9: `retry_after_ms` is the documented client behaviour (07), carried in the hint.
+    pub fn rate_limited_after(scope: &str, retry_after_ms: u64) -> Self {
+        Self::new(
+            ErrorCode::RateLimited,
+            format!("rate limit exceeded for scope {scope:?}"),
+        )
+        .with_hint(format!("retry after {retry_after_ms} ms"))
+    }
+
     /// 04 string, verbatim.
     pub fn draining(remaining: u32) -> Self {
         Self::new(ErrorCode::Draining, strings::draining(remaining))

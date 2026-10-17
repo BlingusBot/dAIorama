@@ -300,6 +300,14 @@ request target is never logged.
   `http://<Host>/media/<id>`, stdio builds `daiorama://media/<id>` and names
   `daiorama media fetch <id> --out <path>` (claim-on-open applies to both).
 
+### Rate limit and capture (05 §Rate, 07 B9)
+
+- Control-class input calls are rate-limited per session by `limits.rate`; reads, capture and
+  lifecycle are exempt. `pace` waits in arrival order; a wait beyond `max_wait_ms` or a queue
+  beyond `max_queued` answers `rate_limited` with `retry after <ms> ms`.
+- One capture at a time per session: a concurrent call answers `bad_request` with
+  `a capture is already running for this session`.
+
 ### Views (05/07)
 
 - The front serves only the noVNC asset tree and `/websockify`; a missing tree is `503` +

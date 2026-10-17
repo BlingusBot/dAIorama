@@ -80,6 +80,10 @@ pub struct RuntimeService {
     create_lock: Mutex<()>,
     /// Live views: wayvnc + the manager-owned front (06 B2, 07).
     views: Arc<crate::runtime::views::ViewManager>,
+    /// B9: per-session control-call buckets (07).
+    rate: crate::runtime::rate::RateLimiter,
+    /// One capture at a time per session (capture is exempt from the bucket, not free).
+    capture_inflight: Mutex<std::collections::HashSet<String>>,
 }
 
 impl RuntimeService {
@@ -100,6 +104,8 @@ impl RuntimeService {
             draining: AtomicBool::new(false),
             create_lock: Mutex::new(()),
             views: Arc::new(crate::runtime::views::ViewManager::default()),
+            rate: crate::runtime::rate::RateLimiter::default(),
+            capture_inflight: Mutex::new(std::collections::HashSet::new()),
         }
     }
 
@@ -473,6 +479,19 @@ impl RuntimeService {
     // Capture (05 §Capture)
     // -----------------------------------------------------------------------
 
+    /// Claim the session's single capture slot; `None` when a capture is already in flight.
+    fn begin_capture(&self, id: &str) -> Option<CaptureSlot<'_>> {
+        let mut inflight = self.capture_inflight.lock().expect("capture lock");
+        if !inflight.insert(id.to_string()) {
+            return None;
+        }
+        drop(inflight);
+        Some(CaptureSlot {
+            set: &self.capture_inflight,
+            id: id.to_string(),
+        })
+    }
+
     /// Resolve a capture target exactly like `session_status`: tombstone-gated, visibility
     /// checked (a stranger's id is `session_not_found`, never existence), and only then does
     /// the caller get to look at anything.
@@ -509,6 +528,11 @@ impl RuntimeService {
     /// a big capture).
     fn screenshot(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
         let (id, _record) = self.capture_target(scope, params, &["session_id"])?;
+        let Some(_slot) = self.begin_capture(&id) else {
+            return Err(ErrorEnvelope::bad_request(
+                crate::strings::CAPTURE_IN_FLIGHT,
+            ));
+        };
         let config = self.config.read().expect("config lock").clone();
         let env = self
             .spawner
@@ -538,6 +562,11 @@ impl RuntimeService {
     /// `clip_video` -> a minted media id the bridge turns into a `resource_link`.
     fn clip_video(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
         let (id, _record) = self.capture_target(scope, params, &["session_id", "duration_s"])?;
+        let Some(_slot) = self.begin_capture(&id) else {
+            return Err(ErrorEnvelope::bad_request(
+                crate::strings::CAPTURE_IN_FLIGHT,
+            ));
+        };
         let duration_s = match params_object(params)?.get("duration_s") {
             None | Some(Value::Null) => 5,
             Some(value) => value
@@ -726,6 +755,21 @@ impl Handler for RuntimeService {
         method: &str,
         params: Option<&Value>,
     ) -> Response {
+        // B9: control-class calls spend a token before anything else happens. Reads, capture
+        // and lifecycle are exempt (07); the bucket is per (scope, session).
+        if is_control_tool(method)
+            && let Some(session_id) = params
+                .and_then(|value| value.get("session_id"))
+                .and_then(Value::as_str)
+        {
+            let rate = self
+                .scope_definition(scope)
+                .map(|definition| definition.limits.rate)
+                .unwrap_or_default();
+            if let Err(envelope) = self.rate.acquire(scope, session_id, &rate) {
+                return Response::Error(envelope);
+            }
+        }
         let outcome: Result<Value, ErrorEnvelope> = match method {
             // Instance reads and the two management verbs take no parameters: a stray key is a
             // malformed request (05), refused like any other unknown parameter — silently
@@ -792,6 +836,37 @@ fn view_answer(
         "credential": credential,
         "generation": generation,
     })
+}
+
+/// The control class (07 B9): the nine input tools are rate-limited; reads, capture and
+/// lifecycle are exempt.
+fn is_control_tool(method: &str) -> bool {
+    matches!(
+        method,
+        "pointer_move"
+            | "pointer_scroll"
+            | "pointer_click"
+            | "pointer_button_down"
+            | "pointer_button_up"
+            | "key_tap"
+            | "key_down"
+            | "key_up"
+            | "type_text"
+    )
+}
+
+/// Releases the session's capture slot on every exit path.
+struct CaptureSlot<'a> {
+    set: &'a Mutex<std::collections::HashSet<String>>,
+    id: String,
+}
+
+impl Drop for CaptureSlot<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut set) = self.set.lock() {
+            set.remove(&self.id);
+        }
+    }
 }
 
 /// A method whose pinned surface takes no parameters: `null`, absent and `{}` are all "no
@@ -2756,5 +2831,105 @@ mod tests {
             service.views.running(&id).is_none(),
             "view never outlives its session"
         );
+    }
+
+    /// B9: control-class calls spend bucket tokens; the 41st call at the defaults (40 burst,
+    /// 20/s) waits for its token instead of running instantly.
+    #[test]
+    fn control_calls_are_paced_by_the_default_bucket() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), CoreConfig::default());
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        for x in 0..40 {
+            let _ = result(
+                &service,
+                "pointer_move",
+                Some(json!({ "session_id": id, "x": x, "y": 0 })),
+            );
+        }
+        let started = std::time::Instant::now();
+        let _ = result(
+            &service,
+            "pointer_move",
+            Some(json!({ "session_id": id, "x": 0, "y": 0 })),
+        );
+        assert!(
+            started.elapsed() >= std::time::Duration::from_millis(35),
+            "the 41st call was paced: {:?}",
+            started.elapsed()
+        );
+    }
+
+    /// `reject` fails the overflow with a retry hint; reads never touch the bucket.
+    #[test]
+    fn reject_mode_refuses_with_a_retry_hint_and_reads_are_exempt() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), CoreConfig::default());
+        std::fs::create_dir_all(service.paths.scopes_dir()).unwrap();
+        std::fs::write(
+            service.paths.scope_file("operator"),
+            "(limits: (rate: (per_sec: 1, burst: 1, mode: reject)))",
+        )
+        .unwrap();
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        let _ = result(
+            &service,
+            "pointer_move",
+            Some(json!({ "session_id": id, "x": 1, "y": 1 })),
+        );
+        let error = result(
+            &service,
+            "pointer_move",
+            Some(json!({ "session_id": id, "x": 2, "y": 2 })),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::RateLimited);
+        assert!(
+            error
+                .hint
+                .as_deref()
+                .unwrap_or_default()
+                .starts_with("retry after "),
+            "{error:?}"
+        );
+        assert!(
+            result(&service, methods::STATUS, None).is_ok(),
+            "reads are exempt from the bucket"
+        );
+    }
+
+    /// Capture is exempt from the bucket but serialized: one at a time per session.
+    #[test]
+    fn a_second_concurrent_capture_is_refused() {
+        let tmp = tempfile::tempdir().unwrap();
+        let png = tmp.path().join("fixture.png");
+        std::fs::write(&png, TINY_PNG).unwrap();
+        let mut config = CoreConfig::default();
+        config.capture.screenshot_command =
+            capture_script(tmp.path(), &format!("sleep 1; cp {} \"$1\"", png.display()));
+        let (service, _spawner) = capture_service(tmp.path(), config);
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        std::thread::scope(|scope| {
+            let first = scope.spawn(|| {
+                result(
+                    &service,
+                    methods::SCREENSHOT,
+                    Some(json!({ "session_id": id })),
+                )
+            });
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            let second = result(
+                &service,
+                methods::SCREENSHOT,
+                Some(json!({ "session_id": id })),
+            )
+            .unwrap_err();
+            assert_eq!(second.code, ErrorCode::BadRequest);
+            assert!(second.message.contains("already running"), "{second:?}");
+            assert!(first.join().unwrap().is_ok(), "the first capture completes");
+        });
     }
 }

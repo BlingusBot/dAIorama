@@ -759,3 +759,25 @@ with no consumer in `serve`, and the unix socket stays tokenless by rule (07). S
 is no server-side token gate, only the client-side `requires_token` check and the bridge's own
 listener gate. Binding the manager TCP surface **with** its token gate is the `P4-ENDPOINT` row;
 until it lands, the rotation window is file semantics, not an enforced contract.
+
+## B9 rate limit — the build
+
+The bucket is per **(scope, session)**, continuous-refill with fractional carry, and only the
+nine control-class tools spend tokens; reads, capture and lifecycle are exempt (07). Defaults
+`per_sec = 20`, `burst = 40` come from the build, and `limits.rate` lives in the **scope file**
+only — a core-config default would be a second source of the same numbers. `pace` parks a call
+until a token exists (dispatch now runs on the blocking pool, so the wait costs a worker);
+`reject` answers immediately. Both are bounded: a wait beyond `max_wait_ms` (default 30 s) or a
+call arriving while `max_queued` (default 64) already wait is refused with the same
+`rate_limited` envelope and a `retry after <ms> ms` hint — a flood degrades to refusals, never
+to an unbounded parked queue. Capture is exempt from the bucket but **serialized**: a second
+concurrent capture for a session answers `bad_request`
+(`a capture is already running for this session`) — exempt must not mean free.
+
+*Rationale:* the reject/refuse shapes reuse one envelope, so a harness branches on a code; the
+queue bounds close the "time bound but unbounded length" hole a pace-only cap leaves; capture's
+cost is measured in seconds, so it gets a slot, not tokens.
+*Rejected:* a core-config default for the rate block (two sources); rate-limiting reads (it
+punishes the observe-then-act loop); an unbounded pace queue (512 parked workers is a global
+stall); counting capture against the bucket (it would throttle observation exactly when the
+agent is busy acting).

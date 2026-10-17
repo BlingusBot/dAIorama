@@ -1109,6 +1109,20 @@ pub struct RateLimit {
     pub per_sec: u32,
     pub burst: u32,
     pub mode: RateMode,
+    /// Pace only: a call whose wait would exceed this is refused, not parked.
+    #[serde(default = "default_max_wait_ms")]
+    pub max_wait_ms: u64,
+    /// Pace only: more than this many already parked → refuse rather than queue.
+    #[serde(default = "default_max_queued")]
+    pub max_queued: u32,
+}
+
+const fn default_max_wait_ms() -> u64 {
+    30_000
+}
+
+const fn default_max_queued() -> u32 {
+    64
 }
 
 impl Default for RateLimit {
@@ -1117,6 +1131,8 @@ impl Default for RateLimit {
             per_sec: 20,
             burst: 40,
             mode: RateMode::Pace,
+            max_wait_ms: default_max_wait_ms(),
+            max_queued: default_max_queued(),
         }
     }
 }
@@ -1479,6 +1495,8 @@ pub fn starter_scope_operator() -> String {
     text.push_str("      per_sec: 20,\n");
     text.push_str("      burst: 40,\n");
     text.push_str("      mode: pace,      // pace | reject\n");
+    text.push_str("      max_wait_ms: 30000, // pace: refuse a call that would park longer\n");
+    text.push_str("      max_queued: 64,     // pace: refuse when this many already wait\n");
     text.push_str("    ),\n");
     text.push_str("  ),\n");
     text.push_str("  audit: (\n");
@@ -1630,6 +1648,16 @@ mod tests {
         );
         assert_eq!(config.capture.timeout_s, 10);
         assert_eq!(config.capture.screenshot_max_bytes, 4 * 1024 * 1024);
+    }
+
+    #[test]
+    fn rate_defaults_are_pinned() {
+        let rate = RateLimit::default();
+        assert_eq!(rate.per_sec, 20);
+        assert_eq!(rate.burst, 40);
+        assert_eq!(rate.mode, RateMode::Pace);
+        assert_eq!(rate.max_wait_ms, 30_000);
+        assert_eq!(rate.max_queued, 64);
     }
 
     #[test]
