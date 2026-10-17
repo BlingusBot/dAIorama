@@ -37,7 +37,7 @@ Every config key has exactly one authority. `config get/set` respects it:
 | scope of key | authority | how it is read/written |
 |--------------|-----------|------------------------|
 | `remote.default`, `manager.start_mode` (client behavior) | client-local | the local file, direct; `--remote` on a client-local key is an error — these keys do not exist on a remote |
-| session defaults, `view.*` (incl. `view.advertise_base`), `reaper.*`, `history.*`, `media.*` (incl. `media.ttl`), `limits.*`, `manager.bind`, `sessions.max_global` | manager-side | this instance's files, direct locally; RPC when `--remote` |
+| session defaults, `view.*` (incl. `view.advertise_base`), `reaper.*`, `history.*`, `media.*` (incl. `media.ttl`), `capture.*` (commands, `timeout_s`, `screenshot_max_bytes`), `limits.*`, `manager.bind`, `sessions.max_global` | manager-side | this instance's files, direct locally; RPC when `--remote` |
 | scope quotas/manifests/audit flags | manager-side, files | `scopes/*.ron`, edited in place (below) |
 | dashboard connections/tokens | dashboard-local | dashboard config file, 0600 |
 

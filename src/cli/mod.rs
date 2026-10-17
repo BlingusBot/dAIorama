@@ -90,6 +90,8 @@ pub enum Command {
     View(ViewArgs),
     /// Read the history record.
     History(HistoryArgs),
+    /// Fetch a captured media artifact by id.
+    Media(MediaArgs),
     /// Run the manager in the foreground.
     Serve,
     /// Start or stop the detached manager.
@@ -108,6 +110,24 @@ pub enum Command {
     Dashboard(DashboardArgs),
     /// Core version, protocol version and min_supported.
     Version,
+}
+
+#[derive(Debug, Args)]
+pub struct MediaArgs {
+    #[command(subcommand)]
+    pub action: MediaAction,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MediaAction {
+    /// Fetch one media id to a file (claim-on-open: this fetch consumes the id).
+    Fetch {
+        /// 32 lowercase hex artifact id.
+        id: String,
+        /// Where to write the artifact (required; stdout stays clean for harnesses).
+        #[arg(long)]
+        out: std::path::PathBuf,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -580,6 +600,7 @@ impl App {
             Command::Control(args) => self.cmd_control(args).await,
             Command::View(args) => self.cmd_view(args).await,
             Command::History(args) => self.cmd_history(args).await,
+            Command::Media(args) => self.cmd_media(args).await,
             Command::Drain(args) => self.cmd_drain(args).await,
             Command::Config(args) => self.cmd_config(args).await,
             Command::Token(args) => self.cmd_token(args).await,
@@ -757,6 +778,85 @@ impl App {
                     Ok(Answer::new(result, human))
                 }
                 None => Ok(Answer::cold_no_manager()),
+            }
+        }
+    }
+
+    /// `daiorama media fetch <id> --out <path>` (05 §Capture): the stdio bridge's fetcher.
+    /// It speaks the manager socket's HTTP media surface directly — peer-credential trust,
+    /// no new credential — and claim-on-open means the CLI is just another consumer.
+    async fn cmd_media(&self, args: MediaArgs) -> Result<Answer, ErrorEnvelope> {
+        match args.action {
+            MediaAction::Fetch { id, out } => {
+                let shaped = id.len() == 32
+                    && id
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+                if !shaped {
+                    return Err(ErrorEnvelope::bad_request(
+                        "media id must be 32 lowercase hex characters",
+                    ));
+                }
+                use std::io::{Read, Write};
+                let socket = EnvView::from_process().socket_path(&self.instance);
+                let mut stream = std::os::unix::net::UnixStream::connect(&socket)
+                    .map_err(|_| ErrorEnvelope::no_manager_running())?;
+                let request = format!(
+                    "GET /media/{id} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+                );
+                stream
+                    .write_all(request.as_bytes())
+                    .map_err(|err| ErrorEnvelope::internal(format!("media fetch: {err}")))?;
+                let mut response = Vec::new();
+                stream
+                    .read_to_end(&mut response)
+                    .map_err(|err| ErrorEnvelope::internal(format!("media fetch: {err}")))?;
+                let split = response
+                    .windows(4)
+                    .position(|window| window == b"\r\n\r\n")
+                    .ok_or_else(|| ErrorEnvelope::internal("media fetch: no response head"))?;
+                let head = std::str::from_utf8(&response[..split]).unwrap_or_default();
+                let status = head
+                    .split_whitespace()
+                    .nth(1)
+                    .and_then(|value| value.parse::<u16>().ok())
+                    .unwrap_or(0);
+                let body = &response[split + 4..];
+                if status != 200 {
+                    if let Ok(envelope) = serde_json::from_slice::<ErrorEnvelope>(body) {
+                        return Err(envelope);
+                    }
+                    return Err(ErrorEnvelope::internal(format!(
+                        "media fetch answered {status}"
+                    )));
+                }
+                if let Some(parent) = out.parent()
+                    && !parent.as_os_str().is_empty()
+                {
+                    std::fs::create_dir_all(parent).map_err(|err| {
+                        ErrorEnvelope::internal(format!(
+                            "cannot create {}: {err}",
+                            parent.display()
+                        ))
+                    })?;
+                }
+                use std::os::unix::fs::OpenOptionsExt;
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .mode(0o600)
+                    .open(&out)
+                    .map_err(|err| {
+                        ErrorEnvelope::internal(format!("cannot write {}: {err}", out.display()))
+                    })?;
+                file.write_all(body).map_err(|err| {
+                    ErrorEnvelope::internal(format!("cannot write {}: {err}", out.display()))
+                })?;
+                Ok(Answer::new(
+                    json!({"path": out.display().to_string(), "bytes": body.len()}),
+                    vec![format!("wrote {} bytes to {}", body.len(), out.display())],
+                ))
             }
         }
     }

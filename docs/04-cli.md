@@ -28,6 +28,7 @@ creation/usage options in place (D1). Read commands accept `--json`.
 - `daiorama control <session> <action> [key=value ...]` — one control action; `<action>` is an MCP control-tool name (05); `key=value` pairs are that tool's named arguments, typed per its inputSchema; results print like other read commands (`--json` supported). Unknown action ⇒ `bad_request`, message lists the valid names.
 - `daiorama view <session> [--stop]` — print the view address (starting the view if needed, same mechanism as `get_view`), or stop it. `--json` includes the per-view `credential` field (07).
 - `daiorama history [<session>] [--scope <name>] [--limit N] [--cursor C]` — read the history record (own-scope default; the same scoping rule as sessions, 06).
+- `daiorama media fetch <id> --out <path>` — fetch one captured media artifact (32 lowercase hex id) through the manager socket and write it to `--out` (0600, required; stdout stays clean). Claim-on-open: this fetch consumes the id, exactly like an HTTP fetch. This is the stdio bridge's fetcher for `clip_video` resource links.
 
 **Instance management:**
 - `daiorama serve` — run the manager in the foreground (container main process, deliberate terminal supervision, systemd `ExecStart`). Signals cascade to everything it owns.
@@ -101,7 +102,7 @@ is an error, never a local fallback.
 
 | class | commands |
 |-------|----------|
-| cold | `list`, `status`, `close`, `control`, `view`, `drain`, `daemon end`, `config get/set/edit/reload/validate/setup`, `config scope *`, `config effective`, `history`, `version`, `doctor`, `token show`, `token rotate`, `dashboard install/connect/connections/token` |
+| cold | `list`, `status`, `close`, `control`, `view`, `drain`, `daemon end`, `config get/set/edit/reload/validate/setup`, `config scope *`, `config effective`, `history`, `media fetch`, `version`, `doctor`, `token show`, `token rotate`, `dashboard install/connect/connections/token` |
 | hot | `new` |
 | neither | `serve`, `daemon start`, `dashboard serve`, `mcp` (explicit process runners) |
 

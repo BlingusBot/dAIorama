@@ -209,6 +209,29 @@ Visual/audio data uses MCP's standard content types — no custom datatype:
   MCP spec has no video content type; a fetchable URI is the spec's own shape
   for artifacts too large to inline.
 
+The manager answers the two tools with a typed payload the bridge maps onto those
+content types (never a custom datatype):
+
+```
+screenshot  → {"capture":"image","mimeType":"image/png","data_b64":…,"bytes":N,"width":W,"height":H}
+clip_video  → {"capture":"media","media_id":"<32 hex>","mimeType":"video/webm","bytes":N,
+               "duration_s":D,"expires_in_s":T}
+```
+
+`screenshot` size-checks the **raw PNG before base64** (`capture.screenshot_max_bytes`,
+default 4 MiB — 4 MiB raw encodes to ~5.3 MiB, under the 8 MiB frame bound); over it is
+`bad_request`, never a downscale or a truncation. `clip_video`'s link URI is built at the
+bridge: the network listener uses its request's own `Host` (`http://<Host>/media/<id>`, so a
+proxy or non-loopback bind works), and stdio returns `daiorama://media/<id>` plus one text
+block naming `daiorama media fetch <id> --out <path>` (the local socket is the transport;
+claim-on-open applies to the CLI exactly as to HTTP).
+
+**Capture commands** are `capture.screenshot_command` / `capture.clip_command` (argv arrays —
+never shell strings; the manager appends the output path and interpolates nothing else), run
+under the **session's** `XDG_RUNTIME_DIR` / `WAYLAND_DISPLAY` / `HYPRLAND_INSTANCE_SIGNATURE`,
+bounded by `capture.timeout_s`. A command failure is the `capture_failed` code; the harness
+branches on the code, not the prose.
+
 **Media endpoint (A8)**: the manager mints the `clip_video` resource_link as a
 single-use, TTL-bounded capability URL on the surface that served the call;
 for network-bridge calls the bridge relays `/media/*` pass-through on its
@@ -239,7 +262,7 @@ MCP tool errors carry this envelope 1:1; **codes are a versioned API surface**
 - Permissions/limits: `tool_not_granted`, `quota_exceeded` (message carries scope + global numbers), `rate_limited`, `draining`
 - Creation: `renderer_refused`, `backend_busy` (host exclusivity, 03), `limits_unavailable` (containment preconditions, 06 — fails manager start)
 - Protocol: `version_incompatible` (message carries both version pairs), `bad_request`, `internal`
-- Views/media: `view_unavailable`, `media_expired`
+- Views/media/capture: `view_unavailable`, `media_expired`, `capture_failed` (a capture command failed or produced nothing usable; message carries the command and reason)
 - Host/deps: `bind_refused`, `hyprland_missing`, `hyprland_unsupported`, `module_not_installed` (messages = the 04 strings, verbatim)
 - Transport (client-side presentation): `manager_unreachable` — the shared string in 04.
 

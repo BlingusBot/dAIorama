@@ -109,6 +109,15 @@ impl MediaStore {
         id
     }
 
+    /// Persist a screenshot's bytes with **no** URL entry (05 §Capture): `store_screenshots`
+    /// keeps the artifact for the retention window, and a screenshot never becomes a
+    /// capability. Same per-session cap and eviction as clips.
+    pub fn persist_screenshot(&self, session_id: &str, bytes: &[u8]) {
+        let id = crate::config::generate_token();
+        let _ = self.persist(session_id, &id, bytes);
+        self.evict_session(session_id);
+    }
+
     /// Claim one artifact for a fetch. Claim-on-open (pinned): the first caller wins the id;
     /// a consumed id — complete transfer or not — answers exactly like an expired one.
     pub fn open(&self, id: &str) -> Option<MediaHandle> {

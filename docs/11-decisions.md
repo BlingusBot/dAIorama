@@ -677,3 +677,23 @@ retention window — the one history already uses — bound the artifacts too.
 *Rejected:* a persisted URL registry (a restart would resurrect capabilities); claim-on-complete
 (a truncated transfer would leave the id fetchable); a manager-level media cap (08's unit is the
 session).
+
+## Capture tools — session-env commands, typed payloads, two fetchers
+
+`screenshot` and `clip_video` run **configured argv commands** (never shell strings) under the
+session's own Wayland environment, with the output path appended and nothing else
+interpolated; `capture.timeout_s` bounds each call and `capture.screenshot_max_bytes` bounds
+the **raw** PNG before base64 (4 MiB default: ~5.3 MiB encoded, under the 8 MiB frame
+bound). The manager returns typed payloads (`capture: image | media`) and the bridge maps
+them onto MCP's own content types — `image`, and a `resource_link` with the URI built at the
+serving edge (`http://<Host>/media/<id>` on `--listen`; `daiorama://media/<id>` plus the
+`daiorama media fetch <id> --out <path>` CLI on stdio). `store_screenshots` persists the raw
+PNG URL-less (a screenshot never becomes a capability); `store_clips` rides `mint`.
+
+*Rationale:* the command is the only compositor-dependent part, so making it configuration
+keeps this slice tools-only and compositor-free in tests; the typed payload keeps the content
+decision at the edge, where the transport is known. `--out` is required so stdout stays clean
+for harnesses, and claim-on-open is unchanged — the CLI is just another fetcher.
+*Rejected:* shell strings with parameter interpolation (an MCP parameter must never reach a
+shell); inlining video (no MCP video content type — 05); a `file://` link (a path is not a
+capability and leaks layout); a total-response downscale (silent loss of pixels).

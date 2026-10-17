@@ -735,6 +735,16 @@ pub struct SpawnOutcome {
     pub renderer: RendererMark,
 }
 
+/// The Wayland environment one live session's capture command runs under (05 §Capture): the
+/// compositor's own runtime dir and socket, never the manager's. Built by the spawner, which
+/// is the only layer that knows them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptureEnv {
+    pub rt_dir: std::path::PathBuf,
+    pub wayland_display: String,
+    pub signature: String,
+}
+
 /// Session spawning, containment, and teardown. **Trait stub only** — the runtime side (W2)
 /// implements this against a real compositor and real cgroups; this layer must never spawn a
 /// compositor, touch cgroups or hold a wayvnc socket.
@@ -751,6 +761,10 @@ pub trait SessionSpawner: Send + Sync {
 
     /// Kill the session's process tree through its cgroup (the completion guarantee).
     fn kill_tree(&self, session_id: &str) -> Result<(), ErrorEnvelope>;
+
+    /// The live session's capture environment; `None` when the spawner holds no running
+    /// session for the id (a dead or closed session has nothing to capture).
+    fn capture_env(&self, session_id: &str) -> Option<CaptureEnv>;
 }
 
 /// View operations: wayvnc plus the manager-owned front. **Trait stub only** — no wayvnc
