@@ -203,6 +203,41 @@ sha256 `a26d9146…`).
 No findings in the full pass → the round adds nothing to fix; cross-verify handoff is this
 branch's PR at this tip (freeze: the verdict binds to the sha reviewed).
 
+## Round 5 — full (a)–(c) re-run on the final parity-follow-up tip (green, no findings)
+
+Confirming pass on the tip after the parity follow-ups merged (`4686218` — restart-only
+`config set` line, reload names applied keys, the 08 lock row) — the first real-chain
+exercise after that slice touched the config write path. Round 4 ran on `bc95f9c`; two
+merges landed after it, so this round re-establishes green on the actual final tip. Fresh
+L1 containers per segment; binary built from this tip in CI (`dai-r5-ci`, sha256
+`67f85ef0…`), gates at that tip: fmt clean, clippy `-D warnings` clean, `144 (+5 ignored) ·
+4 · 2 · 27` passed, build ok (`round5-gates.log`).
+
+- (a) lifecycle churn — `round5-lifecycle-churn.txt`: 42/42 assertions `[OK]`, `FAILS=0`.
+  Three sessions created (`renderer: verified` on each, raw `Renderer: NV117` in all three
+  instance logs), one closed clean; SIGKILL mid-session leaves two orphaned `Hyprland`
+  survivors, one per remaining scope; restart lands `startup sweep: 2 stale session
+  scope(s) reaped` — after it, no compositor process and no scope dir remain; the
+  recovered manager creates and closes a new session; doctor reports the keeper re-entry.
+- (b) drain integration — `round5-drain-live.txt`: 28/28 `[OK]`, `FAILS=0` — drain enters
+  (`{active, remaining:3}`), `new` refused with the pinned 04 string and zero spawn, closes
+  drop remaining 3→2→1→0, the `--wait` bound fires at 1, `--wait` completes at zero, drain
+  sticky at zero, end-state leak sweep clean (compositors=0 scopes=0 daiorama=0 dr_dirs=0).
+- (c) odd creation params — `round5-odd-params.txt`: 97/97 `[OK]`, `FAILS=0` — all eight
+  cases (incl. 641x481 @1.5 → `962x722 scale=1.5` and 642x482 @1.25 → `803x603 scale=1.25`
+  reading the requested scale back verbatim; 1x1; 16384x16384) create, carry the requested
+  geometry, and close with zero residue.
+
+Regression identity check: each round-5 raw diffed against its round-4 counterpart with
+timestamps, uuids and pids normalized is empty apart from those normalizations — the pass
+is structurally identical on the moved tip.
+
+**P2 hardening is complete.** Three consecutive full (a)–(c) rounds on merged tips are
+green (rounds 3, 4, 5), the last on the final tip `4686218`; no round since round 1 has
+added a finding. This branch is the completion handoff for cross-verify (freeze: verdict
+binds to the sha reviewed). Phase-level follow-ups left are the two residual items below —
+both scope decisions, not defects.
+
 ## Residual (tracked, post-round)
 
 - Crashed sessions' runtime dirs (`/tmp/dr-<id8>`) are not reaped by the sweep — only the
@@ -216,6 +251,10 @@ branch's PR at this tip (freeze: the verdict binds to the sha reviewed).
 - Round 4 (the full (a)–(c) pass on the post-parity tip `bc95f9c`) added no findings either —
   with round 3's clean pass, the last two full rounds on merged tips are green; the two
   items above remain scope decisions for later.
+- Round 5 (the full (a)–(c) pass on the final parity-follow-up tip `4686218`) added no
+  findings — that is three consecutive clean full rounds, the last on the phase's final
+  tip; hardening is complete and this branch is the handoff. The two items above are the
+  only follow-ups, both scope decisions for later.
 
 ## Files
 
@@ -261,6 +300,13 @@ branch's PR at this tip (freeze: the verdict binds to the sha reviewed).
   `FAILS=0`; containers `dai-r4-a`, `dai-r4-b`, `dai-r4-c`).
 - `evidence/round4-a-spec.json`, `evidence/round4-b-spec.json`, `evidence/round4-c-spec.json`
   — create-specs for the round-4 runs (mount sources genericized).
+- `evidence/round5-lifecycle-churn.txt`, `evidence/round5-drain-live.txt`,
+  `evidence/round5-odd-params.txt` — round 5 raws on the final parity-follow-up tip (all
+  green, `FAILS=0`; containers `dai-r5-a`, `dai-r5-b`, `dai-r5-c`).
+- `evidence/round5-a-spec.json`, `evidence/round5-b-spec.json`, `evidence/round5-c-spec.json`
+  — create-specs for the round-5 runs (mount sources genericized).
+- `evidence/round5-gates.log` — round-5 gate + build output at `4686218` (container
+  `dai-r5-ci`; the image carries no `git`, so the tip is the mounted worktree).
 
 ## Gate + run recipe
 
@@ -291,3 +337,8 @@ L1 binary for the whole round is this tree's `target/debug/daiorama` (sha256 `10
 Round 4 at the post-parity tip (`bc95f9c`; fresh `rust:slim`, container `dai-r4-ci`): fmt
 clean, clippy `-D warnings` clean — 142 + 4 + 2 + 27 passed, 0 failed, 5 ignored. The L1
 binary for the whole round is this tree's `target/debug/daiorama` (sha256 `a26d9146…`).
+
+Round 5 at the final parity-follow-up tip (`4686218`; fresh `rust:slim`, container
+`dai-r5-ci`): fmt clean, clippy `-D warnings` clean — 144 + 4 + 2 + 27 passed, 0 failed, 5
+ignored. The L1 binary for the whole round is this tree's `target/debug/daiorama` (sha256
+`67f85ef0…`).
