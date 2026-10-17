@@ -106,7 +106,11 @@ ends. The request target is never logged (A8). A media refusal closes like every
 on this listener (response, half-close, bounded drain), so a request whose body is already in
 flight does not lose the refusal to a reset. A client that accepts no bytes for the same 10 s
 progress bound is cut off mid-stream; a slow reader that keeps taking bytes is not — the bound
-is per write, not a total-transfer deadline.
+is per write, not a total-transfer deadline. The manager side serves that `GET` on its own
+socket (HTTP distinguished from JSON-RPC by the first line; one fetch per connection,
+`Connection: close`); the store is memory-only for the URL lifetime — a restart drops every id —
+and `audit.store_clips` persists the artifact beside its session (`<data>/media/<session>/<id>`,
+08) without ever resurrecting the URL.
 
 ## Scope and origin carriage on the RPC
 

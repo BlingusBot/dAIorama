@@ -1033,6 +1033,7 @@ mod tests {
             strings::DUPLICATE_CONTENT_LENGTH,
             strings::MEDIA_GET_ONLY,
             strings::MEDIA_UPSTREAM_MALFORMED,
+            strings::MEDIA_BODY_NOT_ALLOWED,
         ] {
             assert!(
                 README.contains(pinned),

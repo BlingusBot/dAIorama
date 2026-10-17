@@ -20,14 +20,13 @@ are read-when-on pointers)._
   (`p3/bridge/*` → `spec/v1 @ d7fe685`).
 - **Repo target:** fork workflow (`EstherOS/dAIorama`); upstream
   `ygypt/dAIorama` takes our PRs post-sign-off.
-- **Last green:** media bounds tree — 168 (+5 ignored) unit · 4 daemon ·
-  2 doctor · 27 fixtures · 7 mcp · 22 mcp_listen, fmt/clippy clean; media-stall
-  battery both ways (`p3/media/evidence/probe-media-stall.txt` /
-  `-before.txt`).
-- **Next:** W2 media/runtime calls (runtime side) and the capture tools on the
-  bridge surface; the `/media/<id>` network pass-through landed (design note +
-  relay, `p3/media/`), waiting only on the capture tools that mint ids; the
-  manager-side media store (TTL 600, fetch-once) is the runtime half's slice.
+- **Last green:** media-store tree — 173 (+5 ignored) unit · 4 daemon ·
+  2 doctor · 27 fixtures · 7 mcp · 22 mcp_listen, fmt/clippy clean; store unit
+  battery + one live leg (in-process manager ↔ real `mcp --listen` relay, `tests`
+  in `src/manager/mod.rs`) green.
+- **Next:** the capture tools on the bridge surface (`P3-CAPTURE`) — the only
+  remaining mint callers; the `/media/<id>` pass-through and the manager-side
+  store both landed (`p3/media/`, `src/media/`).
 - **Open (tracked, not omitted):** L3 llvmpipe lane (waits on the operator's
   workflow token scope) · L2 NVIDIA/CDI (operator's call) · rate-limit numbers
   → P4 · per-family GPU recipes · resize/scale path · renderer re-verification

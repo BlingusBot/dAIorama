@@ -32,7 +32,7 @@ use std::time::{Duration as StdDuration, Instant};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::io::BufReader;
+use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 
 use crate::config::{CoreConfig, Toggle};
@@ -40,6 +40,7 @@ use crate::ipc::{
     CappedLine, ErrorEnvelope, HandshakeParams, HandshakeResult, MAX_FRAME_BYTES, MIN_SUPPORTED,
     PROTOCOL_VERSION, Request, Response, methods, ranges_overlap, read_capped_line,
 };
+use crate::media::{MediaHandle, MediaStore};
 use crate::strings;
 
 // ---------------------------------------------------------------------------
@@ -852,14 +853,15 @@ impl Listener {
 
     /// Accept connections until the process ends. Each connection: read a frame, require it
     /// to be the handshake, then serve dispatches until the peer goes away.
-    pub async fn serve(self, handler: Arc<dyn Handler>) {
+    pub async fn serve(self, handler: Arc<dyn Handler>, media: Arc<MediaStore>) {
         loop {
             let Ok((stream, _)) = self.listener.accept().await else {
                 continue;
             };
             let handler = Arc::clone(&handler);
+            let media = Arc::clone(&media);
             tokio::spawn(async move {
-                let _ = serve_connection(stream, handler).await;
+                let _ = serve_connection(stream, handler, media).await;
             });
         }
     }
@@ -872,7 +874,11 @@ impl Listener {
 /// An *over-cap* frame ([`MAX_FRAME_BYTES`]) is refused the same way — draining an
 /// oversized line to resync would cost exactly the unbounded read the cap exists to
 /// prevent (P2 hardening) — as is a line that is not valid UTF-8, which cannot be a frame.
-async fn serve_connection(stream: UnixStream, handler: Arc<dyn Handler>) -> std::io::Result<()> {
+async fn serve_connection(
+    stream: UnixStream,
+    handler: Arc<dyn Handler>,
+    media: Arc<MediaStore>,
+) -> std::io::Result<()> {
     let mut reader = BufReader::new(stream);
     let mut handshake_done = false;
     loop {
@@ -899,6 +905,15 @@ async fn serve_connection(stream: UnixStream, handler: Arc<dyn Handler>) -> std:
         };
         if line.is_empty() {
             continue;
+        }
+        // The socket serves two protocols, distinguished by the first line (05 A8): an HTTP
+        // media fetch (a request line whose target path is `/media...`) or JSON-RPC frames.
+        // Every other line stays on the frame path, whose pinned refusals keep their answers.
+        let mut words = line.split_whitespace();
+        let _method = words.next();
+        let target = words.next().unwrap_or_default();
+        if target.starts_with("/media") {
+            return serve_media_http(&mut reader, line, &media).await;
         }
         let request: Request = match serde_json::from_str(line) {
             Ok(request) => request,
@@ -965,6 +980,142 @@ async fn serve_connection(stream: UnixStream, handler: Arc<dyn Handler>) -> std:
         );
         write_response(&mut reader, &response).await?;
     }
+}
+
+/// The manager's media endpoint (05 A8): one HTTP fetch per connection, no token on the
+/// unix socket (07's local rule — peer-credential trust, the same rule the bridge relies on).
+/// Ids are never echoed in errors or logs; unknown, expired and consumed ids are identical.
+async fn serve_media_http(
+    reader: &mut BufReader<UnixStream>,
+    request_line: &str,
+    media: &MediaStore,
+) -> std::io::Result<()> {
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().unwrap_or_default();
+    let target = parts.next().unwrap_or_default();
+    let version = parts.next().unwrap_or_default();
+    if !version.starts_with("HTTP/1.") {
+        return Ok(());
+    }
+    // Headers: a media fetch carries no body; chunked framing or a declared body is refused
+    // (the same strict-head class the network bridge pins).
+    let mut content_length = 0usize;
+    loop {
+        let bytes = match read_capped_line(reader).await? {
+            CappedLine::Line(bytes) => bytes,
+            CappedLine::Eof => return Ok(()),
+            CappedLine::TooLarge => {
+                let envelope = ErrorEnvelope::bad_request(strings::HEAD_TOO_LARGE);
+                return write_media_http(reader, 400, Some(&envelope), None).await;
+            }
+        };
+        let line = String::from_utf8_lossy(&bytes);
+        let line = line.trim_end_matches(['\r', '\n']);
+        if line.is_empty() {
+            break;
+        }
+        let Some((name, value)) = line.split_once(':') else {
+            let envelope = ErrorEnvelope::bad_request(strings::MALFORMED_HTTP_REQUEST);
+            return write_media_http(reader, 400, Some(&envelope), None).await;
+        };
+        let name = name.trim().to_ascii_lowercase();
+        let value = value.trim();
+        match name.as_str() {
+            "transfer-encoding" => {
+                let envelope = ErrorEnvelope::bad_request(strings::CHUNKED_UNSUPPORTED);
+                return write_media_http(reader, 400, Some(&envelope), None).await;
+            }
+            "content-length" => {
+                content_length = match value.parse::<usize>() {
+                    Ok(length) => length,
+                    Err(_) => {
+                        let envelope =
+                            ErrorEnvelope::bad_request(strings::invalid_content_length(value));
+                        return write_media_http(reader, 400, Some(&envelope), None).await;
+                    }
+                };
+            }
+            _ => {}
+        }
+    }
+    if content_length > 0 {
+        let envelope = ErrorEnvelope::bad_request(strings::MEDIA_BODY_NOT_ALLOWED);
+        return write_media_http(reader, 400, Some(&envelope), None).await;
+    }
+    if method != "GET" {
+        let envelope = ErrorEnvelope::bad_request(strings::MEDIA_GET_ONLY);
+        return write_media_http(reader, 405, Some(&envelope), Some("Allow: GET")).await;
+    }
+    let id = target.strip_prefix("/media/").unwrap_or_default();
+    let capability_shaped = id.len() == 32
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+    let handle = if capability_shaped {
+        media.open(id)
+    } else {
+        None
+    };
+    match handle {
+        Some(handle) => write_media_http_ok(reader, handle).await,
+        None => {
+            let envelope = ErrorEnvelope::media_expired();
+            write_media_http(reader, 404, Some(&envelope), None).await
+        }
+    }
+}
+
+async fn write_media_http(
+    reader: &mut BufReader<UnixStream>,
+    status: u16,
+    envelope: Option<&ErrorEnvelope>,
+    extra_header: Option<&str>,
+) -> std::io::Result<()> {
+    let body = envelope
+        .map(|envelope| serde_json::to_vec(envelope).expect("media envelopes serialize"))
+        .unwrap_or_default();
+    let reason = match status {
+        200 => "OK",
+        400 => "Bad Request",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        _ => "Error",
+    };
+    let content_type = if envelope.is_some() {
+        "application/json"
+    } else {
+        "application/octet-stream"
+    };
+    let mut head = format!(
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n",
+        body.len()
+    );
+    if let Some(extra) = extra_header {
+        head.push_str(extra);
+        head.push_str("\r\n");
+    }
+    head.push_str("\r\n");
+    let stream = reader.get_mut();
+    stream.write_all(head.as_bytes()).await?;
+    if !body.is_empty() {
+        stream.write_all(&body).await?;
+    }
+    stream.flush().await
+}
+
+async fn write_media_http_ok(
+    reader: &mut BufReader<UnixStream>,
+    handle: MediaHandle,
+) -> std::io::Result<()> {
+    let head = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        handle.content_type,
+        handle.bytes.len()
+    );
+    let stream = reader.get_mut();
+    stream.write_all(head.as_bytes()).await?;
+    stream.write_all(&handle.bytes).await?;
+    stream.flush().await
 }
 
 /// Check the client's range against ours and answer, or refuse with the pinned mismatch
@@ -1362,7 +1513,13 @@ mod tests {
             status: status.clone(),
             dashboard_module: Some("2026.10.0".to_string()),
         });
-        let serving = tokio::spawn(listener.serve(handler));
+        let serving = tokio::spawn(listener.serve(
+            handler,
+            Arc::new(MediaStore::with_ttl(
+                dir.path().to_path_buf(),
+                crate::media::DEFAULT_TTL,
+            )),
+        ));
 
         let address = Address::Unix(socket.clone());
         let mut client = Client::connect(&address, StdDuration::from_secs(2), None)
@@ -1459,7 +1616,13 @@ mod tests {
             },
             dashboard_module: None,
         });
-        let serving = tokio::spawn(listener.serve(handler));
+        let serving = tokio::spawn(listener.serve(
+            handler,
+            Arc::new(MediaStore::with_ttl(
+                dir.path().to_path_buf(),
+                crate::media::DEFAULT_TTL,
+            )),
+        ));
         let address = Address::Unix(socket.clone());
 
         // A disjoint range, and a params-less handshake: both are refusals, and both end
@@ -1516,7 +1679,13 @@ mod tests {
             },
             dashboard_module: None,
         });
-        let serving = tokio::spawn(listener.serve(handler));
+        let serving = tokio::spawn(listener.serve(
+            handler,
+            Arc::new(MediaStore::with_ttl(
+                dir.path().to_path_buf(),
+                crate::media::DEFAULT_TTL,
+            )),
+        ));
 
         // --- One byte over the cap: refused with the pinned message, then the connection
         // ends. The writer may fail partway (broken pipe) once the manager stops reading
@@ -1613,7 +1782,16 @@ mod tests {
             },
             dashboard_module: None,
         });
-        (socket, tokio::spawn(listener.serve(handler)))
+        (
+            socket,
+            tokio::spawn(listener.serve(
+                handler,
+                Arc::new(MediaStore::with_ttl(
+                    dir.to_path_buf(),
+                    crate::media::DEFAULT_TTL,
+                )),
+            )),
+        )
     }
 
     /// Connect a raw stream and complete the handshake; returns the reader (positioned
@@ -1754,5 +1932,140 @@ mod tests {
         let _live = Listener::bind(&socket).await.unwrap();
         let second = Listener::bind(&socket).await;
         assert!(second.is_err(), "one manager per runtime path");
+    }
+
+    /// One live leg for the media store: an in-process manager serves a **test-minted** id and
+    /// the real `daiorama mcp --listen` relay fetches it end to end. No compositor, no capture
+    /// binaries — the store slice is env-independent by design.
+    #[tokio::test]
+    async fn media_endpoint_relays_a_test_minted_id() {
+        use std::process::Stdio;
+        use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+        use tokio::process::Command;
+
+        async fn fetch(port: u16, token: &str, path: &str) -> (String, Vec<u8>) {
+            let stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+                .await
+                .unwrap();
+            let mut stream = stream;
+            let request = format!(
+                "GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nDaiorama-Token: {token}\r\nConnection: close\r\n\r\n"
+            );
+            stream.write_all(request.as_bytes()).await.unwrap();
+            let mut reader = BufReader::new(stream);
+            let mut head = Vec::new();
+            let mut line = Vec::new();
+            loop {
+                line.clear();
+                reader.read_until(b'\n', &mut line).await.unwrap();
+                if line == b"\r\n" {
+                    break;
+                }
+                head.extend_from_slice(&line);
+            }
+            let head = String::from_utf8_lossy(&head).to_string();
+            let length = head
+                .lines()
+                .find_map(|line| line.strip_prefix("Content-Length: "))
+                .and_then(|value| value.trim().parse::<usize>().ok())
+                .unwrap_or(0);
+            let mut body = vec![0u8; length];
+            reader.read_exact(&mut body).await.unwrap();
+            (head, body)
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let run = dir.path().join("run/daiorama/default");
+        std::fs::create_dir_all(&run).unwrap();
+        let socket = run.join("manager.sock");
+        let status = InstanceStatus {
+            state: InstanceState::Running,
+            mode: InstanceMode::Attached,
+            pid: 4242,
+            socket: socket.display().to_string(),
+            versions: VersionInfo::current(),
+            sessions: SessionCounts::default(),
+            drain: DrainState::default(),
+            instance_id: "11111111-1111-4111-8111-111111111111".to_string(),
+        };
+        let handler = Arc::new(SkeletonHandler {
+            status,
+            dashboard_module: None,
+        });
+        let store = Arc::new(MediaStore::with_ttl(
+            dir.path().join("media"),
+            crate::media::DEFAULT_TTL,
+        ));
+        let bytes = b"relayed-artifact".to_vec();
+        let id = store.mint("session-1", "application/octet-stream", bytes.clone(), true);
+        let listener = Listener::bind(&socket).await.unwrap();
+        let serving = tokio::spawn(listener.serve(handler, Arc::clone(&store)));
+
+        let bin = std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("daiorama");
+        let mut child = Command::new(bin)
+            .arg("mcp")
+            .arg("--listen")
+            .arg("127.0.0.1:0")
+            .env("HOME", dir.path())
+            .env("XDG_CONFIG_HOME", dir.path().join("config"))
+            .env("XDG_DATA_HOME", dir.path().join("data"))
+            .env("XDG_RUNTIME_DIR", dir.path().join("run"))
+            .env("TMPDIR", dir.path().join("tmp"))
+            .env_remove("DAIORAMA_TOKEN")
+            .env_remove("DAIORAMA_SCOPE")
+            .env_remove("DAIORAMA_SCOPE_TOKEN")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let stderr = child.stderr.take().unwrap();
+        let mut lines = BufReader::new(stderr).lines();
+        let mut port = 0u16;
+        while port == 0 {
+            let line = lines.next_line().await.unwrap().unwrap_or_default();
+            if let Some(rest) = line.strip_prefix("listening on ") {
+                port = rest
+                    .rsplit(':')
+                    .next()
+                    .and_then(|value| value.parse().ok())
+                    .unwrap_or(0);
+            }
+        }
+        let token = std::fs::read_to_string(dir.path().join("data/daiorama/default/token"))
+            .unwrap()
+            .trim()
+            .to_string();
+
+        let (head, body) = fetch(port, &token, &format!("/media/{id}")).await;
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+        assert_eq!(body, bytes, "the artifact is relayed byte-exact");
+        let persisted = dir.path().join("media/session-1").join(&id);
+        assert_eq!(
+            std::fs::read(&persisted).unwrap(),
+            bytes,
+            "store_clips persisted the same artifact"
+        );
+
+        let (head, body) = fetch(port, &token, &format!("/media/{id}")).await;
+        assert!(head.starts_with("HTTP/1.1 404"), "{head}");
+        assert!(
+            String::from_utf8_lossy(&body).contains("media_expired"),
+            "a consumed id is media_expired"
+        );
+        assert!(persisted.exists(), "persistence never resurrects the URL");
+
+        let (head, _) = fetch(port, &token, "/media/../../token").await;
+        assert!(head.starts_with("HTTP/1.1 404"), "{head}");
+
+        child.kill().await.ok();
+        serving.abort();
     }
 }
