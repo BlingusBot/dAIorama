@@ -276,6 +276,9 @@ refusals always carry their own code.
 - Session object: `{id, label, state, backend, resolution, scale, scope,
   origin, idle_since, view: {state, address, generation} | null, instance_id,
   renderer}`.
+- History page: `{records: [record], next_cursor: <opaque> | null}`; a record is
+  `{at, event, session_id, scope, origin, cause?, detail?}` — control-call
+  arguments are never recorded (06), and `at` is RFC 3339 UTC.
 - Instance status: `{state, mode, pid, socket, versions: {binary, protocol,
   min_supported, dashboard_module?}, sessions: {running, dead}, drain:
   {active, remaining}, instance_id}`.

@@ -84,6 +84,8 @@ pub struct RuntimeService {
     rate: crate::runtime::rate::RateLimiter,
     /// One capture at a time per session (capture is exempt from the bucket, not free).
     capture_inflight: Mutex<std::collections::HashSet<String>>,
+    /// Append-only session history (06 B8).
+    history: Arc<crate::history::History>,
 }
 
 impl RuntimeService {
@@ -92,6 +94,7 @@ impl RuntimeService {
         spawner: Arc<dyn SessionSpawner>,
         media: Arc<crate::media::MediaStore>,
     ) -> Self {
+        let history = Arc::new(crate::history::History::new(&options.paths));
         Self {
             registry: Mutex::new(Registry::new(options.instance_id)),
             spawner,
@@ -106,6 +109,7 @@ impl RuntimeService {
             views: Arc::new(crate::runtime::views::ViewManager::default()),
             rate: crate::runtime::rate::RateLimiter::default(),
             capture_inflight: Mutex::new(std::collections::HashSet::new()),
+            history,
         }
     }
 
@@ -277,6 +281,19 @@ impl RuntimeService {
             renderer: outcome.renderer,
             cause: None,
         };
+        self.record(
+            "session.created",
+            &record.id,
+            &record.scope,
+            record.origin,
+            None,
+            Some(json!({
+                "backend": record.backend.as_str(),
+                "resolution": record.resolution.clone(),
+                "scale": record.scale,
+                "view": record.view.is_some(),
+            })),
+        );
         let value = record.to_json();
         self.registry().insert(record);
         Ok(value)
@@ -381,7 +398,99 @@ impl RuntimeService {
         // shared retention sweep removes it with the session's history, not before.
         // A view never outlives its session (06 B2: explicit kill-on-session-close).
         self.views.stop(&id);
+        let (scope_of, origin_of) = {
+            let registry = self.registry();
+            match registry.get(&id) {
+                Some(record) => (record.scope.clone(), record.origin),
+                None => (OPERATOR_SCOPE.to_string(), Origin::Shell),
+            }
+        };
+        self.record(
+            "session.closed",
+            &id,
+            &scope_of,
+            origin_of,
+            Some("closed"),
+            None,
+        );
+        // The retention sweep's input: a durable "ended at" marker, never inferred from mtimes.
+        self.history
+            .mark_ended(&id, &scope_of, origin_of.as_str(), "closed");
         Ok(json!({ "id": id, "state": "closed" }))
+    }
+
+    /// Append one history record (06 B8): scope and origin always, cause where relevant,
+    /// never control-call arguments, media ids or credentials.
+    fn record(
+        &self,
+        event: &str,
+        session_id: &str,
+        scope: &str,
+        origin: Origin,
+        cause: Option<&str>,
+        detail: Option<Value>,
+    ) {
+        let record = crate::history::Record {
+            at: utc_now_rfc3339(),
+            event: event.to_string(),
+            session_id: session_id.to_string(),
+            scope: scope.to_string(),
+            origin: origin.as_str().to_string(),
+            cause: cause.map(str::to_string),
+            detail,
+        };
+        let _ = self.history.append(&record);
+    }
+
+    /// `list_history` (05/06 B8): records follow **session** visibility — own-scope default,
+    /// operator sees all, a stranger's session is the same `session_not_found` as everywhere.
+    /// A cursor is opaque and only valid with a `session_id` (cross-session paging is not
+    /// offered; ask per session).
+    fn list_history(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
+        let map = params_object(params)?;
+        unknown_params(&map, &["session_id", "scope", "limit", "cursor"])?;
+        let limit = map
+            .get("limit")
+            .and_then(Value::as_u64)
+            .map(|value| (value as usize).clamp(1, crate::history::MAX_LIMIT))
+            .unwrap_or(crate::history::DEFAULT_LIMIT);
+        let cursor = map.get("cursor").and_then(Value::as_str);
+        if let Some(requested) = map.get("scope").and_then(Value::as_str)
+            && scope != OPERATOR_SCOPE
+            && requested != scope
+        {
+            return Err(ErrorEnvelope::bad_request(
+                "a scope filter may only name the caller's own scope",
+            ));
+        }
+        let session = map.get("session_id").and_then(Value::as_str);
+        let Some(session_id) = session else {
+            if cursor.is_some() {
+                return Err(ErrorEnvelope::bad_request("a cursor requires a session_id"));
+            }
+            let records: Vec<crate::history::Record> = self
+                .history
+                .read_all(limit)
+                .into_iter()
+                .filter(|record| scope == OPERATOR_SCOPE || record.scope == scope)
+                .collect();
+            return Ok(json!({ "records": records, "next_cursor": Value::Null }));
+        };
+        let visible = {
+            let registry = self.registry();
+            match registry.get(session_id) {
+                Some(record) => self.visible(scope, record)?,
+                None => match self.history.recorded_scope(session_id) {
+                    Some(recorded) => scope == OPERATOR_SCOPE || recorded == scope,
+                    None => false,
+                },
+            }
+        };
+        if !visible {
+            return Err(ErrorEnvelope::session_not_found());
+        }
+        let page = self.history.read_session(session_id, limit, cursor)?;
+        Ok(json!({ "records": page.records, "next_cursor": page.next_cursor }))
     }
 
     // -----------------------------------------------------------------------
@@ -456,6 +565,14 @@ impl RuntimeService {
                 started.generation,
             );
         }
+        self.record(
+            "view.started",
+            &id,
+            scope,
+            Origin::Shell,
+            None,
+            Some(json!({ "generation": started.generation })),
+        );
         Ok(view_answer(
             &id,
             started.front_port,
@@ -469,9 +586,24 @@ impl RuntimeService {
     fn stop_view(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
         let (id, _record) = self.capture_target(scope, params, &["session_id"])?;
         self.views.stop(&id);
-        let mut registry = self.registry();
-        let generation = registry.view_generation(&id);
-        registry.set_view(&id, None, generation);
+        let (generation, scope_of, origin_of) = {
+            let mut registry = self.registry();
+            let generation = registry.view_generation(&id);
+            let (scope_of, origin_of) = match registry.get(&id) {
+                Some(record) => (record.scope.clone(), record.origin),
+                None => (scope.to_string(), Origin::Shell),
+            };
+            registry.set_view(&id, None, generation);
+            (generation, scope_of, origin_of)
+        };
+        self.record(
+            "view.stopped",
+            &id,
+            &scope_of,
+            origin_of,
+            None,
+            Some(json!({ "generation": generation })),
+        );
         Ok(json!({ "session_id": id, "state": "stopped" }))
     }
 
@@ -545,6 +677,14 @@ impl RuntimeService {
             timeout,
             config.capture.screenshot_max_bytes,
         )?;
+        self.record(
+            "capture.screenshot",
+            &id,
+            scope,
+            Origin::Shell,
+            None,
+            Some(json!({ "bytes": bytes.len(), "width": width, "height": height })),
+        );
         if self.scope_definition(scope)?.audit.store_screenshots {
             // URL-less: the bytes are kept for the retention window, never a capability.
             self.media.persist_screenshot(&id, &bytes);
@@ -587,6 +727,14 @@ impl RuntimeService {
             std::time::Duration::from_secs(duration_s),
             crate::media::SESSION_CAP_BYTES,
         )?;
+        self.record(
+            "capture.clip",
+            &id,
+            scope,
+            Origin::Shell,
+            None,
+            Some(json!({ "bytes": bytes.len(), "duration_s": duration_s })),
+        );
         let store_clips = self.scope_definition(scope)?.audit.store_clips;
         let media_id = self
             .media
@@ -769,6 +917,15 @@ impl Handler for RuntimeService {
             if let Err(envelope) = self.rate.acquire(scope, session_id, &rate) {
                 return Response::Error(envelope);
             }
+            // B8: the call is recorded, its arguments are not (06).
+            self.record(
+                "tool.call",
+                session_id,
+                scope,
+                origin,
+                None,
+                Some(json!({ "tool": method })),
+            );
         }
         let outcome: Result<Value, ErrorEnvelope> = match method {
             // Instance reads and the two management verbs take no parameters: a stray key is a
@@ -792,7 +949,8 @@ impl Handler for RuntimeService {
             // and the control tools land later (PLAN.md) — a valid call, an absent build.
             methods::GET_VIEW => self.get_view(scope, params),
             methods::STOP_VIEW => self.stop_view(scope, params),
-            methods::LIST_HISTORY | methods::DAEMON_END => Err(ErrorEnvelope::not_implemented()),
+            methods::LIST_HISTORY => self.list_history(scope, params),
+            methods::DAEMON_END => Err(ErrorEnvelope::not_implemented()),
             name if is_known_tool_name(name) => Err(ErrorEnvelope::not_implemented()),
             // Anything else is a name the protocol does not define: a client-side refusal.
             // Dispatch-level — the connection continues (P2 hardening; fixtures/README).
@@ -1621,12 +1779,7 @@ mod tests {
         let service = make_service(tmp.path(), Arc::new(TestSpawner::default()));
 
         // Unbuilt, but pinned: the views/query methods, daemon_end, and the control tools.
-        for method in [
-            methods::LIST_HISTORY,
-            methods::DAEMON_END,
-            "pointer_move",
-            "list_capabilities",
-        ] {
+        for method in [methods::DAEMON_END, "pointer_move", "list_capabilities"] {
             let err = result(&service, method, None).unwrap_err();
             assert_eq!(err.code, ErrorCode::Internal, "{method}");
             assert_eq!(
@@ -2931,5 +3084,193 @@ mod tests {
             assert!(second.message.contains("already running"), "{second:?}");
             assert!(first.join().unwrap().is_ok(), "the first capture completes");
         });
+    }
+
+    /// B8: create/close write records; the close also leaves the durable `.ended` marker the
+    /// retention sweep reads (never mtimes).
+    #[test]
+    fn create_and_close_write_history_and_the_end_marker() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), CoreConfig::default());
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        let page = result(
+            &service,
+            methods::LIST_HISTORY,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        let records = page["records"].as_array().unwrap();
+        assert!(
+            records
+                .iter()
+                .any(|record| record["event"] == "session.created"),
+            "{page}"
+        );
+        assert!(
+            records
+                .iter()
+                .all(|record| record["scope"] == "operator" && record["origin"] == "shell"),
+            "records carry scope + origin"
+        );
+        result(
+            &service,
+            methods::CLOSE_SESSION,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        let page = result(
+            &service,
+            methods::LIST_HISTORY,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        assert!(
+            page["records"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|record| record["event"] == "session.closed")
+        );
+        let marker = service.paths.history_dir().join(&id).join(".ended");
+        let body = std::fs::read_to_string(&marker).unwrap();
+        assert!(body.contains("cause=closed"), "{body}");
+    }
+
+    /// History follows session visibility, and survives a manager restart through the recorded
+    /// scope (the live registry does not).
+    #[test]
+    fn history_follows_visibility_and_survives_a_restart() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), CoreConfig::default());
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+
+        // A stranger's session id is the same non-leak answer as everywhere.
+        let error = result_as(
+            "agent1",
+            Origin::Mcp,
+            &service,
+            methods::LIST_HISTORY,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::SessionNotFound);
+
+        // A fresh manager on the same data dir (a restart): the live record is gone, the
+        // history's recorded scope still answers for the owner scope.
+        drop(service);
+        let (reopened, _spawner) = capture_service(tmp.path(), CoreConfig::default());
+        let page = result(
+            &reopened,
+            methods::LIST_HISTORY,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        assert!(!page["records"].as_array().unwrap().is_empty());
+    }
+
+    /// Cursors are opaque, session-scoped and never silently ignored.
+    #[test]
+    fn history_pages_with_a_cursor_and_rejects_cross_session_cursors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), CoreConfig::default());
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        // Distinct events, written directly: the cursor must page by position, not by content.
+        for n in 0..5 {
+            let _ = service.history.append(&crate::history::Record {
+                at: format!("2026-10-17T00:00:0{n}Z"),
+                event: format!("test.{n}"),
+                session_id: id.clone(),
+                scope: "operator".to_string(),
+                origin: "shell".to_string(),
+                cause: None,
+                detail: None,
+            });
+        }
+        let first = result(
+            &service,
+            methods::LIST_HISTORY,
+            Some(json!({ "session_id": id, "limit": 2 })),
+        )
+        .unwrap();
+        assert_eq!(first["records"].as_array().unwrap().len(), 2);
+        let cursor = first["next_cursor"].as_str().unwrap().to_string();
+        let second = result(
+            &service,
+            methods::LIST_HISTORY,
+            Some(json!({ "session_id": id, "limit": 2, "cursor": cursor })),
+        )
+        .unwrap();
+        let events = |page: &Value| -> Vec<String> {
+            page["records"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|record| record["event"].as_str().unwrap_or_default().to_string())
+                .collect()
+        };
+        assert_ne!(events(&first), events(&second), "pages advance");
+        assert_eq!(events(&first), vec!["test.4", "test.3"]);
+        assert_eq!(events(&second), vec!["test.2", "test.1"]);
+        let error = result(
+            &service,
+            methods::LIST_HISTORY,
+            Some(json!({ "cursor": second["next_cursor"] })),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::BadRequest);
+        assert!(error.message.contains("session_id"), "{error:?}");
+        // Control args are never recorded.
+        let page = result(
+            &service,
+            methods::LIST_HISTORY,
+            Some(json!({ "session_id": id, "limit": 50 })),
+        )
+        .unwrap();
+        assert!(!page.to_string().contains("\"x\""), "no control arguments");
+    }
+
+    /// View transitions are history too.
+    #[test]
+    fn view_start_and_stop_are_recorded() {
+        let tmp = tempfile::tempdir().unwrap();
+        let Some(wayvnc) = fake_wayvnc(tmp.path()) else {
+            return;
+        };
+        let mut config = CoreConfig::default();
+        config.view.wayvnc_command = wayvnc;
+        config.view.port_base = crate::runtime::views::allocate_front_port(18300).unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), config);
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        result(
+            &service,
+            methods::GET_VIEW,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        result(
+            &service,
+            methods::STOP_VIEW,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        let page = result(
+            &service,
+            methods::LIST_HISTORY,
+            Some(json!({ "session_id": id, "limit": 50 })),
+        )
+        .unwrap();
+        let events: Vec<&str> = page["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|record| record["event"].as_str().unwrap_or_default())
+            .collect();
+        assert!(events.contains(&"view.started"), "{events:?}");
+        assert!(events.contains(&"view.stopped"), "{events:?}");
+        service.views.stop(&id);
     }
 }

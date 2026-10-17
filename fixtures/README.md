@@ -300,6 +300,14 @@ request target is never logged.
   `http://<Host>/media/<id>`, stdio builds `daiorama://media/<id>` and names
   `daiorama media fetch <id> --out <path>` (claim-on-open applies to both).
 
+### History (05, 06 B8, 08)
+
+- History pages answer `{records: [...], next_cursor: <opaque> | null}`; each record is
+  `{at, event, session_id, scope, origin, cause?, detail?}`.
+- Control-call arguments are never recorded; neither are media ids or tokens.
+- Session dirs carry a `.ended` sidecar (RFC 3339 + cause) — the retention sweep's input; 8
+  segments × 4 MiB rotate inside a session, oldest dropped.
+
 ### Rate limit and capture (05 §Rate, 07 B9)
 
 - Control-class input calls are rate-limited per session by `limits.rate`; reads, capture and
