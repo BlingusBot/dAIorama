@@ -65,13 +65,16 @@ implicitly, and it is the identity the dashboard queries as (10, D3).
 ### D3 — Dashboard-side connection store
 
 - Path: `<config root>/daiorama-dashboard/connections.ron`, file **0600**, directory 0700.
-- Shape: `(version: 1, connections: [(name: "...", address: "host:port", token: "...")])`.
+- Shape: `(version: 1, connections: [(name, address, token, scope_token)])` — the
+  **implementation amendment (2026-10-17)**: a network call needs both the instance token and
+  the `dashboard` scope's secret (07), so each connection carries `scope_token` as well.
   `address` uses the same grammar as `--remote`; the unix socket is deliberately not a
   dashboard address (07: a network surface with a token is the remote path).
-- `dashboard connect <address> --name <name>` appends/updates; `connections list` prints name
-  and address only; `token set <connection>` reads the value from **stdin** (never argv, so it
-  stays out of shell history and `ps`) and never echoes it. Values are never printed by any
-  verb, matching the manager token rule.
+- `connect <name> <address>` creates/updates the address; `connections` prints name, address
+  and whether each secret is set (never a value); `token set <name>` and `scope-token set
+  <name>` read their value from **stdin** (never argv, so it stays out of shell history and
+  `ps`) and never echo it. Values are never printed by any verb, matching the manager token
+  rule.
 - No env-var token path (10 D3): N connections must scale without ambient secrets.
 
 ### D4 — Capability detection

@@ -96,3 +96,20 @@ skewed activation (D1/D5 strings).
 
 Nothing here requires a manager change beyond D1 (`versions.dashboard_module`) and D2 (the
 `dashboard` scope), both already pinned.
+
+## Implementation status (2026-10-17)
+
+The module scaffold exists: `dashboard/` is a workspace member (`daiorama-dashboard` binary,
+plain `ui/` assets), with the D3 store, the loopback server and the read API above. It is not
+yet wired to any installer (D5 is packaging's), and the dashboard CLI verbs under `daiorama`
+still refuse — the module runs standalone until that wrapper lands.
+
+Verified so far: unit + end-to-end tests (fake manager over the real frame protocol: readiness,
+sessions, history, view, traversal refused, tokens absent from every response body, non-loopback
+bind refused with the pinned string), plus a live leg against a real manager —
+`/api/managers` returned the manager's real readiness through the `dashboard` scope, page 200,
+and no token appeared in the body.
+
+**D3 amendment:** each connection also stores `scope_token` (the `dashboard` scope's secret);
+the instance token alone cannot authenticate a network call (07). `scope-token set` is the
+store verb; both values arrive on stdin.
