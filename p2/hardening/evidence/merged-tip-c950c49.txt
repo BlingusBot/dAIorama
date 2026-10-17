@@ -1,0 +1,93 @@
+===================================================================
+## merged-tip battery — spec/v1 @ c950c49   (2026-10-17)
+===================================================================
+Tip: c950c49  ("p4(ratelimit): keep rate modes out of the canonical-codes bullet (doc-exhaustiveness gate)")
+History on this tip: 5236dfc (dispatch off the reactor) -> 0598fcd + ff79e61 (views: advertise-base
+Origin, wayvnc conf 0600) -> 4579077 (token lifecycle) -> c950c49 (rate limiting + the doc fix).
+This is the first combined gate of those three P4 slices: each was gated on its own PR head,
+never together on the merged tree.
+
+Environment: fresh rust:slim container, sources touched before building (stale-binary guard),
+CARGO_TARGET_DIR=/tmp/t. Commands are the standard gate set (README: bare rust:slim needs
+`rustup component add rustfmt clippy` first).
+
+===================================================================
+## [1] format + lint + build
+===================================================================
+fmt_rc=0
+fmt_check_rc=0
+clippy_rc=0
+   Compiling ron v0.12.2
+   Compiling daiorama v0.1.0 (/src)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.43s
+build_rc=0
+
+===================================================================
+## [2] test battery
+===================================================================
+test result: ok. 218 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 3.62s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+Counts: 218 (+5i) · 7 · 2 · 27 · 7 · 22 — 0 failed.
+
+===================================================================
+## [3] dispatch-stall L1 leg on the merged tip (regression re-run)
+===================================================================
+p2/hardening/run-dispatch-stall.sh <binary> mtipc950
+binary=daiorama-mtip label=mtipc950
+status_latency_s=0.00 status=running
+create_elapsed_s=[15.02, 30.04, 40.04, 40.04]
+create_answer={"error": {"code": "internal", "message": "mutter parent did not present its wayland socket in time; mutter.log tail: "}}
+create_answer={"error": {"code": "internal", "message": "mutter parent did not present its wayland socket in time; mutter.log tail: "}}
+VERDICT=PASS fast_call_latency_s=0.00
+VERDICT=PASS — a plain `status` answered in 0.00 s while four creates sat 15-40 s in
+dispatch. Same signature as the 5236dfc pass; the P2 fix still holds with the P4 slices in.
+
+===================================================================
+## [4] rate-limit live leg (new) — real manager, real frames, per-call scope file
+===================================================================
+p2/hardening/run-rate-limit.sh <binary> mtipc950
+# Unit tests cover the bucket; this leg exercises the shipped path: a real `daiorama serve`,
+# real unix-socket frames, the scope file on disk read inside dispatch(), and the ordering
+# (control-class calls spend a token before anything else; reads/capture exempt).
+# Control tools answer `internal / not implemented yet` in this build — that is the expected
+# pass-through behind the gate, not a defect this leg measures.
+[OK]   [A1] first control call passes the gate ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [A2] second control call passes (burst 2) ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [A3] third control call is rate_limited ({"error": {"code": "rate_limited", "message": "rate limit exceeded for scope \"operator\"", "hint": "retry after 999 ms"}})
+[OK]   [A4] refusal carries a numeric retry-after hint (hint='retry after 999 ms')
+[OK]   [B1] session_status is exempt from the bucket ({"error": {"code": "session_not_found", "message": "session not found", "hint": "list sessions to find one"}})
+[OK]   [B2] screenshot is exempt from the bucket ({"error": {"code": "session_not_found", "message": "session not found", "hint": "list sessions to find one"}})
+[OK]   [C1] a different session has its own burst ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [D1] a refilled bucket passes again ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [E1] paced call passes after its wait ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [E2] the scope file was re-read per call (pace took effect, no restart) (elapsed=0.501s want ~0.50s)
+[OK]   [F1] first call passes ({"error": {"code": "internal", "message": "not implemented yet"}})
+[OK]   [F2] a wait past max_wait_ms refuses ({"error": {"code": "rate_limited", "message": "rate limit exceeded for scope \"operator\"", "hint": "retry after 1000 ms"}})
+[OK]   [F3] the refused wait did not park the caller (elapsed=0.001s)
+[OK]   [G1] at least one concurrent call passes the gate (passed=3 refused=3 other=0)
+[OK]   [G2] the queue bound refuses rather than parking the whole flood (passed=3 refused=3 other=0)
+[OK]   [G3] every answer arrives inside the parked wait bound (total=2.003s max_call=2.000s)
+FAILS=0
+VERDICT=PASS
+
+What the leg proves, case by case:
+- reject mode spends burst 2 then refuses with a numeric `retry after 999 ms` hint;
+- `session_status` and `screenshot` answer `session_not_found`, not `rate_limited`, while the
+  bucket is empty — reads and capture really are outside the bucket;
+- a second session id still has its own burst (per (scope, session));
+- after 1.2 s the first session passes again (continuous refill);
+- rewriting `scopes/operator.ron` between calls changes the policy with no restart: pace at
+  per_sec 2 waited 0.501 s;
+- pace + max_wait_ms 20 refuses in 0.001 s (bounded wait, no park);
+- six concurrent control calls with burst 1 / max_queued 2: 3 passed, 3 refused, every answer
+  inside 2.003 s — the flood degrades to refusals rather than a parked army.
+
+Not run here: capture serialization needs a real session (one in-flight slot per session),
+which needs a live compositor; that path stays pinned by its unit tests. The exemption of
+capture from the bucket is proven above.
+
+ALLDONE
