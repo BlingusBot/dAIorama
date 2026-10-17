@@ -151,6 +151,31 @@ via merge `16f9b61`. Fresh L1 containers per segment, binary built from this tip
 No findings in the full pass → the round closes: cross-verify handoff is PR #22 at this
 round's tip (freeze: the verdict binds to the sha reviewed).
 
+## Round 3 — full (a)–(c) re-run on the merged IPC-refusal tip (green, no findings)
+
+Regression pass on the tip after both IPC refusal slices merged (`c1da5ed` — gate refusals:
+invalid-UTF-8 lines and repeated handshakes; dispatch refusals: unknown vs not-yet-built
+methods) — the first real-chain exercise of that code. Fresh L1 containers per segment;
+binary built from this tip in CI (`dai-r3-ci`, sha256 `10da95d4…`).
+
+- (a) lifecycle churn — `round3-lifecycle-churn.txt`: 42/42 assertions `[OK]`, `FAILS=0`.
+  Three sessions created (`renderer: verified` on each, raw `Renderer: NV117` in all three
+  instance logs), one closed clean; SIGKILL mid-session leaves two orphaned `Hyprland`
+  survivors, one per remaining scope; restart lands `startup sweep: 2 stale session
+  scope(s) reaped` — after it, no compositor process and no scope dir remain; the
+  recovered manager creates and closes a new session; doctor reports the keeper re-entry.
+- (b) drain integration — `round3-drain-live.txt`: 28/28 `[OK]`, `FAILS=0` — drain enters
+  (`{active, remaining:3}`), `new` refused with the pinned 04 string and zero spawn, closes
+  drop remaining 3→2→1→0, the `--wait` bound fires at 1, `--wait` completes at zero, drain
+  sticky at zero, end-state leak sweep clean.
+- (c) odd creation params — `round3-odd-params.txt`: 97/97 `[OK]`, `FAILS=0` — all eight
+  cases (incl. 641x481 @1.5 → `962x722 scale=1.5` and 642x482 @1.25 → `803x603 scale=1.25`
+  reading the requested scale back verbatim; 1x1; 16384x16384) create, carry the requested
+  geometry, and close with zero residue.
+
+No findings in the full pass → the round adds nothing to fix; cross-verify handoff is this
+branch's PR at this tip (freeze: the verdict binds to the sha reviewed).
+
 ## Residual (tracked, post-round)
 
 - Crashed sessions' runtime dirs (`/tmp/dr-<id8>`) are not reaped by the sweep — only the
@@ -196,6 +221,11 @@ round's tip (freeze: the verdict binds to the sha reviewed).
   `FAILS=0`; containers `dai-r2-a`, `dai-r2-b`, `dai-r2-c`).
 - `evidence/round2-a-spec.json`, `evidence/round2-b-spec.json`, `evidence/round2-c-spec.json`
   — create-specs for the round-2 runs (mount sources genericized).
+- `evidence/round3-lifecycle-churn.txt`, `evidence/round3-drain-live.txt`,
+  `evidence/round3-odd-params.txt` — round 3 raws on the merged IPC-refusal tip (all green,
+  `FAILS=0`; containers `dai-r3-a`, `dai-r3-b`, `dai-r3-c`).
+- `evidence/round3-a-spec.json`, `evidence/round3-b-spec.json`, `evidence/round3-c-spec.json`
+  — create-specs for the round-3 runs (mount sources genericized).
 
 ## Gate + run recipe
 
@@ -218,3 +248,7 @@ clean, clippy `-D warnings` clean — 133 + 4 + 2 + 27 passed, 0 failed, 5 ignor
 Round 2 with the merged tip (merge `16f9b61`; fresh `rust:slim`, container `dai-r2-ci`):
 fmt clean, clippy `-D warnings` clean — 135 + 4 + 2 + 27 passed, 0 failed, 5 ignored. The
 L1 binary for the whole round is this tree's `target/debug/daiorama` (sha256 `b64b74f5…`).
+
+Round 3 at the merged IPC-refusal tip (`c1da5ed`; fresh `rust:slim`, container `dai-r3-ci`):
+fmt clean, clippy `-D warnings` clean — 138 + 4 + 2 + 27 passed, 0 failed, 5 ignored. The
+L1 binary for the whole round is this tree's `target/debug/daiorama` (sha256 `10da95d4…`).
