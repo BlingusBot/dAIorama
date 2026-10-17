@@ -26,6 +26,19 @@ pub const SEGMENT_BYTES: u64 = 4 * 1024 * 1024;
 pub const DEFAULT_LIMIT: usize = 100;
 pub const MAX_LIMIT: usize = 1000;
 
+/// Session ids are opaque slugs, never path segments: the history root is joined with the id,
+/// so anything that can climb (`/`, `..`) or isn't a slug is refused before touching the fs.
+pub fn valid_session_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && id != "."
+        && id != ".."
+        && !id.contains("..")
+        && id.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_' || byte == b'.'
+        })
+}
+
 /// One log line. Optional fields are omitted on the wire (`skip_serializing_if`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Record {
@@ -66,6 +79,9 @@ impl History {
     /// Append one record. Buffered, flush per record, no fsync (08). Rotation happens before a
     /// write that would cross 4 MiB; the oldest segment is dropped past 8.
     pub fn append(&self, record: &Record) -> Result<(), ErrorEnvelope> {
+        if !valid_session_id(&record.session_id) {
+            return Err(ErrorEnvelope::bad_request("invalid session id"));
+        }
         let mut sessions = self.sessions.lock().expect("history lock");
         let entry = sessions
             .entry(record.session_id.clone())
@@ -109,6 +125,9 @@ impl History {
     /// A durable session-end marker for the retention sweep: `<session>/.ended`, RFC 3339 plus
     /// the cause. Written once when the session leaves `running`, however it left.
     pub fn mark_ended(&self, session_id: &str, scope: &str, origin: &str, cause: &str) {
+        if !valid_session_id(session_id) {
+            return;
+        }
         let dir = self.root.join(session_id);
         if std::fs::create_dir_all(&dir).is_err() {
             return;
@@ -139,6 +158,9 @@ impl History {
     /// The session's recorded scope (the first record's), for reads whose session is no longer
     /// in the live registry.
     pub fn recorded_scope(&self, session_id: &str) -> Option<String> {
+        if !valid_session_id(session_id) {
+            return None;
+        }
         let dir = self.root.join(session_id);
         let mut segments: Vec<PathBuf> = std::fs::read_dir(&dir)
             .ok()?
@@ -166,6 +188,9 @@ impl History {
         limit: usize,
         cursor: Option<&str>,
     ) -> Result<Page, ErrorEnvelope> {
+        if !valid_session_id(session_id) {
+            return Err(ErrorEnvelope::bad_request("invalid session id"));
+        }
         let dir = self.root.join(session_id);
         let mut segments = segment_paths(&dir);
         segments.sort();
@@ -434,6 +459,24 @@ mod tests {
             std::fs::metadata(&marker).unwrap().permissions().mode() & 0o777,
             0o600
         );
+    }
+
+    /// The id is joined onto the root: separators and dot-dot never reach the filesystem, and
+    /// `read_all` only ever walks real child directories.
+    #[test]
+    fn hostile_session_ids_never_escape_the_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = History::new(&paths(dir.path()));
+        for hostile in ["../../etc", "s-1/../../s-2", "..", ".", "a/b", "x\\y", ""] {
+            assert!(!valid_session_id(hostile), "{hostile:?} must be invalid");
+            assert_eq!(history.recorded_scope(hostile), None, "{hostile:?}");
+            assert!(
+                history.read_session(hostile, 10, None).is_err(),
+                "{hostile:?}"
+            );
+        }
+        assert!(valid_session_id("s-1a2b3c4d"));
+        assert!(valid_session_id("session.1_ok"));
     }
 
     #[test]

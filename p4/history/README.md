@@ -24,6 +24,8 @@ Scope: the record format and the read surface (06 B8); retention stays a separat
 - **Restart:** history outlives the manager; when the live registry no longer has the session,
   visibility falls back to the scope recorded in the log, so the operator (and the owning
   scope) can still read it.
+- **Id safety:** session ids are validated as slugs (`[A-Za-z0-9._-]`, no `..`) **before** the
+  history root is joined with them; a hostile id is `session_not_found`, never a path escape.
 
 ## Tests
 
