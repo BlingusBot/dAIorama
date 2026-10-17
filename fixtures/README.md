@@ -229,9 +229,11 @@ with the same `bad_request` string and the connection ends.
 Every request authenticates itself with the pinned headers (05/07): `Daiorama-Token` (the
 instance token, checked first), `Daiorama-Scope`, `Daiorama-Scope-Token` (that scope's secret).
 No anonymous calls, no default scope. A scope is network-usable only while it has a secret file
-(`<data root>/scope-tokens/<scope>`, 0600 — 08). Gate failures are MCP-level errors: HTTP 200
-with a JSON-RPC error whose `data` carries the canonical envelope — never an HTTP auth
-challenge or discovery metadata. A notification (no `id`) passes the gate, executes nothing,
+(`<data root>/scope-tokens/<scope>`, 0600 — 08). MCP-level errors ride the 200 envelope only
+when the request id is known; an id-less refusal answers its HTTP status with the same envelope
+and `Connection: close` — `403` for the identity gate (the three refusals below), `400` for a
+parse error, `413` for a declared body over `MAX_FRAME_BYTES`. Never an HTTP auth challenge or
+discovery metadata, and never `401` (the OAuth-discovery trigger). A notification (no `id`) passes the gate, executes nothing,
 and answers `202` with an empty body.
 
 Refusal strings (pinned; `{scope}` and `{origin}` are the observed values, quoted as JSON):
@@ -271,7 +273,7 @@ request target is never logged.
 - `404` + `media_expired` — a path that is not exactly `/media/<32 lowercase hex>` (uppercase,
   wrong length, separators, traversal shapes; `/media` and `/media/` included), refused at the
   bridge without contacting the manager.
-- `401` + `token_required` — missing or wrong instance token.
+- `403` + `token_required` — missing or wrong instance token.
 - `502` + `manager_unreachable` — the manager is down.
 - `502` + `internal` (`media upstream answered without a Content-Length`) — a malformed
   upstream answer (no length, or chunked); the bridge does not guess where the body ends.

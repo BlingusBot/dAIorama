@@ -5,7 +5,7 @@ Runs the real binary's `mcp --listen` against a fake manager that speaks the med
 over the instance's unix socket, and checks the pinned relay contract:
 
   200 pass-through (binary-safe, Content-Type/Length preserved), 404 + media_expired
-  pass-through, 401 token-only gate, 405 + Allow: GET, the path-shape matrix (bridge-side
+  pass-through, 403 token-only gate, 405 + Allow: GET, the path-shape matrix (bridge-side
   404, manager never contacted), malformed upstream (no length / chunked) -> 502 internal,
   manager down -> 502 manager_unreachable, Range ignored, fetch-once double-GET, streaming
   (first bytes arrive while the manager still holds the rest), and ids absent from stderr.
@@ -228,12 +228,12 @@ def main():
 
     status, headers, body = http_get(args.port, f"/media/{ID_OK}")
     report(
-        status.startswith("HTTP/1.1 401") and b"token_required" in body,
-        "no token -> 401 token_required",
+        status.startswith("HTTP/1.1 403") and b"token_required" in body,
+        "no token -> 403 token_required",
         f"{status!r} body={body[:50]!r}",
     )
     status, _, _ = http_get(args.port, f"/media/{ID_OK}", [("Daiorama-Token", "wrong")])
-    report(status.startswith("HTTP/1.1 401"), "wrong token -> 401", repr(status))
+    report(status.startswith("HTTP/1.1 403"), "wrong token -> 403", repr(status))
 
     status, headers, body = http_method(
         args.port, "POST", f"/media/{ID_OK}", [("Daiorama-Token", token)]

@@ -227,8 +227,8 @@ async fn network_gate_requires_token_scope_and_secret() {
     let mut conn = bridge.connection().await;
     let (status, _, response) = conn.mcp(&[("Host", &host)], handshake()).await;
     assert_eq!(
-        status, 200,
-        "gate failures are MCP-level, not HTTP auth challenges"
+        status, 403,
+        "an id-less gate refusal answers a non-200 status so a real client reads it"
     );
     assert!(
         matches!(
@@ -457,7 +457,7 @@ async fn oversized_bodies_are_refused_and_the_connection_ends() {
             break;
         }
     }
-    assert!(response_head.starts_with("HTTP/1.1 200"));
+    assert!(response_head.starts_with("HTTP/1.1 413"));
     let length = response_head
         .lines()
         .find_map(|line| line.strip_prefix("Content-Length: "))
@@ -776,7 +776,10 @@ async fn the_identity_gate_answers_before_the_body_is_parsed() {
     let (status, _, body) = conn
         .request("POST", "/mcp", &[("Host", &host)], "{not json")
         .await;
-    assert_eq!(status, 200);
+    assert_eq!(
+        status, 403,
+        "an id-less refusal answers its status, not a 200 envelope"
+    );
     let response: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(
         envelope_code(&response),
@@ -815,7 +818,7 @@ async fn a_gate_failure_closes_the_connection() {
             break;
         }
     }
-    assert!(response_head.starts_with("HTTP/1.1 200"), "{response_head}");
+    assert!(response_head.starts_with("HTTP/1.1 403"), "{response_head}");
     assert!(
         response_head
             .to_ascii_lowercase()
@@ -999,12 +1002,12 @@ async fn media_requires_only_the_instance_token() {
     let host = format!("127.0.0.1:{}", bridge.port);
     let token = bridge.token();
 
-    // No token: 401 with the canonical envelope, and the manager is never asked.
+    // No token: 403 with the canonical envelope, and the manager is never asked.
     let mut conn = bridge.connection().await;
     let (status, _, payload) = conn
         .request("GET", &format!("/media/{MEDIA_ID}"), &[("Host", &host)], "")
         .await;
-    assert_eq!(status, 401);
+    assert_eq!(status, 403);
     let envelope: Value = serde_json::from_slice(&payload).unwrap();
     assert_eq!(envelope["code"], "token_required");
     assert_eq!(count.load(Ordering::SeqCst), 0);
@@ -1019,7 +1022,7 @@ async fn media_requires_only_the_instance_token() {
             "",
         )
         .await;
-    assert_eq!(status, 401);
+    assert_eq!(status, 403);
 
     // The token alone is enough: no scope headers are part of a media fetch.
     let mut conn = bridge.connection().await;

@@ -483,9 +483,11 @@ scope name): presence is what makes a scope network-usable, and a scope without 
 `scope_auth_required` (05/07). `config setup` mints the starter scope's secret; `--listen`
 mints any missing secret for an existing scope file at startup, announced on stderr, and ensures
 the instance token exists even for a loopback bind — a network surface never runs tokenless.
-Gate failures are MCP-level errors (HTTP 200, JSON-RPC error, canonical envelope in `data`),
-never an HTTP auth challenge; bodies are bounded by `MAX_FRAME_BYTES` like a stdio frame, and a
-notification answers `202` without executing.
+Gate failures answer a non-200 status with the canonical envelope and `Connection: close`
+(403 for the identity gate, 400 for parse errors, 413 for a declared over-cap body); the 200
+envelope is reserved for refusals that can name the request id. Never an HTTP auth challenge —
+and never 401 (the OAuth-discovery trigger); bodies are bounded by `MAX_FRAME_BYTES` like a
+stdio frame, and a notification answers `202` without executing.
 
 *Rationale:* found by building W1b against 05/07: the docs named the headers and the "scope
 without a secret is unusable" rule but no storage path or generation point, so every
@@ -602,3 +604,24 @@ shape rules keep traversal and probing off the manager, and the length rule keep
 from inventing framing the manager did not send.
 *Rejected:* decoding chunked upstream (the manager owns its body and lifetime); scope auth on
 media fetches (the id is the credential — scope headers would imply a gate A8 does not have).
+
+## Id-less refusals answer the HTTP status, not a 200 envelope
+
+A request/response client matches responses by `id`. A refusal written before any body is read —
+the identity gate — cannot name an id, and a 200 with `"id": null` is unmatchable: the client
+waits out its read timeout and reports a dead server instead of the refusal. So the bridge's
+id-less refusals answer their HTTP status with the same envelope body and `Connection: close`:
+`403` for the identity gate (`token_required`, `scope_auth_required`, `scope_unknown`), `400`
+for a body that does not parse, `413` for a declared body over `MAX_FRAME_BYTES`. The 200
+envelope stays for refusals that can name the id (revision `-32022`, unknown method, tool
+errors, the null-id request itself). `401` is never used anywhere — it is the OAuth-discovery
+trigger.
+
+*Rationale:* found by pointing the published MCP client SDK at `--listen` (p3/listen/evidence/
+probe-sdk-http.txt): the gate's 200-with-null-id produced a 15 s client timeout with the
+`token_required` hint discarded, while the control 403 refusal reached the client in 0 s. The
+wrong/rotated token is the most common harness misconfiguration; it must not look like a dead
+server. Media fetches keep the same rule (`403` + `token_required`).
+*Rejected:* 401 (OAuth discovery), keep-alive after an id-less refusal (the body was never
+read), making every refusal a JSON-RPC error with a synthetic id (the client would treat it as
+an answer to a request it never made).

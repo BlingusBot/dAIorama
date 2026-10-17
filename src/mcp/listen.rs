@@ -345,7 +345,11 @@ async fn serve_connection(network: &Arc<Network>, stream: TcpStream) -> Result<(
         let (scope, definition) = match authenticate(network, &request).await {
             Ok(caller) => caller,
             Err(envelope) => {
-                let reply = Reply::refusal(200, json_rpc_envelope_error(None, &envelope));
+                // An id-less refusal answers its HTTP status, not a 200 envelope: a request/
+                // response client matches by id, cannot match `null`, and would wait out its
+                // read timeout — the refusal text would never reach it (11). 403, never 401
+                // (the OAuth-discovery trigger).
+                let reply = Reply::refusal(403, json_rpc_envelope_error(None, &envelope));
                 // A refused gate closes: keep-alive would leave a body this request never sent
                 // to be read as the next request's head. The refusal half-closes and lingers
                 // (see `refuse`), so a body already in flight does not reset it away.
@@ -355,8 +359,9 @@ async fn serve_connection(network: &Arc<Network>, stream: TcpStream) -> Result<(
         };
 
         if length > MAX_FRAME_BYTES {
+            // A head-decided size refusal cannot name an id either: 413, same envelope, close.
             let reply = Reply::refusal(
-                200,
+                413,
                 json_rpc_envelope_error(
                     None,
                     &ErrorEnvelope::bad_request(strings::frame_too_large(MAX_FRAME_BYTES)),
@@ -379,13 +384,18 @@ async fn serve_connection(network: &Arc<Network>, stream: TcpStream) -> Result<(
         let request_json = match parsed {
             Ok(request) => request,
             Err(err) => {
-                let reply = Reply::mcp(json_rpc_error(
-                    serde_json::Value::Null,
-                    PARSE_ERROR,
-                    &format!("parse error: {err}"),
-                ));
+                // A body that does not parse has no id to name: the refusal answers 400 with
+                // the same envelope and closes (11's id-less rule).
+                let reply = Reply::refusal(
+                    400,
+                    json_rpc_error(
+                        serde_json::Value::Null,
+                        PARSE_ERROR,
+                        &format!("parse error: {err}"),
+                    ),
+                );
                 write_reply(input.get_mut(), &reply).await?;
-                continue;
+                return Ok(());
             }
         };
 
@@ -504,7 +514,7 @@ async fn serve_media(
     if !secret_matches(presented, &network.token) {
         return media_refusal(
             stream,
-            401,
+            403,
             &ErrorEnvelope::token_required(&network.display),
             false,
         )
@@ -541,7 +551,7 @@ async fn media_refusal(
 ) -> std::io::Result<()> {
     let body = serde_json::to_vec(envelope).expect("media envelopes serialize");
     let reason = match status {
-        401 => "Unauthorized",
+        403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
         502 => "Bad Gateway",
@@ -839,6 +849,7 @@ async fn write_reply(stream: &mut TcpStream, reply: &Reply) -> Result<(), std::i
         403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        413 => "Payload Too Large",
         _ => "Error",
     };
     let mut head = format!(
