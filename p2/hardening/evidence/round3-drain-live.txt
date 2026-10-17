@@ -1,0 +1,228 @@
+
+==================================================================
+## [0] pre-state (fresh container)
+==================================================================
+uid=0(root) gid=0(root) groups=0(root)
+binary: -rwxr-xr-x. 1 root root 41360728 Oct 17 00:07 /out/hardening/daiorama
+daiorama 0.1.0
+protocol 0.1.0 (min 0.1.0)
+version_rc=0
+nsroot subtree_control: 
+-- compositors:
+(no mutter/Hyprland processes)
+-- scopes:
+(no session subtree at /sys/fs/cgroup/daiorama-sessions)
+-- snapshot: compositors=0 scopes=0 daiorama=0 dr_dirs=0
+
+==================================================================
+## [1] daemon start (cold)
+==================================================================
+started manager (mode=background, pid=79) socket=/tmp/hr/daiorama/default/manager.sock
+start_rc=0
+status_rc=0
+state: running
+mode: background
+pid: 79
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 0 running, 0 dead
+drain: inactive
+instance_id: d683b36b-76b2-46a5-80f4-84b7043c1e8c
+[OK]   cold status: drain inactive
+-- snapshot: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+
+==================================================================
+## [2] three real sessions
+==================================================================
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=168 comm="Hyprland --i-am-really-stupid" label="unconfined_u:unconfined_r:spc_t:s0")
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+new1_rc=0 id=61a7f3db-35fe-4a91-838f-5639b1bb49b2
+new2_rc=0 id=40db0058-a65d-4408-8c84-fc5db2597524
+new3_rc=0 id=6ec85c1a-cd70-41f2-bd34-b268acbc9d6d
+list_rc=0
+ID  STATE  BACKEND  SCOPE  ORIGIN  IDLE-SINCE
+40db0058-a65d-4408-8c84-fc5db2597524  running  headless  operator  shell  2026-10-17T00:07:47Z
+61a7f3db-35fe-4a91-838f-5639b1bb49b2  running  headless  operator  shell  2026-10-17T00:07:46Z
+6ec85c1a-cd70-41f2-bd34-b268acbc9d6d  running  headless  operator  shell  2026-10-17T00:07:48Z
+list_running_lines=3
+-- status 61a7f3db-35fe-4a91-838f-5639b1bb49b2:
+rc=0
+id: 61a7f3db-35fe-4a91-838f-5639b1bb49b2
+label: 
+state: running
+backend: headless
+resolution: 1920x1080
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-17T00:07:46Z
+view: none
+renderer: verified
+instance_id: d683b36b-76b2-46a5-80f4-84b7043c1e8c
+[OK]   S1 renderer verified
+-- scopes:
+scope 40db0058: procs=[211 222 224 238 239 ]
+scope 61a7f3db: procs=[157 168 170 188 ]
+scope 6ec85c1a: procs=[263 278 280 292 ]
+-- snapshot: compositors=9 scopes=3 daiorama=1 dr_dirs=3
+
+==================================================================
+## [3] drain with three live sessions
+==================================================================
+drain_rc=0
+stdout:
+draining; 3 still running
+stderr:
+[OK]   drain reports 3 remaining
+drain_json_rc=0
+{"active":true,"remaining":3}
+[OK]   drain --json shape
+status_rc=0
+state: running
+mode: background
+pid: 79
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 3 running, 0 dead
+drain: active, 3 still running
+instance_id: d683b36b-76b2-46a5-80f4-84b7043c1e8c
+[OK]   status carries drain state
+status_json_rc=0
+"drain":{"active":true,"remaining":3}
+[OK]   status --json drain object
+drain_again_rc=0
+{"active":true,"remaining":3}
+[OK]   drain enter is idempotent
+list_rc=0
+ID  STATE  BACKEND  SCOPE  ORIGIN  IDLE-SINCE
+40db0058-a65d-4408-8c84-fc5db2597524  running  headless  operator  shell  2026-10-17T00:07:47Z
+61a7f3db-35fe-4a91-838f-5639b1bb49b2  running  headless  operator  shell  2026-10-17T00:07:46Z
+6ec85c1a-cd70-41f2-bd34-b268acbc9d6d  running  headless  operator  shell  2026-10-17T00:07:48Z
+
+==================================================================
+## [4] new refused while draining — pinned string, nothing spawns
+==================================================================
+-- snapshot before: compositors=9 scopes=3 daiorama=1 dr_dirs=3
+new_rc=1
+stdout: 
+stderr:
+manager is draining for upgrade; new sessions are refused (3 still running). (draining)
+hint: retry after the upgrade completes
+[OK]   new refused exit 1 (rc=1)
+[OK]   pinned refusal string (3)
+[OK]   refusal hint line
+-- snapshot after: compositors=9 scopes=3 daiorama=1 dr_dirs=3
+[OK]   no spawn on refusal (snapshot unchanged) (compositors=9 scopes=3 daiorama=1 dr_dirs=3)
+[OK]   list still 3 running after refusal (3)
+new_json_rc=1
+json stderr: {"code":"draining","message":"manager is draining for upgrade; new sessions are refused (3 still running).","hint":"retry after the upgrade completes"}
+[OK]   refusal envelope code
+
+==================================================================
+## [5] closing live sessions drops remaining
+==================================================================
+close1_rc=0
+closed session 61a7f3db-35fe-4a91-838f-5639b1bb49b2
+[OK]   close 1 reported
+drain_json_rc=0
+{"active":true,"remaining":2}
+[OK]   remaining drops to 2
+state: running
+mode: background
+pid: 79
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 2 running, 0 dead
+drain: active, 2 still running
+instance_id: d683b36b-76b2-46a5-80f4-84b7043c1e8c
+[OK]   status: active, 2
+-- scopes after close1:
+scope 40db0058: procs=[211 222 224 238 239 ]
+scope 6ec85c1a: procs=[263 278 280 292 ]
+-- snapshot: compositors=6 scopes=2 daiorama=1 dr_dirs=2
+close2_rc=0
+closed session 40db0058-a65d-4408-8c84-fc5db2597524
+drain_json_rc=0
+{"active":true,"remaining":1}
+[OK]   remaining drops to 1
+-- scopes after close2:
+scope 6ec85c1a: procs=[263 278 280 292 ]
+-- snapshot: compositors=3 scopes=1 daiorama=1 dr_dirs=1
+
+==================================================================
+## [6a] drain --wait bound fires while remaining > 0 (timeout drill, 1 left)
+==================================================================
+wait_timeout_rc=1 elapsed=2s
+stdout: 
+stderr:
+drain did not reach zero running sessions within 2s (1 still running) (internal)
+[OK]   bounded --wait exits 1 (rc=1)
+[OK]   bound message names what remains
+{"active":true,"remaining":1}
+[OK]   drain state unchanged by the bound
+
+==================================================================
+## [6b] drain --wait completes at zero (close lands while it polls)
+==================================================================
+[OK]   --wait still polling 2s in (remaining=1)
+close3_rc=0
+closed session 6ec85c1a-cd70-41f2-bd34-b268acbc9d6d
+{"active":true,"remaining":0}
+[OK]   remaining at zero after close3
+wait_rc=0
+stdout: drain complete
+stderr: 
+[OK]   --wait completes rc 0 (rc=0)
+[OK]   --wait completion line
+
+==================================================================
+## [7] drain is sticky at zero until the manager stops
+==================================================================
+state: running
+mode: background
+pid: 79
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 0 running, 0 dead
+drain: active, 0 still running
+instance_id: d683b36b-76b2-46a5-80f4-84b7043c1e8c
+[OK]   status: active, 0
+-- snapshot before refused new: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+new_rc=1
+stderr:
+manager is draining for upgrade; new sessions are refused (0 still running). (draining)
+hint: retry after the upgrade completes
+[OK]   new still refused at zero (rc=1)
+[OK]   pinned refusal string (0)
+-- snapshot after refused new: compositors=0 scopes=0 daiorama=1 dr_dirs=0
+[OK]   no spawn at zero (snapshot unchanged) (compositors=0 scopes=0 daiorama=1 dr_dirs=0)
+list rc=0
+no sessions
+
+==================================================================
+## [8] end + post-state (leak check)
+==================================================================
+end_rc=0
+stopped manager (pid 79)
+-- compositors final:
+(no mutter/Hyprland processes)
+-- scopes final:
+(subtree present, no scope dirs)
+-- snapshot final: compositors=0 scopes=0 daiorama=0 dr_dirs=0
+-- session runtime dirs left: 
+-- daemon.log tail (20):
+startup sweep: 0 stale session scope(s) reaped
+started manager (mode=background, pid=79) socket=/tmp/hr/daiorama/default/manager.sock
+
+FAILS=0
+RUN-B-DONE
+SCRIPT_RC=0
+RUN-ALL-DONE
