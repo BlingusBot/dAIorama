@@ -1720,6 +1720,40 @@ pub fn write_token_new(paths: &Paths, token: &str) -> Result<Option<PathBuf>, Er
     }
 }
 
+/// A dashboard module version is a directory name: letters, digits, `.`, `_`, `-`, 1..=64
+/// characters, never a dot component (`p5/dashboard` D1).
+pub fn valid_module_version(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name != "."
+        && name != ".."
+        && !name.contains("..")
+        && name.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'-'
+        })
+}
+
+/// The active dashboard module, from `<data>/modules/daiorama-dashboard/active` (`p5/dashboard`
+/// D1). Only a single normal path component is accepted, and it must name an existing sibling
+/// directory — a dangling link, a link pointing elsewhere, or anything path-like is "not
+/// installed", never an error and never a client-supplied path.
+pub fn active_dashboard_module(paths: &Paths) -> Option<String> {
+    let parent = paths.modules_dir().join("daiorama-dashboard");
+    let target = std::fs::read_link(parent.join("active")).ok()?;
+    let mut components = target.components();
+    let name = match components.next() {
+        Some(std::path::Component::Normal(name)) => name.to_str()?,
+        _ => return None,
+    };
+    if components.next().is_some() || !valid_module_version(name) {
+        return None;
+    }
+    if !parent.join(name).is_dir() {
+        return None;
+    }
+    Some(name.to_string())
+}
+
 /// Read a scope's network secret; `None` when the scope has none (07: a scope without a
 /// secret cannot be used over the network).
 pub fn read_scope_token(paths: &Paths, scope: &str) -> Result<Option<String>, ErrorEnvelope> {
@@ -1776,6 +1810,8 @@ fn write_secret(path: &Path, value: &str) -> Result<PathBuf, ErrorEnvelope> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn capture_defaults_are_grim_and_wf_recorder() {
         let config = CoreConfig::default();
@@ -1813,8 +1849,6 @@ mod tests {
         let err = CoreConfig::from_ron(r#"(version: 1, capture: (clip_command: []))"#).unwrap_err();
         assert!(err.message.contains("capture.clip_command"), "{err:?}");
     }
-
-    use super::*;
 
     fn paths_in(root: &Path) -> Paths {
         Paths::for_env(

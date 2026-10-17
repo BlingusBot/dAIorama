@@ -16,7 +16,7 @@ without colliding token/history paths. `--instance <name>` selects; default
 | scope secrets | `<data root>/scope-tokens/<scope>` | mode 0600, filename = scope name; presence = network-usable (07) |
 | history | `<data root>/history/` | per-session segments (below) |
 | media | `<data root>/media/<session>/<id>` | persisted artifacts (`audit.store_*`); cap 128 MiB per session, oldest-first eviction; same retention as history |
-| modules | `<data root>/modules/` | dashboard module installs (09) |
+| modules | `<data root>/modules/` | dashboard module installs (09); the `active` link names the version `status` reports |
 | runtime / socket | `${XDG_RUNTIME_DIR}/daiorama/<instance>/manager.sock` | fallback below when `XDG_RUNTIME_DIR` is unset/unusable |
 | container equivalents | `/config`, `/data`, `/run/daiorama/<instance>/` | compose mounts reference these (09) |
 

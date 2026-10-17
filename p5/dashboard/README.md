@@ -25,33 +25,79 @@ slice have to answer before code.
 - **Reserved query scope.** 10 (D3) pins that the dashboard queries as the reserved `dashboard`
   scope, not as `operator`.
 
-## Open seams (questions to settle)
+## Pinned decisions (v1)
 
-1. **Who supplies `versions.dashboard_module`?** Today it is always `None` (the manager never
-   looks at `<data>/modules/`). Options: (a) read the active symlink target at manager start and
-   on `config reload`; (b) a config key written by `dashboard install`; (c) leave it `None` until
-   a manager-side module registry exists. (a) keeps the "no dashboard-aware code" rule — it is a
-   directory read, not a dependency — and gives `status` a truthful optional field. Needs a pin
-   in 05/09 and one test (absent, active, dangling symlink).
-2. **How is the reserved `dashboard` scope created?** `config setup` writes `operator` only, and
-   `config scope` has `list|get|validate` — there is **no create path** in the CLI. The dashboard
-   needs `scopes/dashboard.ron` plus a network secret (P4 mints secrets only for files that
-   already exist). Options: `config scope add <name> --template dashboard`, or have
-   `dashboard install` write the file. Either way it needs a pinned template (visibility `all`,
-   audit flags, quota) and a test that a fresh setup can hand a dashboard a working credential
-   without hand-editing files.
-3. **Where do dashboard connection tokens live?** 04 says "dashboard config (0600)", 08 defines
-   per-instance manager config but not a dashboard-side store. Needs a path (`<config>/dashboard/
-   connections.ron`?) and an explicit "values never printed" rule matching the manager token
-   handling.
-4. **Version skew.** 10 says the dashboard detects capabilities per manager; 09 says the module
-   is version-matched to core **by default**. That means a dashboard can meet an older manager
-   (no history? no view?) — the capability handshake the dashboard relies on should be pinned as
-   "field presence + protocol version range", not guessed from the core version.
-5. **Packaging dependency.** `dashboard install` verifies a checksum from the release manifest
-   (09). Until packaging defines the module artifact name/rows, the dashboard slice cannot
-   install anything end to end. This is the one hard ordering edge: packaging first, dashboard
-   second.
+These are the decisions packaging and the dashboard slice build against; each is deliberately
+small and keeps the manager free of dashboard-aware code.
+
+### D1 — Who fills `versions.dashboard_module`
+
+The manager reads the **activation symlink**, never a config key and never a client-supplied
+path: `<data>/modules/daiorama-dashboard/active` → a version directory under the same parent.
+It is read when `status`/`readiness` answer (a `readlink` per call, no cached state), so an
+install or revert is visible without a restart.
+
+- Version component must match `[A-Za-z0-9._-]{1,64}`, not `.`/`..`, and the joined directory
+  must exist; anything else is `None`.
+- Absent module, dangling link and a link pointing outside the module parent are all `None` —
+  `status` omits the field rather than refusing.
+- The manager never writes under `modules/`; activation belongs to `dashboard install` (09).
+- Packaging provides the link name `active` and the `<version>/` directory layout; 09 already
+  pins the directory form and the atomic swap.
+
+### D2 — The reserved `dashboard` scope
+
+`dashboard` is a **reserved scope name**, like `operator`: it is created explicitly, never
+implicitly, and it is the identity the dashboard queries as (10, D3).
+
+- `config scope create <name> [--template own|all|dashboard]` is the creation path (packaging
+  implements it). Default template `own`; `dashboard` maps to `(sessions: (visibility: all))`
+  with audit flags false and the default rate limit — reads only, no session creation.
+- Refusals: invalid name → `bad_request` `invalid scope name`; existing file → `bad_request`
+  `scope "<name>" already exists`; the command writes a 0600 file and prints the path only.
+- The network secret is not written by `config scope create`: the next network start mints a
+  secret for every existing scope file (P4 behavior), so no hand-editing is needed.
+- `operator` and `dashboard` are the reserved names; neither can be created twice, renamed or
+  removed through the CLI in v1 (no such verbs exist, and none are added here).
+
+### D3 — Dashboard-side connection store
+
+- Path: `<config root>/daiorama-dashboard/connections.ron`, file **0600**, directory 0700.
+- Shape: `(version: 1, connections: [(name: "...", address: "host:port", token: "...")])`.
+  `address` uses the same grammar as `--remote`; the unix socket is deliberately not a
+  dashboard address (07: a network surface with a token is the remote path).
+- `dashboard connect <address> --name <name>` appends/updates; `connections list` prints name
+  and address only; `token set <connection>` reads the value from **stdin** (never argv, so it
+  stays out of shell history and `ps`) and never echoes it. Values are never printed by any
+  verb, matching the manager token rule.
+- No env-var token path (10 D3): N connections must scale without ambient secrets.
+
+### D4 — Capability detection
+
+- The protocol semver range is the contract: the dashboard performs the normal `handshake`,
+  treats a `version_incompatible` answer as "cannot use this manager" and shows the pinned
+  message, and otherwise assumes the full core surface for that protocol.
+- `versions.dashboard_module` is **informational**, never a capability gate: a manager without
+  the module still serves sessions/history; the dashboard only uses the field to show whether
+  the module is installed there.
+- Unknown fields in `versions` are ignored; no per-feature probing in v1 (a probe surface would
+  become a second contract). If a future feature needs detection, it adds a `versions` field,
+  not a trial call.
+
+### D5 — Artifact and install ordering
+
+- Release asset: `daiorama-dashboard-<version>-<target-triple>.tar.gz`; manifest row kind
+  `dashboard` with `{version, triple, sha256}`, under the same signed manifest as core (09).
+- `dashboard install` verifies the manifest checksum before extraction, extracts to a staging
+  directory under `modules/daiorama-dashboard/`, then renames and swaps `active` atomically;
+  the previous version directory is kept for `--version <old>` reverts.
+- **Ordering:** packaging lands (a) the manifest row/asset naming, (b) `config scope create`
+  and (c) the install skeleton before dashboard UI code; the dashboard consumes these pins.
+- Skew handling: `dashboard serve` compares its own build version with the active module
+  version (D1). Absent → the pinned 04 refusal (`module not installed; run 'daiorama dashboard
+  install'.`, code `module_not_installed`). Mismatch → `bad_request` with
+  `dashboard module <active> does not match this dashboard (<build>); run 'daiorama dashboard
+  install --version <build>'`. No new envelope code in v1.
 
 ## Recommendation
 
