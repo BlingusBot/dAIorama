@@ -50,19 +50,39 @@ impl Ui {
 /// Bind only loopback: the server holds every manager token and the UI has no user auth (Q2).
 pub fn parse_bind(raw: &str) -> Result<(String, u16), String> {
     let raw = raw.trim();
-    let (host, port) = match raw.rsplit_once(':') {
-        Some((host, port)) if !host.is_empty() => {
-            let port = port.parse::<u16>().map_err(|_| invalid_bind())?;
-            (host.to_string(), port)
+    let (host, port) = if let Some(rest) = raw.strip_prefix('[') {
+        // Bracketed IPv6 authority: `[::1]` or `[::1]:port`.
+        let Some((host, tail)) = rest.split_once(']') else {
+            return Err(invalid_bind());
+        };
+        if host.is_empty() {
+            return Err(invalid_bind());
         }
-        None => (raw.to_string(), 8760),
-        _ => return Err(invalid_bind()),
+        let port = match tail {
+            "" => 8760,
+            _ => match tail.strip_prefix(':') {
+                Some(port) => port.parse::<u16>().map_err(|_| invalid_bind())?,
+                None => return Err(invalid_bind()),
+            },
+        };
+        (host.to_string(), port)
+    } else {
+        match raw.rsplit_once(':') {
+            Some((host, port)) if !host.is_empty() => {
+                let port = port.parse::<u16>().map_err(|_| invalid_bind())?;
+                (host.to_string(), port)
+            }
+            None => (raw.to_string(), 8760),
+            // A colon without a numeric port is a typo, or a bare IPv6 literal; brackets are
+            // the unambiguous form.
+            _ => return Err(invalid_bind()),
+        }
     };
-    let loopback = host == "127.0.0.1" || host == "localhost" || host == "::1" || host == "[::1]";
+    let loopback = host == "127.0.0.1" || host == "localhost" || host == "::1";
     if !loopback {
         return Err("dashboard serve is loopback-only in v1; use SSH forwarding".to_string());
     }
-    Ok((host.trim_matches('#').to_string(), port))
+    Ok((host, port))
 }
 
 fn invalid_bind() -> String {
@@ -449,6 +469,12 @@ mod tests {
         assert!(parse_bind("0.0.0.0:8760").is_err());
         assert!(parse_bind("10.0.0.5:8760").is_err());
         assert!(parse_bind("localhost:9000").is_ok());
+        assert_eq!(
+            parse_bind("[::1]:9000").unwrap(),
+            ("::1".to_string(), 9000),
+            "brackets are the authority form; the bind call gets the bare literal"
+        );
+        assert_eq!(parse_bind("[::1]").unwrap(), ("::1".to_string(), 8760));
     }
 
     #[test]
