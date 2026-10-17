@@ -135,6 +135,14 @@ impl RuntimeService {
     /// manager keeps refusing new sessions until it stops. Answers with the same
     /// `{active, remaining}` shape the instance status carries (05).
     fn drain(&self) -> Result<Value, ErrorEnvelope> {
+        // Serialize entry against an in-flight create (P2 hardening, round 6). The lock decides
+        // the order: a create that already holds it finishes and is counted in `remaining`;
+        // one that has not taken it yet re-checks drain state inside its own critical section
+        // and is refused before spawning. Taking the flag without the lock left a window where
+        // a spawn that had passed its own check landed after drain was entered — `remaining`
+        // never counted it, and `drain --wait` could observe zero and complete while the
+        // compositor chain was still starting.
+        let _create_guard = self.create_lock.lock().expect("create lock");
         self.draining.store(true, Ordering::SeqCst);
         Ok(serde_json::to_value(self.drain_state()).expect("drain state serializes"))
     }
@@ -197,6 +205,14 @@ impl RuntimeService {
         };
 
         let _create_guard = self.create_lock.lock().expect("create lock");
+        // The authoritative drain check (P2 hardening, round 6): the check above runs before the
+        // create queue, so a caller that waited for this lock must re-read the flag that
+        // `drain` set while it waited — otherwise it would start a spawn after drain was
+        // entered, which the pinned contract forbids ("no spawn may start").
+        let drain = self.drain_state();
+        if drain.active {
+            return Err(ErrorEnvelope::draining(drain.remaining));
+        }
         let scope_max = self.scope_max()?;
         let global_max = self.config.read().expect("config lock").sessions.max_global;
         let instance_id;
@@ -653,6 +669,53 @@ mod tests {
 
         fn kill_tree(&self, id: &str) -> Result<(), ErrorEnvelope> {
             self.killed.lock().expect("killed").push(id.to_string());
+            Ok(())
+        }
+    }
+
+    /// A spawner whose `spawn` reports the call and then blocks until the test releases it —
+    /// the only way to hold a real create inside its critical section while another thread
+    /// reaches `drain` (P2 hardening, round 6).
+    struct BlockingSpawner {
+        entered: std::sync::mpsc::Sender<String>,
+        release: Mutex<Option<std::sync::mpsc::Receiver<()>>>,
+        calls: AtomicU64,
+    }
+
+    impl BlockingSpawner {
+        fn new(
+            entered: std::sync::mpsc::Sender<String>,
+            release: std::sync::mpsc::Receiver<()>,
+        ) -> Self {
+            Self {
+                entered,
+                release: Mutex::new(Some(release)),
+                calls: AtomicU64::new(0),
+            }
+        }
+    }
+
+    impl SessionSpawner for BlockingSpawner {
+        fn spawn(
+            &self,
+            spec: &SessionSpec,
+            _allow_software: bool,
+        ) -> Result<SpawnOutcome, ErrorEnvelope> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            let _ = self
+                .entered
+                .send(format!("{}@{}", spec.resolution, spec.scale));
+            let receiver = self.release.lock().expect("release lock").take();
+            if let Some(rx) = receiver {
+                let _ = rx.recv();
+            }
+            Ok(SpawnOutcome {
+                id: format!("5c1d2e3f-1111-4222-8333-{:012}", n + 1),
+                renderer: RendererMark::Unverified,
+            })
+        }
+
+        fn kill_tree(&self, _id: &str) -> Result<(), ErrorEnvelope> {
             Ok(())
         }
     }
@@ -1707,6 +1770,99 @@ mod tests {
         let err = result(&service, methods::CREATE_SESSION, None).expect_err("still refused");
         assert_eq!(err.code, ErrorCode::Draining);
         assert_eq!(err.message, crate::strings::draining(0));
+    }
+
+    /// P2 hardening, round 6: `drain` entered **while** a create is inside its critical
+    /// section. The create lock makes the order explicit — drain waits for that spawn to
+    /// finish and then counts it, so `remaining` can never under-report a session that is
+    /// being created (the state `drain --wait` polls to decide "zero").
+    #[test]
+    fn drain_waits_for_an_in_flight_create_and_counts_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let spawner = Arc::new(BlockingSpawner::new(entered_tx, release_rx));
+        let service = Arc::new(make_service_with(tmp.path(), spawner.clone()));
+
+        let creator = {
+            let service = Arc::clone(&service);
+            std::thread::spawn(move || result(&service, methods::CREATE_SESSION, None))
+        };
+        entered_rx
+            .recv_timeout(StdDuration::from_secs(5))
+            .expect("the create reached its spawn");
+
+        let (drain_tx, drain_rx) = std::sync::mpsc::channel();
+        let drainer = {
+            let service = Arc::clone(&service);
+            std::thread::spawn(move || {
+                let started = std::time::Instant::now();
+                let out = result(&service, methods::DRAIN, None);
+                let _ = drain_tx.send((started.elapsed(), out));
+            })
+        };
+        // Drain may not answer while the spawn is still inside the create's critical section.
+        assert!(
+            drain_rx
+                .recv_timeout(StdDuration::from_millis(300))
+                .is_err(),
+            "drain answered while a create was still spawning"
+        );
+
+        release_tx.send(()).expect("release the spawn");
+        let created = creator
+            .join()
+            .expect("creator thread")
+            .expect("create succeeds");
+        let (waited, drained) = drain_rx
+            .recv_timeout(StdDuration::from_secs(5))
+            .expect("drain answered once the create finished");
+        drainer.join().expect("drainer thread");
+        assert!(
+            waited >= StdDuration::from_millis(250),
+            "drain waited for the in-flight create: {waited:?}"
+        );
+        assert_eq!(created["state"], json!("running"));
+        assert_eq!(
+            drained.expect("drain enters"),
+            json!({ "active": true, "remaining": 1 })
+        );
+        assert_eq!(spawner.calls.load(Ordering::SeqCst), 1);
+    }
+
+    /// P2 hardening, round 6: a create that passed the pre-lock drain check but then queued
+    /// behind another create must re-read the flag once it holds the lock — otherwise it would
+    /// start spawning after drain was entered. Deterministic interleaving: the test holds the
+    /// create lock, the create queues on it, the flag is set exactly as `drain` sets it under
+    /// that same lock, then the lock is released.
+    #[test]
+    fn a_create_that_queued_past_drain_is_refused_before_it_spawns() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spawner = Arc::new(TestSpawner::default());
+        let service = Arc::new(make_service(tmp.path(), Arc::clone(&spawner)));
+
+        let guard = service.create_lock.lock().expect("create lock");
+        let creator = {
+            let service = Arc::clone(&service);
+            std::thread::spawn(move || result(&service, methods::CREATE_SESSION, None))
+        };
+        std::thread::sleep(StdDuration::from_millis(150));
+        // Queued, so it cannot have spawned: it is waiting for the lock this test holds.
+        assert_eq!(spawner.spawned.lock().unwrap().len(), 0);
+        service.draining.store(true, Ordering::SeqCst);
+        drop(guard);
+
+        let err = creator
+            .join()
+            .expect("creator thread")
+            .expect_err("refused once drain holds");
+        assert_eq!(err.code, ErrorCode::Draining);
+        assert_eq!(err.message, crate::strings::draining(0));
+        assert_eq!(
+            spawner.spawned.lock().unwrap().len(),
+            0,
+            "nothing spawned after drain was entered"
+        );
     }
 
     /// The P2 exit run: the lifecycle verbs against the **real** chain (mutter `--headless` →

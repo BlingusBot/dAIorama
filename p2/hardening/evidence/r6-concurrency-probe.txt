@@ -1,0 +1,36 @@
+started manager (mode=background, pid=19) socket=/tmp/hr/daiorama/default/manager.sock
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=45 comm="Hyprland --i-am-really-stupid" label="unconfined_u:unconfined_r:spc_t:s0")
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+{"t": 1792214927.1123, "kind": "create", "start": 1792214925.6143, "end": 1792214927.112, "ms": 1497, "id": "f30a76f3-9723-4149-baf9-ae34a477c2ed", "raw": "{\"result\": {\"backend\": \"headless\", \"id\": \"f30a76f3-9723-4149-baf9-ae34a477c2ed\", \"idle_since\": \"2026-10-17T05:28:47Z\", \"instance_id\": \"eeb35ed8-144f-4a1d-b08d-47d82fdaa30e\", \"label\": \"\", \"origin\": \"sh"}
+{"t": 1792214927.1125, "kind": "fresh_handshake", "lat": 1200.5}
+{"t": 1792214927.1138, "kind": "fresh_status", "lat": 0.72, "running": null, "raw": "{\"result\": {\"drain\": {\"active\": false, \"remaining\": 0}, \"instance_id\": \"eeb35ed8-144f-4a1d-b08d-47d82fdaa30e\", \"mode\": \"background\", \"pid\": 19, \"sessions\": {\"de"}
+{"t": 1792214927.1149, "kind": "fresh_list_sessions", "lat": 0.81, "running": 1, "raw": "{\"result\": {\"sessions\": [{\"backend\": \"headless\", \"id\": \"f30a76f3-9723-4149-baf9-ae34a477c2ed\", \"idle_since\": \"2026-10-17T05:28:47Z\", \"instance_id\": \"eeb35ed8-14"}
+{"t": 1792214927.115, "kind": "fresh_client_close"}
+{"t": 1792214927.1157, "kind": "observer_start"}
+{"t": 1792214927.1165, "kind": "list", "lat": 0.46, "running": 1}
+{"t": 1792214927.1168, "kind": "drain", "lat": 0.19, "raw": "{\"result\": {\"active\": true, \"remaining\": 1}}"}
+{"t": 1792214927.1171, "kind": "observer_end", "drain": "{\"result\": {\"active\": true, \"remaining\": 1}}"}
+PROBE_RC=0
+stopped manager (pid 19) — dropped 1 session(s):
+id: f30a76f3-9723-4149-baf9-ae34a477c2ed
+label: 
+state: running
+backend: headless
+resolution: 16384x16384
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-17T05:28:47Z
+view: none
+renderer: verified
+instance_id: eeb35ed8-144f-4a1d-b08d-47d82fdaa30e
+SCRIPT_RC=0
+RUN-ALL-DONE
+started manager (mode=background, pid=16) socket=/tmp/hr/daiorama/default/manager.sock
+pid=16
+threads=14
+Threads:	14
+      1 daiorama
+      1 spawner-forker
+     12 tokio-rt-worker
+stopped manager (pid 16)
