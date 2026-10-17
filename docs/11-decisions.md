@@ -710,7 +710,10 @@ with explicit bounds (32 connections, 10 s per write, 64 KiB chunks) — no webs
 and no second surface on that port. The 07 credential
 (`HMAC-SHA256(instance_token, "view:"||session_id||":"||generation)`) gates every request —
 page, assets, upgrade — via query, `X-Daiorama-View` header, or the HttpOnly `SameSite=Strict`
-cookie set only from an already-gated page load; `Origin` is required on the upgrade; every
+cookie set only from an already-gated page load; `Origin` is required on the upgrade and must
+be one of the loopback authorities for the front's port, **plus the authority of
+`view.advertise_base` when set** (a browser behind a reverse proxy sends that one — the base is
+display-only for the address, but its authority is a real origin); every
 response carries `Referrer-Policy: no-referrer`; the credential never appears in logs, history,
 stderr, or the session object (status returns the base address and generation only). A missing
 asset tree is `view_unavailable`, never a partial page.
