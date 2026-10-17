@@ -121,7 +121,7 @@ impl RuntimeService {
     /// The live instance-status shape (05).
     fn instance_status(&self) -> Value {
         let registry = self.registry();
-        let status = InstanceStatus {
+        let mut status = InstanceStatus {
             state: InstanceState::Running,
             mode: self.mode,
             pid: std::process::id(),
@@ -131,6 +131,9 @@ impl RuntimeService {
             drain: self.drain_state_locked(&registry),
             instance_id: registry.instance_id.clone(),
         };
+        // D1 (p5/dashboard): the active module is a readlink per status call — an install or a
+        // revert shows up without a restart, and the manager never caches module state.
+        status.versions.dashboard_module = crate::config::active_dashboard_module(&self.paths);
         serde_json::to_value(&status).expect("instance status serializes")
     }
 
@@ -3890,5 +3893,41 @@ mod tests {
             }
             other => panic!("expected the old token to be refused after restart, got {other:?}"),
         }
+    }
+
+    /// D1: `status`/`readiness` report the active dashboard module from the activation link,
+    /// and anything that is not a resolvable sibling directory is "not installed".
+    #[test]
+    fn status_reports_the_active_dashboard_module() {
+        let tmp = tempfile::tempdir().unwrap();
+        let service = make_service(tmp.path(), Arc::new(TestSpawner::default()));
+        let parent = service.paths.modules_dir().join("daiorama-dashboard");
+        std::fs::create_dir_all(parent.join("2026.10.0")).unwrap();
+        std::os::unix::fs::symlink("2026.10.0", parent.join("active")).unwrap();
+
+        for method in [methods::STATUS, methods::READINESS] {
+            let value = result(&service, method, None).unwrap();
+            assert_eq!(
+                value["versions"]["dashboard_module"], "2026.10.0",
+                "{method}"
+            );
+        }
+
+        // Dangling: the version directory is gone, the link remains.
+        std::fs::remove_dir_all(parent.join("2026.10.0")).unwrap();
+        for method in [methods::STATUS, methods::READINESS] {
+            let value = result(&service, method, None).unwrap();
+            assert!(
+                value["versions"]["dashboard_module"].is_null(),
+                "{method}: {value}"
+            );
+        }
+
+        // A link that climbs out of the module directory is never a version.
+        std::fs::create_dir_all(tmp.path().join("outside")).unwrap();
+        let _ = std::fs::remove_file(parent.join("active"));
+        std::os::unix::fs::symlink(tmp.path().join("outside"), parent.join("active")).unwrap();
+        let value = result(&service, methods::STATUS, None).unwrap();
+        assert!(value["versions"]["dashboard_module"].is_null(), "{value}");
     }
 }
