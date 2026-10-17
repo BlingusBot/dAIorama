@@ -177,12 +177,8 @@ impl Bridge {
             Some(id) => id,
         };
 
-        if let Some(declared) = request
-            .params
-            .as_ref()
-            .and_then(|params| params.get("_meta"))
-            .and_then(|meta| meta.get("protocolVersion"))
-            .and_then(Value::as_str)
+        let declared = declared_revision(request.params.as_ref());
+        if let Some(declared) = declared
             && declared != MCP_REVISION
         {
             // 05: the 2026-07-28 path declares its revision per request; an unsupported one
@@ -191,9 +187,11 @@ impl Bridge {
                 ErrorEnvelope::version_incompatible(declared, declared, MCP_REVISION, MCP_REVISION);
             return Some(json_rpc_envelope_error(Some(id), &envelope));
         }
+        let modern = declared == Some(MCP_REVISION);
 
         let outcome = match request.method.as_str() {
-            "initialize" | "server/discover" => Ok(handshake_payload(&request.method)),
+            "initialize" => Ok(initialize_payload(request.params.as_ref())),
+            "server/discover" => Ok(discover_payload()),
             "tools/list" => Ok(json!({ "tools": self.tool_listing() })),
             "ping" => Ok(json!({})),
             "tools/call" => self.tool_call(request.params.as_ref()).await,
@@ -202,15 +200,21 @@ impl Bridge {
             ))),
         };
 
-        Some(match outcome {
-            Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+        let mut result = match outcome {
+            Ok(result) => result,
             // A malformed MCP request is a protocol error; tool failures returned below are
             // tool-execution results, never JSON-RPC errors (05 §Pinned read shapes).
             Err(envelope) if request.method == "tools/call" => {
-                json!({ "jsonrpc": "2.0", "id": id, "result": ToolResult::tool_error(&envelope) })
+                serde_json::to_value(ToolResult::tool_error(&envelope)).expect("tool result")
             }
-            Err(envelope) => json_rpc_envelope_error(Some(id), &envelope),
-        })
+            Err(envelope) => return Some(json_rpc_envelope_error(Some(id), &envelope)),
+        };
+        // A modern client validates these as required fields, so a modern request gets them;
+        // a handshake-era client keeps the pre-2026 shape (05 §Stdio conformance surface).
+        if modern {
+            stamp_modern_envelope(request.method.as_str(), &mut result);
+        }
+        Some(json!({ "jsonrpc": "2.0", "id": id, "result": result }))
     }
 
     fn tool_listing(&self) -> Vec<Value> {
@@ -396,20 +400,69 @@ fn split_create_arguments(name: &str, arguments: Option<Value>) -> (Option<Value
     (params, key)
 }
 
-/// The two handshake paths answer the same identity locally (05 §Version handshake): they
-/// authorize nothing and reveal nothing beyond the bridge revision and binary version.
-fn handshake_payload(method: &str) -> Value {
-    let mut payload = json!({
-        "protocolVersion": MCP_REVISION,
+/// Handshake revisions the bridge serves through the legacy `initialize` path (05). The tool
+/// surface is revision-stable, so a client that names one of these is answered with the
+/// revision it asked for — the MCP rule that a server replies with a version it supports.
+const LEGACY_HANDSHAKE_REVISIONS: [&str; 4] =
+    ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
+
+const INSTRUCTIONS: &str =
+    "dAIorama desktop sessions. Call list_capabilities to see this scope's tools.";
+
+/// `initialize` — the handshake-era path. Echo the client's revision when it is one the
+/// bridge serves; a client that names the modern revision (or an unknown one) gets ours.
+fn initialize_payload(params: Option<&Value>) -> Value {
+    let requested = params
+        .and_then(|params| params.get("protocolVersion"))
+        .and_then(Value::as_str);
+    let version = requested
+        .filter(|version| LEGACY_HANDSHAKE_REVISIONS.contains(version))
+        .unwrap_or(MCP_REVISION);
+    json!({
+        "protocolVersion": version,
         "capabilities": { "tools": { "listChanged": false } },
         "serverInfo": { "name": "daiorama", "version": BINARY_VERSION },
-    });
-    if method == "initialize" {
-        // The legacy negotiation result carries the same three keys; no extra fields.
-        payload["instructions"] =
-            json!("dAIorama desktop sessions. Call list_capabilities to see this scope's tools.");
+        "instructions": INSTRUCTIONS,
+    })
+}
+
+/// `server/discover` — the 2026-07-28 first call. The modern result shape carries
+/// `supportedVersions` (required; a modern client reads it), and the identity rides the
+/// display-only `_meta` stamp (`io.modelcontextprotocol/serverInfo`, 05 §The bridge).
+fn discover_payload() -> Value {
+    json!({
+        "supportedVersions": [MCP_REVISION],
+        "capabilities": { "tools": { "listChanged": false } },
+        "instructions": INSTRUCTIONS,
+        "_meta": {
+            "io.modelcontextprotocol/serverInfo": { "name": "daiorama", "version": BINARY_VERSION },
+        },
+    })
+}
+
+/// The revision a request declares in `_meta` (05 §The bridge). The 2026-07-28 key is
+/// namespaced — `io.modelcontextprotocol/protocolVersion` — and that is what a real client
+/// sends; the un-namespaced key is accepted too so an older declaration still gets the pinned
+/// `-32022` refusal instead of slipping through.
+fn declared_revision(params: Option<&Value>) -> Option<&str> {
+    let meta = params?.get("_meta")?;
+    meta.get("io.modelcontextprotocol/protocolVersion")
+        .or_else(|| meta.get("protocolVersion"))
+        .and_then(Value::as_str)
+}
+
+/// The 2026-07-28 result envelope (05 §Stdio conformance surface): a modern client validates
+/// `resultType` on every result, and `ttlMs`/`cacheScope` (both required on the wire) on the
+/// cacheable list result. `ttlMs: 0` keeps a scope's manifest never-stale across config reload.
+fn stamp_modern_envelope(method: &str, result: &mut Value) {
+    let Some(object) = result.as_object_mut() else {
+        return;
+    };
+    object.insert("resultType".to_string(), json!("complete"));
+    if method == "tools/list" {
+        object.insert("ttlMs".to_string(), json!(0));
+        object.insert("cacheScope".to_string(), json!("private"));
     }
-    payload
 }
 
 fn json_rpc_error(id: Value, code: i32, message: &str) -> Value {
@@ -491,13 +544,61 @@ mod tests {
     }
 
     #[test]
-    fn handshake_payloads_are_local_and_carry_the_revision() {
-        for method in ["initialize", "server/discover"] {
-            let payload = handshake_payload(method);
-            assert_eq!(payload["protocolVersion"], MCP_REVISION);
-            assert_eq!(payload["serverInfo"]["name"], "daiorama");
-            assert_eq!(payload["serverInfo"]["version"], BINARY_VERSION);
-        }
+    fn initialize_echoes_a_handshake_revision_and_falls_back_to_the_modern_one() {
+        let legacy = initialize_payload(Some(&json!({"protocolVersion": "2025-11-25"})));
+        assert_eq!(legacy["protocolVersion"], "2025-11-25");
+        assert_eq!(legacy["serverInfo"]["name"], "daiorama");
+        assert_eq!(legacy["serverInfo"]["version"], BINARY_VERSION);
+
+        let modern = initialize_payload(Some(&json!({"protocolVersion": MCP_REVISION})));
+        assert_eq!(modern["protocolVersion"], MCP_REVISION);
+        assert_eq!(initialize_payload(None)["protocolVersion"], MCP_REVISION);
+
+        // An unknown (future) revision is never echoed: the server names one it serves.
+        let unknown = initialize_payload(Some(&json!({"protocolVersion": "2099-01-01"})));
+        assert_eq!(unknown["protocolVersion"], MCP_REVISION);
+    }
+
+    #[test]
+    fn discover_answers_the_modern_result_shape() {
+        let payload = discover_payload();
+        assert_eq!(payload["supportedVersions"], json!([MCP_REVISION]));
+        assert!(payload["capabilities"]["tools"].is_object());
+        assert_eq!(
+            payload["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
+            "daiorama"
+        );
+        assert!(
+            payload.get("protocolVersion").is_none(),
+            "discover must not answer the initialize shape"
+        );
+    }
+
+    #[test]
+    fn declared_revision_reads_the_namespaced_meta_key() {
+        let modern = json!({"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"}});
+        assert_eq!(declared_revision(Some(&modern)), Some("2026-07-28"));
+        let legacy = json!({"_meta": {"protocolVersion": "2025-06-18"}});
+        assert_eq!(declared_revision(Some(&legacy)), Some("2025-06-18"));
+        assert_eq!(declared_revision(None), None);
+        assert_eq!(declared_revision(Some(&json!({}))), None);
+    }
+
+    #[test]
+    fn modern_requests_get_the_modern_result_envelope() {
+        let mut listing = json!({"tools": []});
+        stamp_modern_envelope("tools/list", &mut listing);
+        assert_eq!(listing["resultType"], "complete");
+        assert_eq!(listing["ttlMs"], 0);
+        assert_eq!(listing["cacheScope"], "private");
+
+        let mut call = json!({"content": [], "structuredContent": {}});
+        stamp_modern_envelope("tools/call", &mut call);
+        assert_eq!(call["resultType"], "complete");
+        assert!(
+            call.get("ttlMs").is_none(),
+            "only cacheable results carry cache hints"
+        );
     }
 
     #[test]
