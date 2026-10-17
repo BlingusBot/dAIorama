@@ -72,6 +72,8 @@ pub mod methods {
     pub const CONFIG_RELOAD: &str = "config_reload";
     pub const DRAIN: &str = "drain";
     pub const DAEMON_END: &str = "daemon_end";
+    pub const SCREENSHOT: &str = "screenshot";
+    pub const CLIP_VIDEO: &str = "clip_video";
 }
 
 // ---------------------------------------------------------------------------
@@ -218,6 +220,7 @@ pub enum ErrorCode {
     // Views / media
     ViewUnavailable,
     MediaExpired,
+    CaptureFailed,
     // Host / deps
     BindRefused,
     HyprlandMissing,
@@ -253,6 +256,7 @@ impl ErrorCode {
             Self::Internal => "internal",
             Self::ViewUnavailable => "view_unavailable",
             Self::MediaExpired => "media_expired",
+            Self::CaptureFailed => "capture_failed",
             Self::BindRefused => "bind_refused",
             Self::HyprlandMissing => "hyprland_missing",
             Self::HyprlandUnsupported => "hyprland_unsupported",
@@ -262,7 +266,7 @@ impl ErrorCode {
     }
 
     /// Every code, in the order 05 lists them.
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 28] = [
         Self::SessionNotFound,
         Self::SessionReaped,
         Self::SessionClosed,
@@ -285,6 +289,7 @@ impl ErrorCode {
         Self::Internal,
         Self::ViewUnavailable,
         Self::MediaExpired,
+        Self::CaptureFailed,
         Self::BindRefused,
         Self::HyprlandMissing,
         Self::HyprlandUnsupported,
@@ -521,6 +526,15 @@ impl ErrorEnvelope {
             strings::view_unavailable(session, reason),
         )
         .with_hint(strings::HINT_VIEW_RETRY)
+    }
+
+    /// A capture command failed (05 §Capture): the harness branches on the code, not the prose.
+    pub fn capture_failed(message: impl Into<String>) -> Self {
+        Self {
+            code: ErrorCode::CaptureFailed,
+            message: message.into(),
+            hint: None,
+        }
     }
 
     pub fn media_expired() -> Self {
@@ -1185,7 +1199,7 @@ mod tests {
             documented, implemented,
             "05 §Errors and ErrorCode drifted apart"
         );
-        assert_eq!(documented.len(), 27, "05 lists 27 canonical codes");
+        assert_eq!(documented.len(), 28, "05 lists 28 canonical codes");
     }
 
     #[test]

@@ -46,7 +46,7 @@ use std::time::{Duration, Instant};
 
 use crate::ipc::ErrorEnvelope;
 use crate::manager::{
-    RendererMark, Resolution, SessionSpawner, SessionSpec, SessionState, SpawnOutcome,
+    CaptureEnv, RendererMark, Resolution, SessionSpawner, SessionSpec, SessionState, SpawnOutcome,
 };
 use crate::runtime::containment::{create_session_scope, kill_scope};
 
@@ -936,6 +936,23 @@ impl SessionSpawner for LinuxSpawner {
             },
         );
         Ok(SpawnOutcome { id, renderer })
+    }
+
+    fn capture_env(&self, session_id: &str) -> Option<CaptureEnv> {
+        let sessions = self.sessions.lock().expect("spawner sessions lock");
+        let session = sessions.get(session_id)?;
+        // The compositor's Wayland socket lives in its own runtime dir; the name is allocated
+        // by the compositor (`wayland-0`, `wayland-1`, …), so discover it rather than assume.
+        let display = std::fs::read_dir(&session.rt_dir)
+            .ok()?
+            .flatten()
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .find(|name| name.starts_with("wayland-") && !name.ends_with(".lock"))?;
+        Some(CaptureEnv {
+            rt_dir: session.rt_dir.clone(),
+            wayland_display: display,
+            signature: session.signature.clone(),
+        })
     }
 
     fn kill_tree(&self, session_id: &str) -> Result<(), ErrorEnvelope> {

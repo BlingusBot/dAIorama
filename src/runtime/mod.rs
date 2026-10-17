@@ -15,6 +15,7 @@
 //! module is the production half behind `daiorama serve`.
 #![allow(dead_code)] // wires in as the slices land; unit tests exercise everything today
 
+pub mod capture;
 pub mod containment;
 pub mod service;
 pub mod spawner;

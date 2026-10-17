@@ -285,6 +285,19 @@ request target is never logged.
 - A client that accepts no bytes for 10 s is cut off mid-stream; a slow reader that keeps
   taking bytes is not (the bound is per write, not a total-transfer deadline).
 
+### Capture (05 §Capture)
+
+- `screenshot` and `clip_video` run the configured argv command under the session's own
+  Wayland environment; the manager appends the output path and interpolates nothing else.
+- `screenshot` is size-checked **raw** before base64: over `capture.screenshot_max_bytes`
+  answers `bad_request` `capture too large: {bytes} bytes (max {max})` — never a downscale.
+- A failed command answers `capture_failed` with `capture failed: {command} exited {code}` or
+  `capture failed: {command} timed out after {n}s`; empty or non-PNG output is
+  `capture failed: no output` / `capture failed: not a PNG`.
+- `clip_video` answers with a minted 32-hex id; the network bridge builds
+  `http://<Host>/media/<id>`, stdio builds `daiorama://media/<id>` and names
+  `daiorama media fetch <id> --out <path>` (claim-on-open applies to both).
+
 ### Media store and endpoint (manager side)
 
 The manager serves the same `GET /media/<32 lowercase hex>` on its own socket, distinguished

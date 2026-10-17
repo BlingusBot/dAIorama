@@ -23,7 +23,7 @@ use crate::ipc::{
     MAX_FRAME_BYTES, read_capped_line,
 };
 use crate::mcp::{
-    JsonRpcError, JsonRpcRequest, MCP_REVISION, ToolDefinition, ToolResult,
+    ContentBlock, JsonRpcError, JsonRpcRequest, MCP_REVISION, ToolDefinition, ToolResult,
     UNSUPPORTED_PROTOCOL_VERSION_ERROR, capabilities_payload, tool_definitions,
 };
 use crate::strings;
@@ -100,6 +100,10 @@ pub(crate) struct Bridge {
     scope: String,
     definition: ScopeFile,
     address: Option<Address>,
+    /// The base a `clip_video` resource link is built against: the network listener's own
+    /// `http://<Host>` (so a proxy or non-loopback bind keeps working), or `None` on stdio —
+    /// where the link uses the `daiorama://` scheme and the `media fetch` CLI is the fetcher.
+    media_origin: Option<String>,
 }
 
 impl Bridge {
@@ -116,7 +120,14 @@ impl Bridge {
             scope,
             definition,
             address,
+            media_origin: None,
         }
+    }
+
+    /// Bind the media-link base for a network request (its own `Host`).
+    pub(crate) fn with_media_origin(mut self, origin: Option<String>) -> Self {
+        self.media_origin = origin;
+        self
     }
 
     async fn serve<R, W>(
@@ -296,10 +307,80 @@ impl Bridge {
 
         let (params, idempotency_key) = split_create_arguments(name, arguments);
         match self.relay(client, name, params, idempotency_key).await {
-            Ok(value) => Ok(serde_json::to_value(ToolResult::ok(value)).expect("tool result")),
+            Ok(value) => Ok(serde_json::to_value(self.capture_result(value)).expect("tool result")),
             Err(envelope) => {
                 Ok(serde_json::to_value(ToolResult::tool_error(&envelope)).expect("tool result"))
             }
+        }
+    }
+
+    /// A capture result carries `capture: "image" | "media"` (05 §Capture): map it onto MCP's
+    /// own content types — `image` for a screenshot, a `resource_link` for a clip — and keep
+    /// the rest in `structuredContent`. Every other tool result is a plain `ok(value)`.
+    fn capture_result(&self, value: Value) -> ToolResult {
+        let Some(kind) = value.get("capture").and_then(Value::as_str) else {
+            return ToolResult::ok(value);
+        };
+        match kind {
+            "image" => {
+                let data = value
+                    .get("data_b64")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let mime_type = value
+                    .get("mimeType")
+                    .and_then(Value::as_str)
+                    .unwrap_or("image/png")
+                    .to_string();
+                let structured = json!({
+                    "mimeType": mime_type,
+                    "bytes": value.get("bytes").cloned().unwrap_or(Value::Null),
+                    "width": value.get("width").cloned().unwrap_or(Value::Null),
+                    "height": value.get("height").cloned().unwrap_or(Value::Null),
+                });
+                ToolResult {
+                    is_error: false,
+                    content: vec![ContentBlock::Image {
+                        data,
+                        mime_type: mime_type.clone(),
+                    }],
+                    structured_content: Some(structured),
+                }
+            }
+            "media" => {
+                let id = value
+                    .get("media_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let mime_type = value
+                    .get("mimeType")
+                    .and_then(Value::as_str)
+                    .unwrap_or("video/webm")
+                    .to_string();
+                let (uri, mut content) = match &self.media_origin {
+                    Some(origin) => (format!("{origin}/media/{id}"), Vec::new()),
+                    None => (format!("daiorama://media/{id}"), Vec::new()),
+                };
+                content.push(ContentBlock::ResourceLink {
+                    uri,
+                    name: None,
+                    mime_type: Some(mime_type.clone()),
+                });
+                if self.media_origin.is_none() {
+                    // The stdio fetcher: one line naming the exact command.
+                    content.push(ContentBlock::Text {
+                        text: format!("Fetch with: daiorama media fetch {id} --out <path>"),
+                    });
+                }
+                ToolResult {
+                    is_error: false,
+                    content,
+                    structured_content: Some(value),
+                }
+            }
+            _ => ToolResult::ok(value),
         }
     }
 
@@ -702,5 +783,87 @@ mod tests {
     #[test]
     fn unknown_tool_name_is_a_bad_request_string() {
         assert_eq!(strings::unknown_tool("nope"), "unknown tool \"nope\"");
+    }
+
+    /// 05 §Capture: the manager's typed payloads become MCP content blocks — `image` for a
+    /// screenshot (base64 never duplicated into structured content) and a `resource_link`
+    /// for a clip, with the URI built from the serving edge.
+    #[test]
+    fn capture_payloads_map_to_content_types() {
+        let bare = Bridge::new("default", "operator".to_string(), scope_with("()"), None);
+
+        let image = json!({
+            "capture": "image",
+            "mimeType": "image/png",
+            "data_b64": "aGk=",
+            "bytes": 2,
+            "width": 1920,
+            "height": 1080,
+        });
+        let mapped = bare.capture_result(image);
+        assert!(!mapped.is_error);
+        match &mapped.content[0] {
+            ContentBlock::Image { data, mime_type } => {
+                assert_eq!(data, "aGk=");
+                assert_eq!(mime_type, "image/png");
+            }
+            other => panic!("expected an image block, got {other:?}"),
+        }
+        let structured = mapped.structured_content.unwrap();
+        assert_eq!(structured["width"], 1920);
+        assert_eq!(structured["height"], 1080);
+        assert!(
+            structured.get("data_b64").is_none(),
+            "no base64 duplication"
+        );
+
+        let media = json!({
+            "capture": "media",
+            "media_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mimeType": "video/webm",
+            "bytes": 10,
+            "duration_s": 5,
+            "expires_in_s": 600,
+        });
+
+        // stdio: the daiorama:// scheme plus one text block naming the CLI fetcher.
+        let stdio = bare.capture_result(media.clone());
+        match &stdio.content[0] {
+            ContentBlock::ResourceLink { uri, mime_type, .. } => {
+                assert_eq!(uri, "daiorama://media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+                assert_eq!(mime_type.as_deref(), Some("video/webm"));
+            }
+            other => panic!("expected a resource link, got {other:?}"),
+        }
+        match &stdio.content[1] {
+            ContentBlock::Text { text } => assert!(
+                text.contains("daiorama media fetch aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --out"),
+                "{text}"
+            ),
+            other => panic!("expected the fetch hint, got {other:?}"),
+        }
+
+        // network: the request's own Host is the link base.
+        let network = Bridge::new("default", "operator".to_string(), scope_with("()"), None)
+            .with_media_origin(Some("http://127.0.0.1:8756".to_string()));
+        let linked = network.capture_result(media);
+        match &linked.content[0] {
+            ContentBlock::ResourceLink { uri, .. } => {
+                assert_eq!(
+                    uri,
+                    "http://127.0.0.1:8756/media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                );
+            }
+            other => panic!("expected a resource link, got {other:?}"),
+        }
+        assert_eq!(linked.content.len(), 1, "no fetch hint on a network link");
+    }
+
+    #[test]
+    fn non_capture_results_stay_plain_ok_values() {
+        let bare = Bridge::new("default", "operator".to_string(), scope_with("()"), None);
+        let mapped = bare.capture_result(json!({"id": "s-1", "state": "running"}));
+        assert!(mapped.content.is_empty());
+        assert_eq!(mapped.structured_content.unwrap()["id"], "s-1");
     }
 }

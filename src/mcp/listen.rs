@@ -419,7 +419,9 @@ async fn serve_connection(network: &Arc<Network>, stream: TcpStream) -> Result<(
             continue;
         }
 
-        let mut bridge = Bridge::new(&network.instance, scope, definition, None);
+        let media_origin = request.header("host").map(|host| format!("http://{host}"));
+        let mut bridge =
+            Bridge::new(&network.instance, scope, definition, None).with_media_origin(media_origin);
         let mut client = network.client.lock().await;
         let Some(response) = bridge.handle_request(request_json, &mut client).await else {
             continue;

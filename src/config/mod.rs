@@ -410,6 +410,56 @@ impl Default for MediaConfig {
     }
 }
 
+/// `capture.*` (05 §Capture): the configured capture commands and their bound. Commands are
+/// **argv arrays, never shell strings** — the manager appends the output path and interpolates
+/// nothing else, so no MCP parameter can reach a shell. Defaults: grim (PNG) / wf-recorder
+/// (webm), 10 s, 4 MiB raw PNG (base64 rides into the 8 MiB frame bound at ~1.33×).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CaptureConfig {
+    #[serde(default = "default_screenshot_command")]
+    pub screenshot_command: Vec<String>,
+    #[serde(default = "default_clip_command")]
+    pub clip_command: Vec<String>,
+    #[serde(default = "default_capture_timeout_s")]
+    pub timeout_s: u64,
+    #[serde(default = "default_screenshot_max_bytes")]
+    pub screenshot_max_bytes: u64,
+}
+
+fn default_screenshot_command() -> Vec<String> {
+    ["grim", "-t", "png"]
+        .iter()
+        .map(|part| part.to_string())
+        .collect()
+}
+
+fn default_clip_command() -> Vec<String> {
+    ["wf-recorder", "--no-damage", "-f"]
+        .iter()
+        .map(|part| part.to_string())
+        .collect()
+}
+
+const fn default_capture_timeout_s() -> u64 {
+    10
+}
+
+const fn default_screenshot_max_bytes() -> u64 {
+    4 * 1024 * 1024
+}
+
+impl Default for CaptureConfig {
+    fn default() -> Self {
+        Self {
+            screenshot_command: default_screenshot_command(),
+            clip_command: default_clip_command(),
+            timeout_s: default_capture_timeout_s(),
+            screenshot_max_bytes: default_screenshot_max_bytes(),
+        }
+    }
+}
+
 /// `limits.*` — `on` unless explicitly downgraded (06 C6: the downgrade is recorded, never
 /// silent).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -460,6 +510,8 @@ pub struct CoreConfig {
     #[serde(default)]
     pub media: MediaConfig,
     #[serde(default)]
+    pub capture: CaptureConfig,
+    #[serde(default)]
     pub limits: LimitsConfig,
     #[serde(default)]
     pub renderer: RendererConfig,
@@ -476,6 +528,7 @@ impl Default for CoreConfig {
             reaper: ReaperConfig::default(),
             history: HistoryConfig::default(),
             media: MediaConfig::default(),
+            capture: CaptureConfig::default(),
             limits: LimitsConfig::default(),
             renderer: RendererConfig::default(),
         }
@@ -554,6 +607,24 @@ impl CoreConfig {
         {
             return Err(ErrorEnvelope::bad_request(
                 "view.advertise_base must not be empty; unset it instead",
+            ));
+        }
+        for (name, argv) in [
+            (
+                "capture.screenshot_command",
+                &self.capture.screenshot_command,
+            ),
+            ("capture.clip_command", &self.capture.clip_command),
+        ] {
+            if argv.is_empty() {
+                return Err(ErrorEnvelope::bad_request(format!(
+                    "{name} must be a non-empty argv array"
+                )));
+            }
+        }
+        if self.capture.timeout_s == 0 {
+            return Err(ErrorEnvelope::bad_request(
+                "capture.timeout_s must be at least 1",
             ));
         }
         Ok(())
@@ -1345,6 +1416,14 @@ pub fn starter_config() -> String {
     text.push_str("  media: (\n");
     text.push_str("    ttl: 600,   // seconds; clip links are also fetch-once\n");
     text.push_str("  ),\n");
+    text.push_str("  capture: (\n");
+    text.push_str("    screenshot_command: [\"grim\", \"-t\", \"png\"],        // argv; output path appended\n");
+    text.push_str("    clip_command: [\"wf-recorder\", \"--no-damage\", \"-f\"],\n");
+    text.push_str("    timeout_s: 10,               // per capture call\n");
+    text.push_str(
+        "    screenshot_max_bytes: 4194304, // raw PNG; base64 rides the 8 MiB frame bound\n",
+    );
+    text.push_str("  ),\n");
     text.push_str("  limits: (\n");
     text.push_str("    mode: on,   // off = no per-session cgroups, no crash-time cleanup (recorded downgrade)\n");
     text.push_str("  ),\n");
@@ -1523,6 +1602,34 @@ fn write_secret(path: &Path, value: &str) -> Result<PathBuf, ErrorEnvelope> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn capture_defaults_are_grim_and_wf_recorder() {
+        let config = CoreConfig::default();
+        assert_eq!(config.capture.screenshot_command, ["grim", "-t", "png"]);
+        assert_eq!(
+            config.capture.clip_command,
+            ["wf-recorder", "--no-damage", "-f"]
+        );
+        assert_eq!(config.capture.timeout_s, 10);
+        assert_eq!(config.capture.screenshot_max_bytes, 4 * 1024 * 1024);
+    }
+
+    #[test]
+    fn capture_commands_are_argv_arrays_and_empty_is_refused() {
+        let config = CoreConfig::from_ron(
+            r#"(version: 1, capture: (screenshot_command: ["myshot", "--png"], timeout_s: 3))"#,
+        )
+        .unwrap();
+        assert_eq!(config.capture.screenshot_command, ["myshot", "--png"]);
+        assert_eq!(config.capture.timeout_s, 3);
+        assert_eq!(
+            config.capture.clip_command,
+            ["wf-recorder", "--no-damage", "-f"]
+        );
+        let err = CoreConfig::from_ron(r#"(version: 1, capture: (clip_command: []))"#).unwrap_err();
+        assert!(err.message.contains("capture.clip_command"), "{err:?}");
+    }
+
     use super::*;
 
     fn paths_in(root: &Path) -> Paths {

@@ -170,6 +170,7 @@ pub fn prepare(deps: &ServeDeps) -> Result<Prepared, ErrorEnvelope> {
     let mode = effective_mode(&deps.config);
     let instance_id = read_or_create_instance_id(&deps.paths)?;
     let socket = deps.socket.clone();
+    let media = Arc::new(crate::media::MediaStore::for_instance(&deps.paths));
     let service = RuntimeService::new(
         ServiceOptions {
             instance_id,
@@ -182,9 +183,10 @@ pub fn prepare(deps: &ServeDeps) -> Result<Prepared, ErrorEnvelope> {
             token_at_start: read_token(&deps.paths)?,
         },
         Arc::clone(&deps.spawner),
+        Arc::clone(&media),
     );
     Ok(Prepared {
-        media: Arc::new(crate::media::MediaStore::for_instance(&deps.paths)),
+        media,
         handler: Arc::new(service),
         socket,
         mode,
@@ -467,6 +469,10 @@ mod tests {
 
         fn kill_tree(&self, _session_id: &str) -> Result<(), ErrorEnvelope> {
             Ok(())
+        }
+
+        fn capture_env(&self, _session_id: &str) -> Option<crate::manager::CaptureEnv> {
+            None
         }
     }
 

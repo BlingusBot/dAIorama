@@ -63,6 +63,8 @@ pub struct ServiceOptions {
 pub struct RuntimeService {
     registry: Mutex<Registry>,
     spawner: Arc<dyn SessionSpawner>,
+    /// The media store the capture tools mint into and persist through (05 §Capture).
+    media: Arc<crate::media::MediaStore>,
     /// The live config snapshot: `config reload` re-reads the file into this (08).
     config: RwLock<CoreConfig>,
     paths: Paths,
@@ -79,10 +81,15 @@ pub struct RuntimeService {
 }
 
 impl RuntimeService {
-    pub fn new(options: ServiceOptions, spawner: Arc<dyn SessionSpawner>) -> Self {
+    pub fn new(
+        options: ServiceOptions,
+        spawner: Arc<dyn SessionSpawner>,
+        media: Arc<crate::media::MediaStore>,
+    ) -> Self {
         Self {
             registry: Mutex::new(Registry::new(options.instance_id)),
             spawner,
+            media,
             config: RwLock::new(options.config),
             paths: options.paths,
             socket_path: options.socket_path.display().to_string(),
@@ -366,6 +373,109 @@ impl RuntimeService {
     }
 
     // -----------------------------------------------------------------------
+    // Capture (05 §Capture)
+    // -----------------------------------------------------------------------
+
+    /// Resolve a capture target exactly like `session_status`: tombstone-gated, visibility
+    /// checked (a stranger's id is `session_not_found`, never existence), and only then does
+    /// the caller get to look at anything.
+    fn capture_target(
+        &self,
+        scope: &str,
+        params: Option<&Value>,
+        allowed: &[&str],
+    ) -> Result<(String, Value), ErrorEnvelope> {
+        let map = params_object(params)?;
+        unknown_params(&map, allowed)?;
+        let id = match map.get("session_id") {
+            Some(Value::String(id)) if !id.is_empty() => id.clone(),
+            Some(Value::String(_)) => {
+                return Err(ErrorEnvelope::bad_request("session_id must not be empty"));
+            }
+            Some(other) => {
+                return Err(ErrorEnvelope::bad_request(format!(
+                    "session_id must be a string, got {other}"
+                )));
+            }
+            None => return Err(ErrorEnvelope::bad_request("session_id is required")),
+        };
+        let registry = self.registry();
+        let record = registry.call_gate(&id)?;
+        if !self.visible(scope, record)? {
+            return Err(ErrorEnvelope::session_not_found());
+        }
+        Ok((id, record.to_json()))
+    }
+
+    /// `screenshot` -> an image payload the bridge turns into an MCP `image` block. The raw
+    /// PNG is size-checked **before** base64 (05 §Capture: the frame bound cannot be blown by
+    /// a big capture).
+    fn screenshot(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
+        let (id, _record) = self.capture_target(scope, params, &["session_id"])?;
+        let config = self.config.read().expect("config lock").clone();
+        let env = self
+            .spawner
+            .capture_env(&id)
+            .ok_or_else(ErrorEnvelope::session_dead)?;
+        let timeout = std::time::Duration::from_secs(config.capture.timeout_s);
+        let (bytes, width, height) = crate::runtime::capture::screenshot(
+            &env,
+            &config.capture.screenshot_command,
+            timeout,
+            config.capture.screenshot_max_bytes,
+        )?;
+        if self.scope_definition(scope)?.audit.store_screenshots {
+            // URL-less: the bytes are kept for the retention window, never a capability.
+            self.media.persist_screenshot(&id, &bytes);
+        }
+        Ok(json!({
+            "capture": "image",
+            "mimeType": "image/png",
+            "data_b64": crate::runtime::capture::base64_encode(&bytes),
+            "bytes": bytes.len(),
+            "width": width,
+            "height": height,
+        }))
+    }
+
+    /// `clip_video` -> a minted media id the bridge turns into a `resource_link`.
+    fn clip_video(&self, scope: &str, params: Option<&Value>) -> Result<Value, ErrorEnvelope> {
+        let (id, _record) = self.capture_target(scope, params, &["session_id", "duration_s"])?;
+        let duration_s = match params_object(params)?.get("duration_s") {
+            None | Some(Value::Null) => 5,
+            Some(value) => value
+                .as_u64()
+                .filter(|seconds| (1..=30).contains(seconds))
+                .ok_or_else(|| ErrorEnvelope::bad_request("duration_s must be between 1 and 30"))?,
+        };
+        let config = self.config.read().expect("config lock").clone();
+        let env = self
+            .spawner
+            .capture_env(&id)
+            .ok_or_else(ErrorEnvelope::session_dead)?;
+        let timeout = std::time::Duration::from_secs(config.capture.timeout_s);
+        let bytes = crate::runtime::capture::clip(
+            &env,
+            &config.capture.clip_command,
+            timeout,
+            std::time::Duration::from_secs(duration_s),
+            crate::media::SESSION_CAP_BYTES,
+        )?;
+        let store_clips = self.scope_definition(scope)?.audit.store_clips;
+        let media_id = self
+            .media
+            .mint(&id, "video/webm", bytes.clone(), store_clips);
+        Ok(json!({
+            "capture": "media",
+            "media_id": media_id,
+            "mimeType": "video/webm",
+            "bytes": bytes.len(),
+            "duration_s": duration_s,
+            "expires_in_s": config.media.ttl.secs,
+        }))
+    }
+
+    // -----------------------------------------------------------------------
     // Config (08 reload semantics)
     // -----------------------------------------------------------------------
 
@@ -534,6 +644,9 @@ impl Handler for RuntimeService {
             methods::CONFIG_GET => self.config_get(params),
             methods::CONFIG_SET => self.config_set(params),
             methods::DRAIN => no_params(params).and_then(|()| self.drain()),
+            // Capture (05 §Capture): the observe-then-act loop's read side.
+            methods::SCREENSHOT => self.screenshot(scope, params),
+            methods::CLIP_VIDEO => self.clip_video(scope, params),
             // Pinned-surface names this build does not implement yet: the views/query methods
             // and the control tools land later (PLAN.md) — a valid call, an absent build.
             methods::GET_VIEW
@@ -686,6 +799,8 @@ mod tests {
         renderer: RendererMark,
         /// What each spawn was told about the live `renderer.allow_software`.
         allow_software_seen: Mutex<Vec<bool>>,
+        /// The capture environment `capture_env` answers for any id (tests set one).
+        capture_env: Mutex<Option<crate::manager::CaptureEnv>>,
     }
 
     impl Default for TestSpawner {
@@ -697,6 +812,7 @@ mod tests {
                 fail_next: Mutex::new(None),
                 renderer: RendererMark::Unverified,
                 allow_software_seen: Mutex::new(Vec::new()),
+                capture_env: Mutex::new(None),
             }
         }
     }
@@ -726,6 +842,10 @@ mod tests {
             self.killed.lock().expect("killed").push(id.to_string());
             Ok(())
         }
+
+        fn capture_env(&self, _id: &str) -> Option<crate::manager::CaptureEnv> {
+            self.capture_env.lock().expect("capture_env").clone()
+        }
     }
 
     /// A spawner whose `spawn` reports the call and then blocks until the test releases it —
@@ -751,6 +871,10 @@ mod tests {
     }
 
     impl SessionSpawner for BlockingSpawner {
+        fn capture_env(&self, _session_id: &str) -> Option<crate::manager::CaptureEnv> {
+            None
+        }
+
         fn spawn(
             &self,
             spec: &SessionSpec,
@@ -789,6 +913,10 @@ mod tests {
         token_at_start: Option<String>,
     ) -> RuntimeService {
         let paths = Paths::for_env(Some(dir), Some(dir), Some(dir), "default");
+        let media = Arc::new(crate::media::MediaStore::with_ttl(
+            paths.media_dir(),
+            crate::media::DEFAULT_TTL,
+        ));
         RuntimeService::new(
             ServiceOptions {
                 instance_id: "11111111-1111-4111-8111-111111111111".to_string(),
@@ -799,6 +927,7 @@ mod tests {
                 token_at_start,
             },
             spawner,
+            media,
         )
     }
 
@@ -1276,6 +1405,27 @@ mod tests {
     /// name this build lacks is `internal` (`not implemented yet`); a name outside the pinned
     /// surface refuses as `bad_request` (`unknown method …`).
     #[test]
+    fn capture_tools_answer_their_own_validation_now() {
+        let tmp = tempfile::tempdir().unwrap();
+        let service = make_service(tmp.path(), Arc::new(TestSpawner::default()));
+        for method in [methods::SCREENSHOT, methods::CLIP_VIDEO] {
+            let err = result(&service, method, None).unwrap_err();
+            assert_eq!(err.code, ErrorCode::BadRequest, "{method}");
+            assert!(err.message.contains("session_id is required"), "{err:?}");
+        }
+        // Clip's own parameter is accepted; the screenshot surface refuses it.
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        let err = result(
+            &service,
+            methods::SCREENSHOT,
+            Some(json!({ "session_id": id, "duration_s": 1 })),
+        )
+        .unwrap_err();
+        assert!(err.message.contains("unknown parameter"), "{err:?}");
+    }
+
+    #[test]
     fn dispatch_refuses_unknown_and_unbuilt_names_by_class() {
         let tmp = tempfile::tempdir().unwrap();
         let service = make_service(tmp.path(), Arc::new(TestSpawner::default()));
@@ -1288,7 +1438,6 @@ mod tests {
             methods::DAEMON_END,
             "pointer_move",
             "list_capabilities",
-            "screenshot",
         ] {
             let err = result(&service, method, None).unwrap_err();
             assert_eq!(err.code, ErrorCode::Internal, "{method}");
@@ -1355,7 +1504,7 @@ mod tests {
         ));
 
         let address = Address::Unix(socket.clone());
-        let mut client = Client::connect(&address, StdDuration::from_secs(2), None)
+        let mut client = Client::connect(&address, std::time::Duration::from_secs(2), None)
             .await
             .expect("connects");
         let handshake = client.handshake().await.expect("handshake");
@@ -1884,7 +2033,7 @@ mod tests {
             std::thread::spawn(move || result(&service, methods::CREATE_SESSION, None))
         };
         entered_rx
-            .recv_timeout(StdDuration::from_secs(5))
+            .recv_timeout(std::time::Duration::from_secs(5))
             .expect("the create reached its spawn");
 
         let (drain_tx, drain_rx) = std::sync::mpsc::channel();
@@ -1910,7 +2059,7 @@ mod tests {
             .expect("creator thread")
             .expect("create succeeds");
         let (waited, drained) = drain_rx
-            .recv_timeout(StdDuration::from_secs(5))
+            .recv_timeout(std::time::Duration::from_secs(5))
             .expect("drain answered once the create finished");
         drainer.join().expect("drainer thread");
         assert!(
@@ -1989,7 +2138,7 @@ mod tests {
 
         let mut client = Client::connect(
             &Address::Unix(socket.clone()),
-            StdDuration::from_secs(2),
+            std::time::Duration::from_secs(2),
             None,
         )
         .await
@@ -2172,5 +2321,160 @@ mod tests {
             Some(json!({})),
         )
         .expect("operator create");
+    }
+
+    /// A 1×1 PNG header — enough to prove the dimension parse and byte transport.
+    const TINY_PNG: &[u8] = &[
+        0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, b'I', b'H', b'D',
+        b'R', 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00,
+    ];
+
+    fn capture_script(dir: &std::path::Path, body: &str) -> Vec<String> {
+        let path = dir.join("capture.sh");
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        vec![path.display().to_string()]
+    }
+
+    fn capture_service(
+        dir: &std::path::Path,
+        config: CoreConfig,
+    ) -> (RuntimeService, Arc<TestSpawner>) {
+        let spawner = Arc::new(TestSpawner::default());
+        *spawner.capture_env.lock().expect("capture_env") = Some(crate::manager::CaptureEnv {
+            rt_dir: dir.to_path_buf(),
+            wayland_display: "wayland-1".to_string(),
+            signature: "sig".to_string(),
+        });
+        let service = make_service_with_config(
+            dir,
+            Arc::clone(&spawner) as Arc<dyn SessionSpawner>,
+            config,
+            None,
+        );
+        (service, spawner)
+    }
+
+    /// 05 §Capture: `screenshot` answers the typed image payload; the base64 is the file's
+    /// exact bytes, and PNG dimensions come from the IHDR header.
+    #[test]
+    fn screenshot_returns_an_image_payload() {
+        let tmp = tempfile::tempdir().unwrap();
+        let png = tmp.path().join("fixture.png");
+        std::fs::write(&png, TINY_PNG).unwrap();
+        let mut config = CoreConfig::default();
+        config.capture.screenshot_command =
+            capture_script(tmp.path(), &format!("cp {} \"$1\"", png.display()));
+        let (service, _spawner) = capture_service(tmp.path(), config);
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+
+        let value = result(
+            &service,
+            methods::SCREENSHOT,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap();
+        assert_eq!(value["capture"], "image");
+        assert_eq!(value["mimeType"], "image/png");
+        assert_eq!(value["width"], 1);
+        assert_eq!(value["height"], 1);
+        assert_eq!(value["bytes"], TINY_PNG.len());
+        assert_eq!(
+            value["data_b64"],
+            crate::runtime::capture::base64_encode(TINY_PNG)
+        );
+        // `audit.store_screenshots` is off by default: nothing persisted.
+        assert!(!service.paths.media_dir().join(&id).exists());
+    }
+
+    /// The raw PNG is checked against the cap before encoding (05 §Capture).
+    #[test]
+    fn screenshot_over_the_cap_is_a_bad_request() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut config = CoreConfig::default();
+        config.capture.screenshot_max_bytes = 100;
+        config.capture.screenshot_command =
+            capture_script(tmp.path(), "head -c 200 /dev/zero > \"$1\"");
+        let (service, _spawner) = capture_service(tmp.path(), config);
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+
+        let err = result(
+            &service,
+            methods::SCREENSHOT,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap_err();
+        assert_eq!(err.code, ErrorCode::BadRequest);
+        assert!(err.message.starts_with("capture too large:"), "{err:?}");
+    }
+
+    /// `clip_video` mints a single-use id; the store serves it once and then answers exactly
+    /// like an expired id (05 A8, claim-on-open).
+    #[test]
+    fn clip_video_mints_a_single_use_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut config = CoreConfig::default();
+        config.capture.clip_command = capture_script(tmp.path(), "printf x > \"$1\"; sleep 30");
+        let (service, _spawner) = capture_service(tmp.path(), config);
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+
+        let value = result(
+            &service,
+            methods::CLIP_VIDEO,
+            Some(json!({ "session_id": id, "duration_s": 1 })),
+        )
+        .unwrap();
+        assert_eq!(value["capture"], "media");
+        assert_eq!(value["mimeType"], "video/webm");
+        let media_id = value["media_id"].as_str().unwrap().to_string();
+        assert_eq!(media_id.len(), 32);
+        assert!(
+            media_id
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        );
+        let handle = service
+            .media
+            .open(&media_id)
+            .expect("minted id serves once");
+        assert_eq!(&*handle.bytes, b"x");
+        assert!(service.media.open(&media_id).is_none(), "claim-on-open");
+    }
+
+    #[test]
+    fn clip_video_bounds_the_duration() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (service, _spawner) = capture_service(tmp.path(), CoreConfig::default());
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        let err = result(
+            &service,
+            methods::CLIP_VIDEO,
+            Some(json!({ "session_id": id, "duration_s": 31 })),
+        )
+        .unwrap_err();
+        assert_eq!(err.code, ErrorCode::BadRequest);
+        assert!(err.message.contains("between 1 and 30"), "{err:?}");
+    }
+
+    /// A visible session whose process tree is gone cannot be captured: the spawner owns
+    /// that knowledge, and the answer is the dead-session code, not a fake image.
+    #[test]
+    fn capture_of_a_session_without_a_live_env_is_session_dead() {
+        let tmp = tempfile::tempdir().unwrap();
+        let service = make_service(tmp.path(), Arc::new(TestSpawner::default()));
+        let created = create_ok(&service, None);
+        let id = created["id"].as_str().unwrap().to_string();
+        let err = result(
+            &service,
+            methods::SCREENSHOT,
+            Some(json!({ "session_id": id })),
+        )
+        .unwrap_err();
+        assert_eq!(err.code, ErrorCode::SessionDead);
     }
 }

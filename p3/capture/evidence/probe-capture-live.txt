@@ -1,0 +1,12 @@
+bin=daiorama tree=this branch image=dai-l1:dev (privileged, Hyprland)
+new rc=0
+session id=127a817d-0c27-4f45-9892-bb017e1801e9
+drive rc=0
+screenshot isError: None blocks: ['image']
+screenshot image block: bytes= 70
+clip isError: None blocks: ['resource_link', 'text']
+resource_link uri: daiorama://media/62ea578cf7094b5b97c75f9e27a50830
+media fetch rc: 0 wrote 10 bytes to /tmp/dr-capture/live/out.webm 
+second fetch rc: 1 media link expired (media_expired)
+LIVE OK
+LIVE_RC=0
