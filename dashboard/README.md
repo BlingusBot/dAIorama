@@ -6,14 +6,15 @@ client: no manager code knows it exists, and it never gets a private RPC surface
 ## Run
 
 ```
-daiorama-dashboard connect local 127.0.0.1:8756
-printf '%s' "$TOKEN"        | daiorama-dashboard token set local
-printf '%s' "$SCOPE_SECRET" | daiorama-dashboard scope-token set local
+daiorama-dashboard connect 127.0.0.1:8756
+printf '%s' "$TOKEN"        | daiorama-dashboard token set 127.0.0.1:8756
+printf '%s' "$SCOPE_SECRET" | daiorama-dashboard scope-token set 127.0.0.1:8756
 daiorama-dashboard serve --bind 127.0.0.1:8760 --ui ./ui
 ```
 
-`connect` takes the manager's `manager.bind` address; the two secrets are the instance token
-and the `dashboard` scope's network secret (D2/D3). Both are read from **stdin** and never
+`connect` takes the manager's `manager.bind` address and uses it as the default connection
+label (the 04 grammar has no separate name); the two secrets are the instance token and the
+`dashboard` scope's network secret (D2/D3). Both are read from **stdin** and never
 printed; the store is `<config root>/daiorama-dashboard/connections.ron`, 0600 in a 0700
 directory.
 
