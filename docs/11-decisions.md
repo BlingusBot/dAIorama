@@ -781,3 +781,23 @@ cost is measured in seconds, so it gets a slot, not tokens.
 punishes the observe-then-act loop); an unbounded pace queue (512 parked workers is a global
 stall); counting capture against the bucket (it would throttle observation exactly when the
 agent is busy acting).
+
+## History — one JSONL line per record, rotation owned here, retention elsewhere
+
+`<data>/history/<session>/seg-NNNN.log` holds JSONL records
+`{at, event, session_id, scope, origin, cause?, detail?}` (0600 in a 0700 dir), flushed per
+record to the OS and never fsynced per call (08). Rotation is this side's: 8 segments × 4 MiB,
+oldest dropped. Retention is **not**: `close`/death write a durable `<session>/.ended` sidecar
+(RFC 3339 + cause), and the retention sweep removes whole session directories (history and
+media) seven days later — it never infers "ended when" from mtimes. `list_history` follows
+**session** visibility — own scope by default, operator-wide, a stranger's id is
+`session_not_found`; its cursor is opaque and session-scoped (cross-session paging is not
+offered; ask per session).
+
+*Rationale:* the record format and the read surface are one owner; deletion policy is another,
+and a timestamp sidecar is the only interface between them. Control arguments stay out of the
+log (they are the sensitive part), while counts and sizes are enough for audit and dashboard
+reads.
+*Rejected:* inferring session end from mtimes (fragile, and copying a directory breaks it);
+cross-session cursors (a merged ordering over per-session segments needs an index the log does
+not have); fsync per record (the log is an operational aid, not the source of truth).

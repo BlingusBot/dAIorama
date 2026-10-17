@@ -89,7 +89,11 @@ Single master table in 04 (ports, resolution, reaper off, history 8×4 MiB /
 
 - Plain text, line-per-entry, append-only. No database, no structured binary —
   format was never the wear risk.
-- Buffered writer, flushed on a short interval (or small batch); **no fsync per
+- Layout: `<data root>/history/<session>/seg-NNNN.log`, JSONL, one record per
+  line; dirs 0700, files 0600. A durable sidecar `<session>/.ended` holds the
+  session-end timestamp + cause for the retention sweep (never inferred from
+  mtimes).
+- Buffered writer, flushed per record to the OS (a small batch); **no fsync per
   call** — losing seconds of buffered entries in a hard crash is acceptable
   (operational aid, not the source of truth for session state).
 - Rotation: bounded by segments × cap (defaults in 04), oldest dropped;
