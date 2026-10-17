@@ -43,6 +43,25 @@ namespaced `_meta` key honoured (un-namespaced kept for older callers), and the 
 envelope (`resultType`, plus `ttlMs`/`cacheScope` on the cacheable list result) stamped only on
 requests that declare the modern revision — a handshake-era caller keeps the pre-2026 shape.
 
+## Manager-restart drill — the harness outlives its manager
+
+`run-restart.sh` / `manager_restart.py` keep ONE harness session open across a manager crash:
+create a real session, SIGKILL the manager, wait for the startup sweep to reap the surviving
+compositor, bring a new manager up on the same socket, and then call through the still-open
+harness session.
+
+What it found: the bridge caches the manager link for the life of the process. `tools/call`
+already evicted a dead link, but `list_capabilities` went through its own path and did not — so
+the first capability poll after a manager restart answered `no_manager_running`, and the cached
+dead link stayed cached (the poll a harness makes every turn was the one call that never
+recovered). Fix: both paths share one `relay` that evicts a link whose request died, and the
+capability read replays once on a fresh connection (a read is safe to replay). A tool call still
+surfaces the reachability error for the interrupted call and reconnects on the next one.
+
+Evidence: `evidence/restart-before.txt` (two failures: `no_manager_running` on the first
+post-restart capabilities poll, then `manager_unreachable` on the listing because the dead link
+was still cached) and `evidence/restart-after.txt` (green on the fixed tip, `FAILS=0`).
+
 ## Evidence
 
 - `evidence/sdk-before.txt` — the drill against the pre-fix tip: the SDK cannot connect at all

@@ -46,22 +46,31 @@ impl Harness {
     }
 
     /// Bind the fake manager and serve connections in the background.
-    fn serve(&self) -> tokio::task::JoinHandle<()> {
+    fn serve(&self) -> FakeManager {
         let listener = std::os::unix::net::UnixListener::bind(&self.socket).unwrap();
         listener.set_nonblocking(true).unwrap();
         let listener = UnixListener::from_std(listener).unwrap();
         let frames = Arc::clone(&self.frames);
-        tokio::spawn(async move {
+        let connections: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>> =
+            Arc::new(Mutex::new(Vec::new()));
+        let tracked = Arc::clone(&connections);
+        let accept = tokio::spawn(async move {
             loop {
                 let Ok((stream, _)) = listener.accept().await else {
                     return;
                 };
                 let frames = Arc::clone(&frames);
-                tokio::spawn(async move {
+                let handle = tokio::spawn(async move {
                     let _ = serve_connection(stream, frames).await;
                 });
+                tracked.lock().unwrap().push(handle);
             }
-        })
+        });
+        FakeManager {
+            accept,
+            connections,
+            socket: self.socket.clone(),
+        }
     }
 
     fn bridge(&self, scope: Option<&str>) -> tokio::process::Child {
@@ -89,6 +98,30 @@ impl Harness {
 
     fn frames(&self) -> Vec<Value> {
         self.frames.lock().unwrap().clone()
+    }
+}
+
+/// A running fake manager. Dropping the handle stops accepting new connections; `stop().await`
+/// also closes live ones and removes the socket, so a test can model a crash and a restart on
+/// the same path.
+struct FakeManager {
+    accept: tokio::task::JoinHandle<()>,
+    connections: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
+    socket: PathBuf,
+}
+
+impl FakeManager {
+    async fn stop(self) {
+        self.accept.abort();
+        let _ = self.accept.await;
+        let handles: Vec<_> = self.connections.lock().unwrap().drain(..).collect();
+        for handle in &handles {
+            handle.abort();
+        }
+        for handle in handles {
+            let _ = handle.await;
+        }
+        let _ = std::fs::remove_file(&self.socket);
     }
 }
 
@@ -466,6 +499,65 @@ async fn list_capabilities_reports_the_live_quota() {
     );
     assert_eq!(payload["audit"]["store_clips"], true);
     assert!(payload["always_on"].as_array().unwrap().len() == 5);
+
+    child.kill().await.unwrap();
+}
+
+/// A harness keeps one MCP session open across a manager restart (an operator upgrade, crash
+/// recovery). The cached manager link died with the old manager, and no call happened in
+/// between to evict it: the first post-restart call must reconnect on a fresh connection
+/// instead of answering a stale-connection error — and that fresh link must also replace the
+/// dead one for the calls after it.
+#[tokio::test]
+async fn list_capabilities_reconnects_after_a_manager_restart() {
+    let harness = Harness::new();
+    harness.write_scope("agent", "(sessions: (max: Some(4), visibility: own))");
+    let server = harness.serve();
+    let mut child = harness.bridge(Some("agent"));
+    let stdout = child.stdout.take().unwrap();
+    let mut lines = BufReader::new(stdout).lines();
+    let mut stdin = child.stdin.take().unwrap();
+
+    let call = |id: u64| {
+        json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "tools/call",
+            "params": {"name": "list_capabilities", "arguments": {}}
+        })
+    };
+
+    let first = send(&mut stdin, &mut lines, call(1)).await;
+    assert_eq!(
+        first["result"]["structuredContent"]["quotas"]["sessions"]["live"], 1,
+        "the first manager answers the live quota"
+    );
+
+    // The manager goes away and a new one binds the same socket while the harness stays
+    // connected. Nothing called the bridge in between, so the cached link is a dead end.
+    server.stop().await;
+    let _server = harness.serve();
+
+    let second = send(&mut stdin, &mut lines, call(2)).await;
+    assert!(
+        second["result"].get("isError").is_none(),
+        "the first post-restart call must answer, not surface a stale link: {second}"
+    );
+    assert_eq!(
+        second["result"]["structuredContent"]["quotas"]["sessions"]["live"], 1,
+        "the answer comes from the restarted manager"
+    );
+
+    // The replay went out on a fresh link, stamped with the caller identity like the first.
+    let frames = harness.frames();
+    let listings: Vec<&Value> = frames
+        .iter()
+        .filter(|frame| frame["method"] == "list_sessions")
+        .collect();
+    assert_eq!(listings.len(), 2, "one listing per manager");
+    let fresh = listings.last().expect("second listing");
+    assert_eq!(fresh["scope"], "agent");
+    assert_eq!(fresh["origin"], "mcp");
 
     child.kill().await.unwrap();
 }

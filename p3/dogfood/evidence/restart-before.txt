@@ -1,0 +1,56 @@
+== setup
+uid=0(root) gid=0(root) groups=0(root)
+binary: -rwxr-xr-x. 1 root root 44482152 Oct 17 08:04 /out/hardening/daiorama-df2
+daiorama 0.1.0
+protocol 0.1.0 (min 0.1.0)
+wrote /tmp/hc/daiorama/default/config.ron
+wrote /tmp/hc/daiorama/default/scopes/operator.ron
+next: 'daiorama doctor' for the environment check, then 'daiorama new'
+config_setup_rc=0
+scope file: (sessions: (max: Some(2), visibility: own),
+ grant: (categories: ["input"]))
+sdk mcp== 2.3.0
+
+== manager-restart drill
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=90 comm="Hyprland --i-am-really-stupid" label="unconfined_u:unconfined_r:spc_t:s0")
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+== manager-restart drill: daiorama mcp via mcp==2.3.0 (scope=agent, bin=/out/hardening/daiorama-df2)
+[OK]   manager start (cold) :: started manager (mode=background, pid=53) socket=/tmp/hr/daiorama/default/manager.sock
+[OK]   manager process is alive :: pid=53
+[OK]   harness connected :: protocol_version=2026-07-28
+[OK]   session created under the old manager :: 47517bd5-6974-4aa2-a77d-60cfbf3ea4b4
+[OK]   renderer mark is verified with a hardware string :: verified
+       create_session -> {"backend": "headless", "id": "47517bd5-6974-4aa2-a77d-60cfbf3ea4b4", "idle_since": "2026-10-17T08:05:16Z", "instance_id": "19d0aabc-4a28-4c42-8d0d-8fa9c82b10c8", "label": "", "origin": "mcp", "renderer": "verified", "resolution": "1024x768", "scale": 1.0, "scope": "agent", "state": "running", "view
+[OK]   compositors running before the crash :: [(81, 'mutter'), (90, 'Hyprland'), (93, 'Hyprland')]
+[OK]   manager gone after SIGKILL :: pid=53
+       compositors surviving the crash: [(93, 'Hyprland')]
+[OK]   a compositor survived the crash (PDEATHSIG gap, sweep's job) :: 1
+[OK]   manager restart :: started manager (mode=background, pid=134) socket=/tmp/hr/daiorama/default/manager.sock old=53 new=134
+[OK]   restarted manager answers status :: state: running
+mode: background
+pid: 134
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 0 running, 0 dead
+drain: inactive
+instance_id: 19d0aabc-4a28-4c42-8d0d-8fa9c82b10c8
+[OK]   startup sweep reaped the surviving compositor :: []
+[FAIL] first post-restart call (list_capabilities) answers :: no_manager_running
+[FAIL] list_sessions answers after the restart :: manager_unreachable
+[OK]   the crashed session is not resurrected :: []
+[OK]   create_session works after the restart :: cbd5d6a0-ffcc-4a1e-9cf7-31dbd213cdcf
+[OK]   close_session works after the restart
+       drill wall time: 1.80s
+FAILS=2
+drill_rc=1
+
+== post-run leak check
+(no compositors)
+compositors_left=0
+runtime_dirs=1
+
+FAILS=1
+SCRIPT_RC=1
+RUN-ALL-DONE
