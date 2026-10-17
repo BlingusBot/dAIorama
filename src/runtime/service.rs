@@ -428,6 +428,7 @@ impl RuntimeService {
                 argv: &config.view.wayvnc_command,
                 port_base: config.view.port_base,
                 assets: &self.paths.novnc_dir(),
+                advertise_base: config.view.advertise_base.as_deref(),
             },
         )?;
         {

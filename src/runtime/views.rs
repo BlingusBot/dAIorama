@@ -168,9 +168,30 @@ impl Front {
         vnc_port: u16,
         credential: String,
         assets: PathBuf,
+        advertise_base: Option<&str>,
     ) -> std::io::Result<Front> {
         let listener = TcpListener::bind(("127.0.0.1", front_port))?;
-        Self::start_with_listener(listener, vnc_port, credential, assets)
+        Self::start_with_listener(
+            listener,
+            vnc_port,
+            credential,
+            assets,
+            advertise_base.map(str::to_string),
+        )
+    }
+
+    /// The Origin authorities the upgrade accepts: loopback always, plus
+    /// `view.advertise_base`'s authority when it is set (a proxied browser sends that one).
+    pub fn allowed_origins(front_port: u16, advertise_base: Option<&str>) -> Vec<String> {
+        let mut origins = vec![
+            format!("http://127.0.0.1:{front_port}"),
+            format!("http://localhost:{front_port}"),
+            format!("http://[::1]:{front_port}"),
+        ];
+        if let Some(base) = advertise_base {
+            origins.push(base.trim_end_matches('/').to_string());
+        }
+        origins
     }
 
     /// Test-only: bind an ephemeral port so parallel tests never race on a fixed base.
@@ -180,8 +201,24 @@ impl Front {
         credential: String,
         assets: PathBuf,
     ) -> std::io::Result<Front> {
+        Self::start_ephemeral_with_advertise(vnc_port, credential, assets, None)
+    }
+
+    #[cfg(test)]
+    pub fn start_ephemeral_with_advertise(
+        vnc_port: u16,
+        credential: String,
+        assets: PathBuf,
+        advertise_base: Option<&str>,
+    ) -> std::io::Result<Front> {
         let listener = TcpListener::bind(("127.0.0.1", 0))?;
-        Self::start_with_listener(listener, vnc_port, credential, assets)
+        Self::start_with_listener(
+            listener,
+            vnc_port,
+            credential,
+            assets,
+            advertise_base.map(str::to_string),
+        )
     }
 
     fn start_with_listener(
@@ -189,8 +226,10 @@ impl Front {
         vnc_port: u16,
         credential: String,
         assets: PathBuf,
+        advertise_base: Option<String>,
     ) -> std::io::Result<Front> {
         let front_port = listener.local_addr()?.port();
+        let origins = Self::allowed_origins(front_port, advertise_base.as_deref());
         listener.set_nonblocking(true)?;
         let state = Arc::new(FrontState {
             stop: AtomicBool::new(false),
@@ -210,14 +249,10 @@ impl Front {
                         }
                         let credential = credential.clone();
                         let assets = assets.clone();
+                        let origins = origins.clone();
                         thread::spawn(move || {
-                            let _ = handle_connection(
-                                stream,
-                                front_port,
-                                vnc_port,
-                                &credential,
-                                &assets,
-                            );
+                            let _ =
+                                handle_connection(stream, vnc_port, &credential, &assets, &origins);
                             state.connections.fetch_sub(1, Ordering::SeqCst);
                         });
                     }
@@ -329,10 +364,10 @@ fn read_head(stream: &mut TcpStream) -> Option<Vec<u8>> {
 /// One front request: gate, then serve static or relay a WebSocket.
 fn handle_connection(
     mut stream: TcpStream,
-    front_port: u16,
     vnc_port: u16,
     credential: &str,
     assets: &Path,
+    allowed_origins: &[String],
 ) -> std::io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(10)))?;
     let Some(raw) = read_head(&mut stream) else {
@@ -389,9 +424,8 @@ fn handle_connection(
     if path == "/websockify" {
         // Origin is required on the upgrade: browsers always send it; a script without one
         // uses a credential header instead (07, amended).
-        let expected_origin = format!("http://127.0.0.1:{front_port}");
         let origin = header(&headers, "origin").unwrap_or_default();
-        if origin != expected_origin && origin != format!("http://localhost:{front_port}") {
+        if !allowed_origins.iter().any(|allowed| allowed == origin) {
             return write_response(&mut stream, (403, "Forbidden"), &[], b"origin refused\n");
         }
         let Some(key) = header(&headers, "sec-websocket-key") else {
@@ -608,6 +642,9 @@ pub struct ViewLaunch<'a> {
     pub argv: &'a [String],
     pub port_base: u16,
     pub assets: &'a Path,
+    /// `view.advertise_base`: display-only for the address, but its authority is accepted as
+    /// an upgrade `Origin` (a browser behind a reverse proxy sends it).
+    pub advertise_base: Option<&'a str>,
 }
 
 /// What `get_view` needs to build its answer.
@@ -664,6 +701,7 @@ impl ViewManager {
             vnc_port,
             credential.to_string(),
             launch.assets.to_path_buf(),
+            launch.advertise_base,
         )
         .map_err(|err| {
             let _ = child.kill();
@@ -863,6 +901,38 @@ mod tests {
         let mut echo = [0u8; 7];
         stream.read_exact(&mut echo).unwrap();
         assert_eq!(&echo, b"\x82\x05hello");
+        let _ = stream.shutdown(std::net::Shutdown::Both);
+        front.stop();
+    }
+
+    #[test]
+    fn an_advertise_base_authority_is_accepted_as_origin() {
+        let (backend_port, _handle) = fake_backend();
+        let front = Front::start_ephemeral_with_advertise(
+            backend_port,
+            credential(),
+            std::env::temp_dir(),
+            Some("http://proxy.example:8080"),
+        )
+        .unwrap();
+        let port = front.front_port;
+        assert!(
+            Front::allowed_origins(port, Some("http://proxy.example:8080/"))
+                .contains(&"http://proxy.example:8080".to_string())
+        );
+        let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let handshake = format!(
+            "GET /websockify?credential={} HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: http://proxy.example:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+            credential()
+        );
+        stream.write_all(handshake.as_bytes()).unwrap();
+        let mut head = [0u8; 512];
+        let read = stream.read(&mut head).unwrap();
+        let head = String::from_utf8_lossy(&head[..read]).to_string();
+        assert!(head.starts_with("HTTP/1.1 101"), "{head}");
         let _ = stream.shutdown(std::net::Shutdown::Both);
         front.stop();
     }
