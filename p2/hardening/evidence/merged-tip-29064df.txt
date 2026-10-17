@@ -124,7 +124,7 @@ ALLDONE
 3. Rate-limit live leg: unchanged from the c950c49 pass (reject burst, exempt reads/capture,
    per-session buckets, per-call scope file, bounded pace, six-way flood) — PASS, FAILS=0.
 4. History live leg (new): records written by dispatch() for control-class calls, read back
-   over the same socket. 24 assertions pass: cold page, newest-first ordering, detail carries
+   over the same socket. 27 assertions pass (two fail, both the rotation defect): cold page, newest-first ordering, detail carries
    the tool name only (no arguments), 2+2+2 cursor paging with no gaps or repeats, garbage
    cursor and cursor-without-session refusals, hostile ids -> session_not_found, cross-session
    read with no cursor, live 0700 dir / 0600 file modes.
