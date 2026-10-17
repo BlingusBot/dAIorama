@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dAIorama dashboard</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header>
+  <h1>dAIorama</h1>
+  <span id="summary" class="muted">loading…</span>
+</header>
+<main>
+  <section id="managers" aria-label="Managers">
+    <h2>Managers</h2>
+    <ul id="manager-list"></ul>
+  </section>
+  <section id="sessions" aria-label="Sessions">
+    <h2>Sessions <span id="sessions-for" class="muted"></span></h2>
+    <table>
+      <thead><tr><th>id</th><th>label</th><th>state</th><th>view</th><th>scope</th><th>size</th><th>idle</th></tr></thead>
+      <tbody id="session-rows"></tbody>
+    </table>
+    <p id="sessions-note" class="muted"></p>
+  </section>
+  <section id="detail" aria-label="Session detail">
+    <h2>Session <span id="detail-id" class="muted"></span></h2>
+    <div id="detail-body" class="muted">Pick a session.</div>
+    <div class="row">
+      <button id="open-view" disabled>Open view</button>
+      <span id="view-note" class="muted"></span>
+    </div>
+    <h3>History</h3>
+    <ul id="history"></ul>
+    <button id="older" disabled>Load older</button>
+  </section>
+</main>
+<footer class="muted">read-only view · polling every 5 s · tokens stay on this machine</footer>
+<script src="/app.js"></script>
+</body>
+</html>
