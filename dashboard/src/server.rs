@@ -15,6 +15,10 @@ use crate::store::Connections;
 const MAX_HEAD: usize = 16 * 1024;
 const MAX_BODY: usize = 4 * 1024;
 const CALL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
+/// 07's network shape, applied to the loopback UI too: a bounded connection count and a
+/// per-read progress deadline, so a local page cannot park sockets or dribble a head forever.
+const MAX_CONNECTIONS: usize = 64;
+const PROGRESS: std::time::Duration = std::time::Duration::from_secs(10);
 
 #[derive(Clone)]
 pub struct App {
@@ -72,23 +76,87 @@ pub async fn serve(app: App, host: &str, port: u16) -> Result<(), String> {
     let address = listener
         .local_addr()
         .map_err(|err| format!("bound address: {err}"))?;
+    let allowed = allowed_authorities(&address);
     eprintln!("dashboard on http://{address}");
+    let permits = Arc::new(tokio::sync::Semaphore::new(MAX_CONNECTIONS));
     loop {
         let Ok((stream, _)) = listener.accept().await else {
             continue;
         };
+        let Ok(permit) = Arc::clone(&permits).try_acquire_owned() else {
+            drop(stream);
+            continue;
+        };
         let app = app.clone();
+        let allowed = allowed.clone();
         tokio::spawn(async move {
-            let _ = handle(stream, app).await;
+            let _permit = permit;
+            let _ = handle(stream, app, allowed).await;
         });
     }
 }
 
-async fn handle(mut stream: TcpStream, app: App) -> std::io::Result<()> {
+/// The `Host` / `Origin` authorities this listener answers for: the bound address and
+/// `localhost`, on the bound port. Anything else is a rebinding attempt, not this UI.
+pub fn allowed_authorities(address: &std::net::SocketAddr) -> Vec<String> {
+    let port = address.port();
+    let host = match address.ip() {
+        std::net::IpAddr::V4(ip) => ip.to_string(),
+        std::net::IpAddr::V6(ip) => format!("[{ip}]"),
+    };
+    let mut out = vec![format!("{host}:{port}"), format!("localhost:{port}")];
+    if address.ip().is_loopback() {
+        out.push(format!("127.0.0.1:{port}"));
+        out.push(format!("[::1]:{port}"));
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn host_allowed(headers: &Headers, allowed: &[String]) -> bool {
+    headers
+        .host
+        .as_deref()
+        .map(|host| allowed.iter().any(|entry| entry.eq_ignore_ascii_case(host)))
+        .unwrap_or(false)
+}
+
+fn origin_allowed(headers: &Headers, allowed: &[String]) -> bool {
+    let Some(origin) = headers.origin.as_deref() else {
+        return true; // curl / same-origin navigations carry no Origin
+    };
+    let Some(rest) = origin
+        .strip_prefix("http://")
+        .or_else(|| origin.strip_prefix("https://"))
+    else {
+        return false;
+    };
+    allowed.iter().any(|entry| entry.eq_ignore_ascii_case(rest))
+}
+
+#[derive(Default)]
+struct Headers {
+    host: Option<String>,
+    origin: Option<String>,
+    content_length: usize,
+}
+
+async fn read_bounded(stream: &mut TcpStream, buffer: &mut [u8]) -> std::io::Result<usize> {
+    match tokio::time::timeout(PROGRESS, stream.read(buffer)).await {
+        Ok(read) => read,
+        Err(_) => Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            "request made no progress within 10 s",
+        )),
+    }
+}
+
+async fn handle(mut stream: TcpStream, app: App, allowed: Vec<String>) -> std::io::Result<()> {
     let mut head = Vec::new();
     let mut buffer = [0u8; 1024];
     loop {
-        let read = stream.read(&mut buffer).await?;
+        let read = read_bounded(&mut stream, &mut buffer).await?;
         if read == 0 {
             return Ok(());
         }
@@ -122,14 +190,42 @@ async fn handle(mut stream: TcpStream, app: App) -> std::io::Result<()> {
         )
         .await;
     }
-    let mut content_length = 0usize;
+    let mut headers = Headers::default();
     for header in parts {
-        if let Some((name, value)) = header.split_once(':')
-            && name.trim().eq_ignore_ascii_case("content-length")
-        {
-            content_length = value.trim().parse().unwrap_or(0);
+        let Some((name, value)) = header.split_once(':') else {
+            continue;
+        };
+        let name = name.trim();
+        let value = value.trim();
+        if name.eq_ignore_ascii_case("host") {
+            headers.host = Some(value.to_string());
+        } else if name.eq_ignore_ascii_case("origin") {
+            headers.origin = Some(value.to_string());
+        } else if name.eq_ignore_ascii_case("content-length") {
+            headers.content_length = value.parse().unwrap_or(0);
         }
     }
+    // DNS rebinding: the browser is the tunnel, so `Host` must name this listener, and an
+    // `Origin` that is present must be this UI (07's shape, applied to the loopback front).
+    if !host_allowed(&headers, &allowed) {
+        return reply(
+            &mut stream,
+            403,
+            "application/json",
+            &json!({"error": "host not allowed"}).to_string(),
+        )
+        .await;
+    }
+    if !origin_allowed(&headers, &allowed) {
+        return reply(
+            &mut stream,
+            403,
+            "application/json",
+            &json!({"error": "origin not allowed"}).to_string(),
+        )
+        .await;
+    }
+    let content_length = headers.content_length;
     if content_length > MAX_BODY {
         return reply(
             &mut stream,
@@ -147,7 +243,7 @@ async fn handle(mut stream: TcpStream, app: App) -> std::io::Result<()> {
         .unwrap_or(head.len());
     let mut body = head[head_end..].to_vec();
     while body.len() < content_length {
-        let read = stream.read(&mut buffer).await?;
+        let read = read_bounded(&mut stream, &mut buffer).await?;
         if read == 0 {
             break;
         }
@@ -353,6 +449,34 @@ mod tests {
         assert!(parse_bind("0.0.0.0:8760").is_err());
         assert!(parse_bind("10.0.0.5:8760").is_err());
         assert!(parse_bind("localhost:9000").is_ok());
+    }
+
+    #[test]
+    fn only_loopback_authorities_are_served() {
+        let allowed = vec!["127.0.0.1:8760".to_string(), "localhost:8760".to_string()];
+        let mut headers = Headers {
+            host: Some("127.0.0.1:8760".into()),
+            ..Default::default()
+        };
+        assert!(host_allowed(&headers, &allowed));
+        headers.host = Some("evil.example:8760".into());
+        assert!(!host_allowed(&headers, &allowed));
+        headers.host = None;
+        assert!(!host_allowed(&headers, &allowed));
+
+        assert!(
+            origin_allowed(&Headers::default(), &allowed),
+            "curl has no Origin"
+        );
+        let mut headers = Headers {
+            origin: Some("http://127.0.0.1:8760".into()),
+            ..Default::default()
+        };
+        assert!(origin_allowed(&headers, &allowed));
+        headers.origin = Some("http://evil.example:8760".into());
+        assert!(!origin_allowed(&headers, &allowed));
+        headers.origin = Some("null".into());
+        assert!(!origin_allowed(&headers, &allowed));
     }
 
     #[test]

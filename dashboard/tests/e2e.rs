@@ -127,13 +127,14 @@ fn the_module_serves_the_ui_and_the_read_api_without_leaking_tokens() {
     .unwrap();
     let (mut child, port) = start_module(&config, &ui_dir());
 
-    let page = http(port, "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+    let host = format!("127.0.0.1:{port}");
+    let page = http(port, &format!("GET / HTTP/1.1\r\nHost: {host}\r\n\r\n"));
     assert!(page.starts_with("HTTP/1.1 200"), "{page}");
     assert!(page.contains("dAIorama dashboard"), "{page}");
 
     let managers = http(
         port,
-        "GET /api/managers HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+        &format!("GET /api/managers HTTP/1.1\r\nHost: {host}\r\n\r\n"),
     );
     assert!(managers.starts_with("HTTP/1.1 200"), "{managers}");
     assert!(managers.contains("\"ok\":true"), "{managers}");
@@ -149,13 +150,13 @@ fn the_module_serves_the_ui_and_the_read_api_without_leaking_tokens() {
 
     let sessions = http(
         port,
-        "GET /api/sessions?manager=local HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+        &format!("GET /api/sessions?manager=local HTTP/1.1\r\nHost: {host}\r\n\r\n"),
     );
     assert!(sessions.contains("s-1"), "{sessions}");
 
     let history = http(
         port,
-        "GET /api/history?manager=local&session=s-1 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+        &format!("GET /api/history?manager=local&session=s-1 HTTP/1.1\r\nHost: {host}\r\n\r\n"),
     );
     assert!(history.contains("session.created"), "{history}");
 
@@ -163,7 +164,7 @@ fn the_module_serves_the_ui_and_the_read_api_without_leaking_tokens() {
     let view = http(
         port,
         &format!(
-            "POST /api/view HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+            "POST /api/view HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
             body.len()
         ),
     );
@@ -171,7 +172,7 @@ fn the_module_serves_the_ui_and_the_read_api_without_leaking_tokens() {
 
     let traversal = http(
         port,
-        "GET /../../etc/passwd HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+        &format!("GET /../../etc/passwd HTTP/1.1\r\nHost: {host}\r\n\r\n"),
     );
     assert!(traversal.starts_with("HTTP/1.1 404"), "{traversal}");
 
@@ -202,4 +203,110 @@ fn non_loopback_bind_is_refused_with_the_pinned_message() {
         stderr.contains("dashboard serve is loopback-only in v1; use SSH forwarding"),
         "{stderr}"
     );
+}
+
+fn connect_hold(port: u16) -> TcpStream {
+    let stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    stream
+}
+
+#[test]
+fn rebinding_hosts_and_foreign_origins_are_refused() {
+    let tmp = tempfile::tempdir().unwrap();
+    let config = tmp.path().join("connections.ron");
+    let (manager_port, _handle) = fake_manager();
+    std::fs::write(
+        &config,
+        format!(
+            "(version: 1, connections: [(name: \"local\", address: \"127.0.0.1:{manager_port}\", token: \"instance-token\", scope_token: \"scope-secret\")])\n"
+        ),
+    )
+    .unwrap();
+    let (mut child, port) = start_module(&config, &ui_dir());
+    let host = format!("127.0.0.1:{port}");
+    let body = "{\"manager\":\"local\",\"session\":\"s-1\"}";
+
+    let evil_host = http(
+        port,
+        &format!("GET /api/managers HTTP/1.1\r\nHost: evil.example:{port}\r\n\r\n"),
+    );
+    assert!(evil_host.starts_with("HTTP/1.1 403"), "{evil_host}");
+    assert!(evil_host.contains("host not allowed"), "{evil_host}");
+
+    let no_host = http(port, "GET /api/managers HTTP/1.1\r\n\r\n");
+    assert!(no_host.starts_with("HTTP/1.1 403"), "{no_host}");
+
+    let evil_origin = http(
+        port,
+        &format!(
+            "POST /api/view HTTP/1.1\r\nHost: {host}\r\nOrigin: http://evil.example:{port}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        ),
+    );
+    assert!(evil_origin.starts_with("HTTP/1.1 403"), "{evil_origin}");
+    assert!(evil_origin.contains("origin not allowed"), "{evil_origin}");
+
+    let good_origin = http(
+        port,
+        &format!(
+            "POST /api/view HTTP/1.1\r\nHost: {host}\r\nOrigin: http://{host}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        ),
+    );
+    assert!(good_origin.starts_with("HTTP/1.1 200"), "{good_origin}");
+    assert!(good_origin.contains("view-credential"), "{good_origin}");
+
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+#[test]
+fn connections_are_capped_and_a_silent_head_is_closed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let config = tmp.path().join("connections.ron");
+    std::fs::write(&config, "(version: 1, connections: [])\n").unwrap();
+    let (mut child, port) = start_module(&config, &ui_dir());
+
+    // 64 held sockets; the 65th is closed on accept rather than queued.
+    let mut held = Vec::new();
+    for _ in 0..64 {
+        held.push(connect_hold(port));
+    }
+    std::thread::sleep(Duration::from_millis(200));
+    let mut overflow = connect_hold(port);
+    let mut byte = [0u8; 1];
+    let closed = matches!(overflow.read(&mut byte), Ok(0) | Err(_));
+    assert!(closed, "over-cap connection must be closed, not served");
+    drop(held);
+
+    // A connection that sends a partial head and stops is closed at the 10 s deadline.
+    let mut silent = connect_hold(port);
+    silent
+        .set_read_timeout(Some(Duration::from_secs(14)))
+        .unwrap();
+    silent
+        .write_all(b"GET / HTTP/1.1\r\nHost: 127.0.0.1")
+        .unwrap();
+    let started = Instant::now();
+    let mut byte = [0u8; 1];
+    let result = silent.read(&mut byte);
+    let elapsed = started.elapsed();
+    assert!(
+        matches!(result, Ok(0) | Err(_)),
+        "silent head must be closed: {result:?}"
+    );
+    assert!(
+        elapsed >= Duration::from_secs(9),
+        "closed too early: {elapsed:?}"
+    );
+    assert!(
+        elapsed <= Duration::from_secs(13),
+        "closed too late: {elapsed:?}"
+    );
+
+    let _ = child.kill();
+    let _ = child.wait();
 }
