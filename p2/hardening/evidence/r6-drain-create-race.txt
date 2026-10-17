@@ -1,0 +1,143 @@
+
+==================================================================
+## [0] pre-state (fresh container)
+==================================================================
+uid=0(root) gid=0(root) groups=0(root)
+binary: -rwxr-xr-x. 1 root root 41413336 Oct 17 05:32 /out/hardening/daiorama-r6
+daiorama 0.1.0
+protocol 0.1.0 (min 0.1.0)
+version_rc=0
+
+==================================================================
+## [1] daemon start (cold)
+==================================================================
+started manager (mode=background, pid=36) socket=/tmp/hr/daiorama/default/manager.sock
+start_rc=0
+status_rc=0
+state: running
+mode: background
+pid: 36
+socket: /tmp/hr/daiorama/default/manager.sock
+binary: 0.1.0
+min_supported: 0.1.0
+protocol: 0.1.0
+sessions: 0 running, 0 dead
+drain: inactive
+instance_id: de99f394-e864-4766-8463-1524860c0331
+[OK]   cold status: drain inactive
+
+==================================================================
+## [2] race A — drain entered while a create is in flight (3 iterations)
+==================================================================
+
+---- iteration 1 ----
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Activating service name='ca.desrt.dconf' requested by ':1.1' (uid=0 pid=91 comm="Hyprland --i-am-really-stupid" label="unconfined_u:unconfined_r:spc_t:s0")
+dbus-daemon[4]: [session uid=0 pid=4 pidfd=5] Successfully activated service 'ca.desrt.dconf'
+drain rc=0 answered at +681ms (sent +355ms): {"active":true,"remaining":1}
+sessions running while the drain command was in flight/returned: 1
+1709dbba-fbf6-41c5-aef5-1c961cae4313
+create_rc=0
+create_done_ms=680
+create finished at +680ms
+drain said: active=true remaining=1; sessions running after the create settled: 1
+list: {"sessions":[{"backend":"headless","id":"1709dbba-fbf6-41c5-aef5-1c961cae4313","idle_since":"2026-10-17T05:32:51Z","instance_id":"de99f394-e864-4766-8463-1524860c0331","label":"","origin":"shell","renderer":"verified","resolution":"1920x1080","scale":1.0,"scope":"operator","state":"running","view":null}]}
+[OK]   A1: drain entered (true)
+[OK]   A1: drain accounts for every session that exists when it answers (1)
+note: drain answered after the create finished (+681ms vs +680ms) — serialized on this box; the unit tests pin the interleaving
+closed 1709dbba-fbf6-41c5-aef5-1c961cae4313
+end_rc=0 stopped manager (pid 36)
+restart_rc=0
+
+---- iteration 2 ----
+drain rc=0 answered at +687ms (sent +354ms): {"active":true,"remaining":1}
+sessions running while the drain command was in flight/returned: 1
+68618bf1-5957-451d-bb59-bcf0d14fd353
+create_rc=0
+create_done_ms=685
+create finished at +685ms
+drain said: active=true remaining=1; sessions running after the create settled: 1
+list: {"sessions":[{"backend":"headless","id":"68618bf1-5957-451d-bb59-bcf0d14fd353","idle_since":"2026-10-17T05:32:53Z","instance_id":"de99f394-e864-4766-8463-1524860c0331","label":"","origin":"shell","renderer":"verified","resolution":"1920x1080","scale":1.0,"scope":"operator","state":"running","view":null}]}
+[OK]   A2: drain entered (true)
+[OK]   A2: drain accounts for every session that exists when it answers (1)
+note: drain answered after the create finished (+687ms vs +685ms) — serialized on this box; the unit tests pin the interleaving
+closed 68618bf1-5957-451d-bb59-bcf0d14fd353
+end_rc=0 stopped manager (pid 222)
+restart_rc=0
+
+---- iteration 3 ----
+drain rc=0 answered at +684ms (sent +355ms): {"active":true,"remaining":1}
+sessions running while the drain command was in flight/returned: 1
+5809239e-7c11-4ca1-a976-04e70f19b442
+create_rc=0
+create_done_ms=683
+create finished at +683ms
+drain said: active=true remaining=1; sessions running after the create settled: 1
+list: {"sessions":[{"backend":"headless","id":"5809239e-7c11-4ca1-a976-04e70f19b442","idle_since":"2026-10-17T05:32:55Z","instance_id":"de99f394-e864-4766-8463-1524860c0331","label":"","origin":"shell","renderer":"verified","resolution":"1920x1080","scale":1.0,"scope":"operator","state":"running","view":null}]}
+[OK]   A3: drain entered (true)
+[OK]   A3: drain accounts for every session that exists when it answers (1)
+note: drain answered after the create finished (+684ms vs +683ms) — serialized on this box; the unit tests pin the interleaving
+closed 5809239e-7c11-4ca1-a976-04e70f19b442
+end_rc=0 stopped manager (pid 395)
+restart_rc=0
+
+==================================================================
+## [3] race B — drain --wait entered while a create is in flight: never completes at zero
+==================================================================
+drain --wait rc=1 at +3695ms
+stdout: 
+stderr: drain did not reach zero running sessions within 3s (1 still running) (internal)
+216b9bc2-ed19-4c17-a0bd-122c600f78b4
+create_rc=0
+create_done_ms=673
+sessions running after --wait gave up: 1
+list: {"sessions":[{"backend":"headless","id":"216b9bc2-ed19-4c17-a0bd-122c600f78b4","idle_since":"2026-10-17T05:32:57Z","instance_id":"de99f394-e864-4766-8463-1524860c0331","label":"","origin":"shell","renderer":"verified","resolution":"1920x1080","scale":1.0,"scope":"operator","state":"running","view":null}]}
+[OK]   B: --wait never reported a false 'drain complete'
+[OK]   B: the bound fires because a live session exists (not zero) (1)
+[OK]   B: the bound names the live session it sees
+[OK]   B: exactly the one session is running — nothing else landed (1)
+
+==================================================================
+## [4] drain refuses new with the pinned string and spawns nothing
+==================================================================
+-- before: 1 scope-dirs=1
+new_rc=1 stderr: manager is draining for upgrade; new sessions are refused (1 still running). (draining)
+hint: retry after the upgrade completes
+-- after:  1 scope-dirs=1
+[OK]   new refused while draining (rc=1)
+[OK]   pinned refusal string
+[OK]   no spawn on refusal (1 scope-dirs=1)
+
+==================================================================
+## [5] end + post-state (leak check)
+==================================================================
+end_rc=0
+stopped manager (pid 561) — dropped 1 session(s):
+id: 216b9bc2-ed19-4c17-a0bd-122c600f78b4
+label: 
+state: running
+backend: headless
+resolution: 1920x1080
+scale: 1.0
+scope: operator
+origin: shell
+idle_since: 2026-10-17T05:32:57Z
+view: none
+renderer: verified
+instance_id: de99f394-e864-4766-8463-1524860c0331
+-- mutter/Hyprland processes:
+(none)
+-- session scopes:
+(subtree present, no scope dirs)
+-- daemon.log tail (12):
+startup sweep: 0 stale session scope(s) reaped
+started manager (mode=background, pid=36) socket=/tmp/hr/daiorama/default/manager.sock
+startup sweep: 0 stale session scope(s) reaped
+started manager (mode=background, pid=222) socket=/tmp/hr/daiorama/default/manager.sock
+startup sweep: 0 stale session scope(s) reaped
+started manager (mode=background, pid=395) socket=/tmp/hr/daiorama/default/manager.sock
+startup sweep: 0 stale session scope(s) reaped
+started manager (mode=background, pid=561) socket=/tmp/hr/daiorama/default/manager.sock
+
+FAILS=0
+SCRIPT_RC=0
+RUN-ALL-DONE

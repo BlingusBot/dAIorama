@@ -342,3 +342,50 @@ Round 5 at the final parity-follow-up tip (`4686218`; fresh `rust:slim`, contain
 `dai-r5-ci`): fmt clean, clippy `-D warnings` clean — 144 + 4 + 2 + 27 passed, 0 failed, 5
 ignored. The L1 binary for the whole round is this tree's `target/debug/daiorama` (sha256
 `67f85ef0…`).
+
+## Round 6 — concurrency: `drain` entering while a create is in flight (unit fix + live pass)
+
+The first round that exercises **two clients at once** instead of one client's call sequence.
+
+**Finding — drain/create TOCTOU in the service (fixed this branch).** `create_session` checked
+drain *before* taking the create lock, and `drain()` set the flag without that lock at all, so
+the two were never ordered. A create that had passed its check could still be inside
+`spawner.spawn()` when drain was entered: drain would report `{active:true, remaining:n}`
+without that session (its record is only inserted after the spawn returns), and `drain --wait`
+— which polls exactly that number for zero — could report `drain complete` while a compositor
+chain was still starting. The contract the manager states for itself is the opposite: "no
+spawn may start" once draining (04/10, and the comment on the check itself).
+
+Fix (small, in `src/runtime/service.rs`): `drain()` takes the create lock before setting the
+flag (so an in-flight spawn finishes and is counted, or the flag lands first), and
+`create_session` re-reads the drain state inside its critical section (so a create that queued
+behind another create is refused instead of spawning after drain was entered). Two unit tests
+pin both interleavings deterministically — a blocking stub spawner holds the critical section
+open (`drain_waits_for_an_in_flight_create_and_counts_it`), and the queued-create case is
+arranged by holding the lock from the test (`a_create_that_queued_past_drain_is_refused_before_it_spawns`).
+
+**Observation — the live surface serializes (not fixed; a decision, not a defect).** While
+probing the live manager, a second client's request never lands during a create: with a
+16k-geometry create in flight, a fresh connection's handshake waited **1200 ms** and a `list`
+on an already-handshaken connection waited **1386 ms**, both returning at the same millisecond
+the create did (`evidence/r6-concurrency-probe.txt`; the manager has 12 tokio workers plus the
+spawner forker thread, so this is not thread starvation). Consequence: on this box the
+drain/create race above cannot be *observed* end to end — which is exactly why it needed a
+unit-level fix rather than a live one: the invariant now holds by lock, not by that
+serialization. The serialization itself is worth a decision before P3 relays concurrent tool
+calls through the bridge; it is recorded here, not changed.
+
+**Live pass (`evidence/r6-drain-create-race.txt`, binary built from this branch).** Three
+iterations of a create in flight when `drain --json` is issued (drain at +350 ms, create
+~680 ms): drain answered `{active:true, remaining:1}` and exactly one session was running —
+`remaining` accounted for the session, and the note per iteration records that drain answered
+after the create finished (serialized). `drain --wait --timeout 3` in the same setup never
+printed `drain complete`; it exited 1 with `(1 still running)`, and exactly one session was
+live after it gave up. `new` while draining is refused with the pinned 04 string and the
+runtime-dir/scope snapshot is unchanged. `daemon end --force` leaves no compositors, no scope
+dirs, no session runtime dirs. `FAILS=0`, `SCRIPT_RC=0`.
+
+Round 6 gates (`evidence/r6-gates.log`, fresh `rust:slim`, container `dai-r6-gate3`): fmt
+clean, clippy `-D warnings` clean — **146 + 4 + 2 + 27** passed, 0 failed, 5 ignored (144 + the
+two new tests). Harness: `run-d.sh`; live probes: `probe-timeline.py`, `probe-hammer.py`;
+create-spec: `evidence/r6-drain-create-spec.json`.
