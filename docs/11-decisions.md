@@ -89,7 +89,7 @@ for the museum case).
 
 ### A8 — clip_video resource link · adopted · home: 05, 07
 Manager-served media endpoint `/media/<id>`: deleted at first fetch or TTL
-(60 s), whichever first — that is the redefined "ephemeral"; same exposure +
+(media.ttl, default 600 s), whichever first — that is the redefined "ephemeral"; same exposure +
 token rule as all surfaces; `audit.store_clips` persists the same artifact;
 no second capture.
 *Rejected:* inlining video (no MCP content type exists); unspecified lifetime
@@ -586,3 +586,19 @@ either way — socket buffers absorb them.
 *Rejected:* a full drain until EOF (an unauthorised client must not be able to hold a worker by
 sending forever); `so_linger` (bounds the close, not the response's delivery); keep-alive after
 the refusal (the earlier decision stands).
+
+## Media pass-through on the network listener — pinned shape
+
+`GET /media/<32 lowercase hex>` on the network listener relays the manager's media surface and
+streams the answer back unchunked. The instance token is the only gate (a media fetch is not an
+MCP request; the `/mcp` scope headers are not part of it), every other `/media` shape is a
+bridge-side `404` + `media_expired` that never becomes an upstream request, non-GET is `405` +
+`Allow: GET`, `Range` is ignored (full body), and an upstream answer without `Content-Length`
+(or chunked) is `502` + `internal` rather than a guessed framing. The request target is never
+logged.
+
+*Rationale:* A8 makes the id the capability and requires pass-through with no validation; the
+shape rules keep traversal and probing off the manager, and the length rule keeps the bridge
+from inventing framing the manager did not send.
+*Rejected:* decoding chunked upstream (the manager owns its body and lifetime); scope auth on
+media fetches (the id is the credential — scope headers would imply a gate A8 does not have).

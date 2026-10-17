@@ -52,6 +52,16 @@ const MAX_CONNECTIONS: usize = 64;
 /// client that waited on `Expect: 100-continue` never sent a body and needs no drain.
 const LINGER_BYTES: usize = 64 * 1024;
 const LINGER_WINDOW: Duration = Duration::from_millis(100);
+/// `/media/<id>` pass-through (05 A8): the artifact id is the capability and the instance
+/// token is this listener's transport gate; the bridge relays the GET to the manager's media
+/// surface without inspecting or validating the artifact itself.
+const MEDIA_PREFIX: &str = "/media/";
+/// The capability id: exactly 32 lowercase hex characters (128 bits). Any other shape is
+/// refused at the bridge without touching the manager (05 A8's parsing rule).
+const MEDIA_ID_LEN: usize = 32;
+/// Upstream media fetch: connect bound, per-chunk copy size.
+const MEDIA_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+const MEDIA_CHUNK: usize = 64 * 1024;
 /// JSON-RPC parse error (malformed JSON), same as the stdio bridge.
 const PARSE_ERROR: i32 = -32700;
 
@@ -286,6 +296,14 @@ async fn serve_connection(network: &Arc<Network>, stream: TcpStream) -> Result<(
             refuse(&mut input, &reply, Some(&request)).await?;
             return Ok(());
         }
+        // `/media/<id>` is the second target on this listener (05 A8): the manager's media
+        // surface relayed, GET only, token-gated, never logged (the id is the capability).
+        // It carries no body and closes after one fetch. The MCP target below stays
+        // `POST /mcp` only.
+        if request.target == "/media" || request.target.starts_with(MEDIA_PREFIX) {
+            serve_media(network, &request, input.get_mut()).await?;
+            return Ok(());
+        }
         if request.method != "POST" || request.target != "/mcp" {
             let status = if request.target == "/mcp" { 405 } else { 404 };
             let reply = envelope_reply(
@@ -460,6 +478,205 @@ async fn refuse(
         let _ = tokio::time::timeout(LINGER_WINDOW, drain_bounded(input, LINGER_BYTES)).await;
     }
     Ok(())
+}
+
+/// One media fetch (05 A8): `GET /media/<id>` → the manager's media surface, streamed back.
+/// The bridge validates no artifact — the 128-bit id is the credential; the instance token is
+/// this listener's transport gate. The request target is never logged.
+async fn serve_media(
+    network: &Network,
+    request: &RequestHead,
+    stream: &mut TcpStream,
+) -> std::io::Result<()> {
+    if request.method != "GET" {
+        return media_refusal(
+            stream,
+            405,
+            &ErrorEnvelope::bad_request(strings::MEDIA_GET_ONLY),
+            true,
+        )
+        .await;
+    }
+    let Some(id) = media_id(&request.target) else {
+        return media_refusal(stream, 404, &ErrorEnvelope::media_expired(), false).await;
+    };
+    let presented = request.header("daiorama-token").unwrap_or_default();
+    if !secret_matches(presented, &network.token) {
+        return media_refusal(
+            stream,
+            401,
+            &ErrorEnvelope::token_required(&network.display),
+            false,
+        )
+        .await;
+    }
+    match fetch_media(network, id).await {
+        Ok(upstream) => stream_media(stream, upstream).await,
+        Err(envelope) => media_refusal(stream, 502, &envelope, false).await,
+    }
+}
+
+/// The request path must be exactly `/media/<32 lowercase hex>`; anything else is the pinned
+/// `media_expired` 404 and never becomes an upstream request (05 A8's parsing rule).
+fn media_id(target: &str) -> Option<&str> {
+    let id = target.strip_prefix(MEDIA_PREFIX)?;
+    let hex = id
+        .bytes()
+        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+    if id.len() == MEDIA_ID_LEN && hex {
+        Some(id)
+    } else {
+        None
+    }
+}
+
+/// A media response body is the canonical envelope; statuses carry HTTP reason phrases so a
+/// plain HTTP client reads them as ordinary answers (the MCP target keeps the 200-envelope
+/// rule; a media fetch is not a JSON-RPC request).
+async fn media_refusal(
+    stream: &mut TcpStream,
+    status: u16,
+    envelope: &ErrorEnvelope,
+    allow_get: bool,
+) -> std::io::Result<()> {
+    let body = serde_json::to_vec(envelope).expect("media envelopes serialize");
+    let reason = match status {
+        401 => "Unauthorized",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        502 => "Bad Gateway",
+        _ => "Error",
+    };
+    let mut head = format!(
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
+        body.len()
+    );
+    if allow_get {
+        head.push_str("Allow: GET\r\n");
+    }
+    head.push_str("\r\n");
+    stream.write_all(head.as_bytes()).await?;
+    stream.write_all(&body).await?;
+    stream.flush().await
+}
+
+/// A manager media answer, already validated: a 200 or 404 with a declared length.
+struct MediaUpstream {
+    status: u16,
+    content_type: String,
+    length: usize,
+    reader: BufReader<tokio::net::UnixStream>,
+}
+
+/// Fetch `/media/<id>` from the manager's own surface (the local unix socket: tokenless, 07).
+/// The bridge refuses to guess a body's end: a missing `Content-Length` or any
+/// `Transfer-Encoding` is a malformed upstream answer, never something to reinterpret.
+async fn fetch_media(network: &Network, id: &str) -> Result<MediaUpstream, ErrorEnvelope> {
+    let path = crate::ipc::socket_path(&network.instance);
+    let display = path.display().to_string();
+    let connect = tokio::time::timeout(
+        MEDIA_CONNECT_TIMEOUT,
+        tokio::net::UnixStream::connect(&path),
+    )
+    .await
+    .map_err(|_| ErrorEnvelope::manager_unreachable(&display))?
+    .map_err(|_| ErrorEnvelope::manager_unreachable(&display))?;
+    let mut stream = connect;
+    let request =
+        format!("GET {MEDIA_PREFIX}{id} HTTP/1.1\r\nHost: daiorama\r\nConnection: close\r\n\r\n");
+    stream
+        .write_all(request.as_bytes())
+        .await
+        .map_err(|_| ErrorEnvelope::manager_unreachable(&display))?;
+    let mut reader = BufReader::new(stream);
+    let head = match read_head(&mut reader).await {
+        Ok(HeadRead::Lines(lines)) => lines,
+        _ => return Err(media_malformed()),
+    };
+    let mut lines = head.iter();
+    let Some(status_line) = lines.next() else {
+        return Err(media_malformed());
+    };
+    let mut parts = status_line.split_whitespace();
+    let status = match (
+        parts.next(),
+        parts.next().and_then(|code| code.parse::<u16>().ok()),
+    ) {
+        (Some(version), Some(status)) if version.starts_with("HTTP/1.") => status,
+        _ => return Err(media_malformed()),
+    };
+    if status != 200 && status != 404 {
+        return Err(media_malformed());
+    }
+    let mut content_type = None;
+    let mut length = None;
+    for line in lines {
+        let Some((name, value)) = line.split_once(':') else {
+            return Err(media_malformed());
+        };
+        let name = name.to_ascii_lowercase();
+        let value = value.trim();
+        match name.as_str() {
+            "transfer-encoding" => return Err(media_malformed()),
+            "content-length" => {
+                length = value.parse::<usize>().ok();
+                if length.is_none() {
+                    return Err(media_malformed());
+                }
+            }
+            "content-type" => content_type = Some(value.to_string()),
+            _ => {}
+        }
+    }
+    let Some(length) = length else {
+        return Err(media_malformed());
+    };
+    Ok(MediaUpstream {
+        status,
+        content_type: content_type.unwrap_or_else(|| "application/octet-stream".to_string()),
+        length,
+        reader,
+    })
+}
+
+fn media_malformed() -> ErrorEnvelope {
+    ErrorEnvelope::internal(strings::MEDIA_UPSTREAM_MALFORMED)
+}
+
+/// Copy the upstream answer to the client as it arrives: head first, then `length` bytes in
+/// chunks. No whole-body buffering — the manager's single-use lifetime relies on the fetch
+/// completing, not on the bridge hoarding it.
+async fn stream_media(stream: &mut TcpStream, upstream: MediaUpstream) -> std::io::Result<()> {
+    let reason = if upstream.status == 200 {
+        "OK"
+    } else {
+        "Not Found"
+    };
+    let head = format!(
+        "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        upstream.status, upstream.content_type, upstream.length
+    );
+    stream.write_all(head.as_bytes()).await?;
+    let MediaUpstream {
+        length, mut reader, ..
+    } = upstream;
+    let mut remaining = length;
+    let mut buffer = vec![0u8; MEDIA_CHUNK.min(remaining.max(1))];
+    while remaining > 0 {
+        let want = remaining.min(buffer.len());
+        let read =
+            match tokio::time::timeout(PROGRESS_TIMEOUT, reader.read(&mut buffer[..want])).await {
+                Ok(Ok(0)) => break,
+                Ok(Ok(read)) => read,
+                Ok(Err(err)) => return Err(err),
+                // Upstream stalled: the client keeps the head and a short body; there is no
+                // repair for a truncated artifact (the manager owns its lifetime).
+                Err(_) => break,
+            };
+        stream.write_all(&buffer[..read]).await?;
+        remaining -= read;
+    }
+    stream.flush().await
 }
 
 async fn authenticate(
@@ -658,6 +875,8 @@ mod tests {
             strings::HEAD_TOO_LARGE,
             strings::MALFORMED_HTTP_REQUEST,
             strings::DUPLICATE_CONTENT_LENGTH,
+            strings::MEDIA_GET_ONLY,
+            strings::MEDIA_UPSTREAM_MALFORMED,
         ] {
             assert!(
                 README.contains(pinned),

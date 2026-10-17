@@ -26,12 +26,12 @@ are read-when-on pointers)._
   (`p3/listen/evidence/probe-timeout.txt`), head-deadline drill green
   (`p3/listen/evidence/probe-head-deadline.txt`).
 - **Next:** W2 media/runtime calls (runtime side) and the capture tools on the
-  bridge surface.
+  bridge surface; the `/media/<id>` network pass-through landed (design note +
+  relay, `p3/media/`), waiting only on the capture tools that mint ids.
 - **Open (tracked, not omitted):** L3 llvmpipe lane (waits on the operator's
   workflow token scope) · L2 NVIDIA/CDI (operator's call) · rate-limit numbers
   → P4 · per-family GPU recipes · resize/scale path · renderer re-verification
-  of the L2 image · `/media/*` pass-through on the network listener (rides the
-  capture tools, W2) · a body trickled a byte at a time can still hold a
+  of the L2 image · a body trickled a byte at a time can still hold a
   connection slot (a total-body deadline was rejected for authentic slow
   uploads; measured as WATCH in `probe-head-deadline.txt`) (a refused
   request that bursts a large body now keeps its refusal — half-close plus a

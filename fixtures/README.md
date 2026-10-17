@@ -259,6 +259,25 @@ leading `+`, an empty value, or any non-digit (`invalid Content-Length: {raw}`).
 A wrong or missing `Daiorama-Token` answers `token_required` with the 04 client string (the
 gate does not distinguish missing from wrong); an unknown scope answers `scope_unknown`.
 
+### Media pass-through (`GET /media/<id>`)
+
+The network listener serves one media target beside `POST /mcp` (05 A8): `GET /media/<32
+lowercase hex>` is relayed to the manager's media surface and streamed back. The 128-bit id
+**is** the capability; this listener's gate is the **instance token only** (`Daiorama-Token`)
+— scope headers are not part of it, and a plain HTTP client with the token can fetch. The
+request target is never logged.
+
+- `405` + `Allow: GET` — any method other than GET (`media fetches are GET only`).
+- `404` + `media_expired` — a path that is not exactly `/media/<32 lowercase hex>` (uppercase,
+  wrong length, separators, traversal shapes; `/media` and `/media/` included), refused at the
+  bridge without contacting the manager.
+- `401` + `token_required` — missing or wrong instance token.
+- `502` + `manager_unreachable` — the manager is down.
+- `502` + `internal` (`media upstream answered without a Content-Length`) — a malformed
+  upstream answer (no length, or chunked); the bridge does not guess where the body ends.
+- A `404` from the manager passes through with its `media_expired` body. `Range` is not
+  supported: a ranged request receives the full `200` body.
+
 ## Spawner parameters
 
 What the fixtures pin is the **frame** contract: `create_session` carries the requested
