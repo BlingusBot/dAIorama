@@ -19,7 +19,11 @@ directory.
 
 `serve` refuses any non-loopback bind with `dashboard serve is loopback-only in v1; use SSH
 forwarding`: the server holds every manager token and the UI has no user authentication, so a
-non-loopback bind is a different product (Q2).
+non-loopback bind is a different product (Q2). Requests are additionally pinned to this
+listener: `Host` must be the bound authority (or `localhost` on the bound port), an `Origin`
+that is present must match it, and anything else answers `403` — a hostile page whose domain
+resolves to `127.0.0.1` is refused (DNS rebinding). The server holds at most 64 connections
+and closes a connection whose read makes no progress for 10 s.
 
 ## API
 
